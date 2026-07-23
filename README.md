@@ -1,6 +1,12 @@
 # Triplet
-Triplet allows users
+Triplet allows users to share tiktok links to the app and it will dissect the information before adding it into your itinerary.
 
+# Main Capabilities
+- Login function
+- Tiktok sharking
+- Group trip planning
+- Includes Budgeting 
+- Smart scheduling
 
 # Opportunities to differentiate
 
