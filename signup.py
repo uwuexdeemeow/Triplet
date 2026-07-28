@@ -1,7 +1,8 @@
-from contextlib import contextmanager
 from zxcvbn import zxcvbn
 from email_validator import validate_email, EmailNotValidError
+from argon2 import PasswordHasher
 import psycopg
+from database import connect_to_database
 
 def password_strength(password: str, user_inputs: list = None) -> dict:
     """
@@ -70,67 +71,53 @@ def validate_email_address(email: str) -> dict:
             "error": str(e)
         }
 
-@contextmanager
-def connect_to_database():
-    """
-    Connect to the PostgreSQL database.
-    """
-    db_config = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "Triplet", 
-    "user": "postgres",
-    "password": "postgres"
-    }
-    conn = None
-    try:
-        conn = psycopg.connect(**db_config)
-        yield conn
-    except psycopg.Error as e:
-        print(f"Error connecting to the database: {e}")
-        raise e
-    finally:
-        if conn:
-            conn.close()
+_ph = PasswordHasher()
 
 def insert_user(username: str, email: str, password: str):
     """
     Insert a new user into the database.
     """
+    hashed_password = _ph.hash(password)
     try:
         with connect_to_database() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("INSERT INTO users (name, email, password) VALUES (%s, %s, %s)", (username, email, password))
+                cursor.execute("INSERT INTO users (name, email, password) VALUES (%s, %s, %s)", (username, email, hashed_password))
                 conn.commit()
         return True
     except psycopg.Error as e:
         print(f"Error inserting user into the database: {e}")
         raise e
 
-while True:
-    username = input("Enter your username: ")
-    if username.isalnum():
-        break
-    else:
-        print("Username must be alphanumeric. Please try again.")
+def signup():
+    while True: 
+        username = input("Enter your username: ")
+        if username.isalnum():
+            break
+        else:
+            print("Username must be alphanumeric. Please try again.")
 
-while True:
-    email = input("Enter your email address: ")
-    email_result = validate_email_address(email)
-    if email_result["is_valid"]:
-        break
-    else:
-        print(f"Invalid email address: {email_result['error']}")
+    while True: 
+        email = input("Enter your email address: ")
+        email_result = validate_email_address(email)
+        if email_result["is_valid"]:
+            email = email_result["email"]
+            break
+        else:
+            print(f"Invalid email address: {email_result['error']}")
 
-while True:
-    password = input("Enter your password: ")
-    email_prefix = email.split('@')[0]  # Extract the part before '@' for additional checks
-    user_inputs = [username.lower(), email_prefix.lower()]
-    result = password_strength(password.lower(), user_inputs)
-    if result["is_valid"]:
-        break
-    else:
-        print(f"Password is not secure: {result['error']}")
-        print(f"Feedback: {result['feedback']['warning']}")
+    while True:
+        password = input("Enter your password: ")
+        email_prefix = email.split('@')[0]  # Extract the part before '@' for additional checks
+        user_inputs = [username.lower(), email_prefix.lower()]
+        result = password_strength(password.lower(), user_inputs)
+        if result["is_valid"]:
+            break
+        else:
+            print(f"Password is not secure: {result['error']}")
+            print(f"Feedback: {result['feedback']['warning']}")
+    
+    return username, email, password
 
-insert_user(username, email, password)
+if __name__ == "__main__":
+    username, email, password = signup()
+    insert_user(username, email, password)
