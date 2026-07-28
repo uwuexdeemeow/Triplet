@@ -1,5 +1,9 @@
 from contextlib import contextmanager
 import psycopg
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 @contextmanager
 def connect_to_database():
@@ -7,11 +11,11 @@ def connect_to_database():
     Connect to the PostgreSQL database.
     """
     db_config = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "Triplet", 
-    "user": "postgres",
-    "password": "postgres"
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
+    "dbname": os.getenv("DB_NAME"), 
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD")
     }
     conn = None
     try:

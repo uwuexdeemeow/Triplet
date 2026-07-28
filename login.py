@@ -18,7 +18,6 @@ def verify_password(email: str, password: str):
     except VerifyMismatchError:
         return False
     except Exception as e:
-        print(f"Error: {e}")
         return False
 
 def login():

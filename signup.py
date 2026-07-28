@@ -84,6 +84,11 @@ def insert_user(username: str, email: str, password: str):
                 cursor.execute("INSERT INTO users (name, email, password) VALUES (%s, %s, %s)", (username, email, hashed_password))
                 conn.commit()
         return True
+    except psycopg.errors.UniqueViolation:
+        # This catches the exact error thrown by PostgreSQL's UNIQUE constraint
+        conn.rollback()
+        print("Registration failed: That email address is already taken!")
+        return False
     except psycopg.Error as e:
         print(f"Error inserting user into the database: {e}")
         raise e
