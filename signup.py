@@ -1,5 +1,7 @@
+from contextlib import contextmanager
 from zxcvbn import zxcvbn
 from email_validator import validate_email, EmailNotValidError
+import psycopg
 
 def password_strength(password: str, user_inputs: list = None) -> dict:
     """
@@ -68,6 +70,43 @@ def validate_email_address(email: str) -> dict:
             "error": str(e)
         }
 
+@contextmanager
+def connect_to_database():
+    """
+    Connect to the PostgreSQL database.
+    """
+    db_config = {
+    "host": "localhost",
+    "port": 5432,
+    "dbname": "Triplet", 
+    "user": "postgres",
+    "password": "postgres"
+    }
+    conn = None
+    try:
+        conn = psycopg.connect(**db_config)
+        yield conn
+    except psycopg.Error as e:
+        print(f"Error connecting to the database: {e}")
+        raise e
+    finally:
+        if conn:
+            conn.close()
+
+def insert_user(username: str, email: str, password: str):
+    """
+    Insert a new user into the database.
+    """
+    try:
+        with connect_to_database() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("INSERT INTO users (name, email, password) VALUES (%s, %s, %s)", (username, email, password))
+                conn.commit()
+        return True
+    except psycopg.Error as e:
+        print(f"Error inserting user into the database: {e}")
+        raise e
+
 while True:
     username = input("Enter your username: ")
     if username.isalnum():
@@ -93,4 +132,5 @@ while True:
     else:
         print(f"Password is not secure: {result['error']}")
         print(f"Feedback: {result['feedback']['warning']}")
-    
+
+insert_user(username, email, password)
