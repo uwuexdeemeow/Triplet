@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from argon2 import PasswordHasher
 from jose import jwt, JWTError
 
-from app.config import settings
+from config import settings
 
 ph = PasswordHasher()
 
@@ -38,7 +38,7 @@ def decode_access_token(token: str):
     try:
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY
+            settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
         return payload
