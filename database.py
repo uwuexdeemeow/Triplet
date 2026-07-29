@@ -1,29 +1,28 @@
 from contextlib import contextmanager
 import psycopg
-from dotenv import load_dotenv
-import os
+from config import settings
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-load_dotenv()
+engine = create_engine(
+    settings.DB_SETTINGS,
+    echo=True
+)
 
-@contextmanager
-def connect_to_database():
-    """
-    Connect to the PostgreSQL database.
-    """
-    db_config = {
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT"),
-    "dbname": os.getenv("DB_NAME"), 
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD")
-    }
-    conn = None
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False
+)
+
+class Base(DeclarativeBase):
+    pass
+
+def connect_db():
+    db = SessionLocal()
+
     try:
-        conn = psycopg.connect(**db_config)
-        yield conn
-    except psycopg.Error as e:
-        print(f"Error connecting to the database: {e}")
-        raise e
+        yield db
+
     finally:
-        if conn:
-            conn.close()
+        db.close()    

@@ -1,5 +1,13 @@
-zxcvbn
-email-validator
-argon2-cffi
+fastapi
+uvicorn[standard]
+sqlalchemy
 psycopg[binary]
+alembic
+pydantic
+pydantic-settings
 python-dotenv
+email-validator
+python-jose[cryptography]
+argon2-cffi
+python-multipart
+zxcvbn
