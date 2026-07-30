@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import connect_db
 from models import User
-from schemas import UserCreate, UserLogin, UserResponse
+from schemas import UserCreate, UserLogin, UserResponse, Token
 from security import hash_password, verify_password, create_access_token
 from validators import password_strength
 
@@ -20,7 +20,7 @@ def signup(
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            detail="Invalid email or password"
         )
     else:
         email_prefix = user.email.split('@')[0]  # Extract the part before '@' for additional checks
@@ -29,7 +29,7 @@ def signup(
         if not result["is_valid"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Password is not secure: {result['error']}"
+                detail="Invalid email or password"
             )
 
         hashed_password = hash_password(user.password)
@@ -44,3 +44,27 @@ def signup(
         db.refresh(new_user)
 
         return new_user
+
+@router.post("/login", response_model=Token)
+def login(
+    user: UserLogin,
+    db: Session = Depends(connect_db)
+):
+    user_detail = db.query(User).filter(User.email == user.email).first()
+    print(user_detail)
+    if not user_detail:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Incorrect Email or Password"
+        )
+    if not verify_password(user_detail.password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Incorrect Email or Password"
+        )
+    token = create_access_token({"sub": str(user_detail.id)})
+    return {
+        "access_token": token,
+        "token_type": "access"
+    }
+
