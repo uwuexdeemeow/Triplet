@@ -19,31 +19,35 @@ def signup(
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email or password"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid credentials"
         )
-    else:
-        email_prefix = user.email.split('@')[0]  # Extract the part before '@' for additional checks
-        user_inputs = [user.username.lower(), email_prefix.lower()]
-        result = password_strength(user.password.lower(), user_inputs)
-        if not result["is_valid"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid email or password"
-            )
-
-        hashed_password = hash_password(user.password)
-        new_user = User(
-            name=user.username,
-            email=user.email,
-            password=hashed_password
+    if not user.name.isalnum():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid credentials"
+        )
+    email_prefix = user.email.split('@')[0]  # Extract the part before '@' for additional checks
+    user_inputs = [user.username.lower(), email_prefix.lower()]
+    result = password_strength(user.password.lower(), user_inputs)
+    if not result["is_valid"]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid credentials"
         )
 
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+    hashed_password = hash_password(user.password)
+    new_user = User(
+        name=user.username,
+        email=user.email,
+        password=hashed_password
+    )
 
-        return new_user
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user
 
 @router.post("/login", response_model=Token)
 def login(
@@ -51,16 +55,15 @@ def login(
     db: Session = Depends(connect_db)
 ):
     user_detail = db.query(User).filter(User.email == user.email).first()
-    print(user_detail)
     if not user_detail:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Incorrect Email or Password"
+            detail=f"Incorrect credentials"
         )
     if not verify_password(user_detail.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Incorrect Email or Password"
+            detail=f"Incorrect credentials"
         )
     token = create_access_token({"sub": str(user_detail.id)})
     return {
