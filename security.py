@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta, timezone
-
+from fastapi import HTTPException, status
 from argon2 import PasswordHasher
-from jose import jwt, JWTError
-
+from jose import jwt, JWTError, ExpiredSignatureError
 from config import settings
 
 ph = PasswordHasher()
@@ -43,5 +42,14 @@ def decode_access_token(token: str):
         )
         return payload
 
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+
     except JWTError:
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
