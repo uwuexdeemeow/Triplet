@@ -11,7 +11,7 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
-@router.post("/signup", response_model=UserResponse)
+@router.post("/signup", response_model=UserResponse, status_code=201)
 def signup(
     user: UserCreate,
     db: Session = Depends(connect_db)
