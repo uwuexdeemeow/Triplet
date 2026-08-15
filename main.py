@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from routers import auth, users, trips, activities, guest
+from routers import auth, users, trips, guest
 
 app = FastAPI(
     title="Triplet API",
@@ -12,7 +12,6 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(trips.router)
-app.include_router(activities.router)
 app.include_router(guest.router)
 
 # Reusable global interceptor for input validation errors

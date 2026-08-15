@@ -24,20 +24,32 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(connect_db)
 ):
-    if user_update.email:
-        current_user.email = user_update.email
-    if user_update.name:
-        current_user.name = user_update.name
-    if user_update.password:
-        email_prefix = user_update.email.split('@')[0]  # Extract the part before '@' for additional checks
-        user_inputs = [user_update.name.lower(), email_prefix.lower()]
-        result = password_strength(user_update.password.lower(), user_inputs)
+    update_data = user_update.model_dump(exclude_unset=True)
+    if "email" in update_data:
+        current_user.email = update_data["email"]
+
+    if "name" in update_data:
+        current_user.name = update_data["name"]
+
+    if "password" in update_data:
+        email_prefix = current_user.email.split("@")[0]
+
+        user_inputs = [
+            current_user.name.lower(),
+            email_prefix.lower()
+        ]
+
+        result = password_strength(
+            update_data["password"].lower(),
+            user_inputs
+        )
+
         if not result["is_valid"]:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid credentials"
             )
-        current_user.password = hash_password(user_update.password)
+        current_user.password = hash_password(update_data["password"])
 
     db.commit()
     db.refresh(current_user)

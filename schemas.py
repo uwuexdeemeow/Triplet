@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from datetime import date, datetime
 
 class UserCreate(BaseModel):
     name: str
@@ -38,6 +39,13 @@ class TripCreate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
 
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.end_date < self.start_date:
+            raise ValueError("End date cannot be before start date")
+
+        return self
+
 class TripResponse(BaseModel):
     id: int
     title: str
@@ -49,5 +57,10 @@ class TripResponse(BaseModel):
     model_config={
         "from_attributes": True
     }
-    
-    
+
+class TripUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    destination: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None

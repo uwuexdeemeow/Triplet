@@ -58,10 +58,10 @@ def get_current_guest(
         )
 
     if payload.get("type") != "guest":
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid guest token"
-    )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid guest token"
+        )
 
     guest_id = int(payload.get("sub"))
 

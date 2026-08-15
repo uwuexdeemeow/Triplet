@@ -19,7 +19,7 @@ def signup(
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Invalid credentials"
         )
     if not user.name.isalnum():
@@ -57,12 +57,12 @@ def login(
     user_detail = db.query(User).filter(User.email == user.email).first()
     if not user_detail:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Incorrect credentials"
         )
     if not verify_password(user_detail.password, user.password):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Incorrect credentials"
         )
     token = create_access_token({"sub": str(user_detail.id)})
