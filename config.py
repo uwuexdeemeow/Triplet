@@ -1,6 +1,4 @@
-from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import os
 
 class Settings(BaseSettings):
     DB_SETTINGS: str
