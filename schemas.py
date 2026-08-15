@@ -26,3 +26,28 @@ class UserUpdate(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class GuestAccessCreate(BaseModel):
+    access_code: str
+    pin: str
+
+class TripCreate(BaseModel):
+    title: str
+    description: str | None = None
+    destination: str
+    start_date: date | None = None
+    end_date: date | None = None
+
+class TripResponse(BaseModel):
+    id: int
+    title: str
+    description: str | None = None
+    destination: str
+    start_date: date | None = None
+    end_date: date | None = None
+
+    model_config={
+        "from_attributes": True
+    }
+    
+    
