@@ -193,3 +193,36 @@ class TripGuestAccess(Base):
         DateTime(timezone=True),
         nullable=True
     )
+
+class TripInvitation(Base):
+    __tablename__ = "trip_invitations"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="pending"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "trip_id", name="uq_invitation_user_trip"),
+    )
