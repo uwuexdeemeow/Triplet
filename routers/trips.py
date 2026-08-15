@@ -145,3 +145,43 @@ def update_trips(
     db.refresh(trip)
 
     return trip
+
+@router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_trip(
+    trip_id:int,
+    db: Session = Depends(connect_db),
+    current_user: User = Depends(get_current_user)
+):
+    membership = (
+        db.query(TripMembership)
+        .filter(
+            Trip.id == trip_id,
+            TripMembership.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found"
+        )
+
+    if membership.role != "owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permission"
+        )
+
+    trip = db.query(Trip).filter(
+        Trip.id == trip_id
+    ).first()
+
+    if trip is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found"
+        )
+
+    db.delete(trip)
+    db.commit()

@@ -28,7 +28,7 @@ def signup(
             detail="Invalid credentials"
         )
     email_prefix = user.email.split('@')[0]  # Extract the part before '@' for additional checks
-    user_inputs = [user.username.lower(), email_prefix.lower()]
+    user_inputs = [user.name.lower(), email_prefix.lower()]
     result = password_strength(user.password.lower(), user_inputs)
     if not result["is_valid"]:
         raise HTTPException(
@@ -38,7 +38,7 @@ def signup(
 
     hashed_password = hash_password(user.password)
     new_user = User(
-        name=user.username,
+        name=user.name,
         email=user.email,
         password=hashed_password
     )
