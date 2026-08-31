@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import connect_db
-from models import User, Trip, TripMembership
-from schemas import UserCreate, UserLogin, UserResponse, TripCreate, TripResponse, TripUpdate
+from models import TripInvitation, User, Trip, TripMembership
+from schemas import TripInvitationCreate, UserCreate, UserLogin, UserResponse, TripCreate, TripResponse, TripUpdate
 from security import hash_password, verify_password, create_access_token
 from validators import password_strength
 from dependencies import get_current_user
@@ -185,3 +185,76 @@ def delete_trip(
 
     db.delete(trip)
     db.commit()
+
+@router.post("/{trip_id}/invitations", status_code=status.HTTP_201_CREATED)
+def create_invitation(
+    trip_id:int,
+    invitation_create: TripInvitationCreate,
+    db: Session = Depends(connect_db),
+    current_user: User = Depends(get_current_user),
+):
+
+    membership = db.query(TripMembership).filter(
+        TripMembership.trip_id == trip_id,
+        TripMembership.user_id == current_user.id
+    ).first()
+
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found"
+        )
+    elif membership.role!= "owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to invite users"
+        )
+
+    invited_user = db.query(User).filter(
+        User.id == invitation_create.user_id
+    ).first()
+
+    if invited_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    elif invited_user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot invite yourself"
+        )
+
+    existing_membership = db.query(TripMembership).filter(
+        TripMembership.trip_id == trip_id,
+        TripMembership.user_id == invited_user.id
+    ).first()
+
+    if existing_membership:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User is already a member of this trip"
+        )
+
+    existing_invitation = db.query(TripInvitation).filter(
+        TripInvitation.trip_id == trip_id,
+        TripInvitation.user_id == invited_user.id
+    ).first()
+
+    if existing_invitation:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail = "Invitation already exists"
+        )
+
+    invitation = TripInvitation(
+        trip_id=trip_id,
+        user_id=invited_user.id,
+        status="pending"
+    )
+
+    db.add(invitation)
+    db.commit()
+    db.refresh(invitation)
+
+    return invitation

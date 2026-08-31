@@ -64,3 +64,6 @@ class TripUpdate(BaseModel):
     destination: str | None = None
     start_date: date | None = None
     end_date: date | None = None
+
+class TripInvitationCreate(BaseModel):
+    user_id: int
