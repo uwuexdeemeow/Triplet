@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from config import settings
+import osm_lookup
 from models import ApiUsage, ExtractedPlace
 
 logger = logging.getLogger("triplet.places")
@@ -168,9 +169,18 @@ def names_match(a: str, b: str | None) -> bool:
     a, b = a.casefold().strip(), b.casefold().strip()
     return a in b or b in a or SequenceMatcher(None, a, b).ratio() >= 0.6
 
+def active_provider() -> str | None:
+    """Which lookup service to use: "google", "osm", or None when lookups are off."""
+    provider = settings.PLACE_LOOKUP_PROVIDER
+    if provider == "auto":
+        return "google" if settings.GOOGLE_PLACES_API_KEY else "osm"
+    if provider == "google" and not settings.GOOGLE_PLACES_API_KEY:
+        return None
+    return None if provider == "none" else provider
+
 def enrich_place(db: Session, place: ExtractedPlace, fallback_city: str | None = None):
     """
-    Fill in a place's address, location, opening hours, website and phone from Google.
+    Fill in a place's address, location, opening hours, website and phone.
 
     Never touches a place the user has edited. Sets details_status to found, not_found,
     limit_reached, failed or skipped. The caller is responsible for committing.
@@ -183,12 +193,49 @@ def enrich_place(db: Session, place: ExtractedPlace, fallback_city: str | None =
     if place.user_edited:
         return
 
-    if not settings.GOOGLE_PLACES_API_KEY:
+    provider = active_provider()
+    if provider is None:
         place.details_status = "skipped"
         return
 
     query = ", ".join(part for part in [place.name, place.address, place.city or fallback_city, place.country] if part)
 
+    if provider == "osm":
+        _enrich_from_osm(place, query)
+    else:
+        _enrich_from_google(db, place, query)
+
+    if place.details_status == "found":
+        place.details_fetched_at = datetime.now(timezone.utc)
+
+def _enrich_from_osm(place: ExtractedPlace, query: str):
+    try:
+        results = osm_lookup.nominatim_search(query)
+    except osm_lookup.OsmError:
+        logger.exception("OpenStreetMap search failed for %s", place.id)
+        place.details_status = "failed"
+        return
+
+    # Only trust a result whose name matches, otherwise we might pin a street or a different shop
+    match = next(
+        (result for result in results if any(names_match(place.name, name) for name in osm_lookup.all_names(result))),
+        None
+    )
+    if match is None:
+        place.details_status = "not_found"
+        return
+
+    tags = match.get("extratags") or {}
+    place.address = (match.get("display_name") or place.address or "")[:500] or None
+    place.latitude = float(match["lat"])
+    place.longitude = float(match["lon"])
+    place.opening_hours = osm_lookup.parse_opening_hours(tags.get("opening_hours"))
+    place.website = (tags.get("website") or tags.get("contact:website") or "")[:2048] or None
+    place.phone = (tags.get("phone") or tags.get("contact:phone") or "")[:50] or None
+    place.needs_review = False
+    place.details_status = "found"
+
+def _enrich_from_google(db: Session, place: ExtractedPlace, query: str):
     try:
         place_ids = search_place_ids(query)
     except PlacesQuotaError:
@@ -227,4 +274,25 @@ def enrich_place(db: Session, place: ExtractedPlace, fallback_city: str | None =
             setattr(place, field, details[field])
 
     place.details_status = "found"
-    place.details_fetched_at = datetime.now(timezone.utc)
+
+def search_places_osm(query: str) -> list[dict]:
+    """
+    Search OpenStreetMap for the pin picker. Only call this when the user submits a search,
+    never on each keystroke, as Nominatim's usage policy forbids autocomplete.
+
+    Args:
+        query (str): What the user typed.
+
+    Returns:
+        list[dict]: Up to 5 results in the same shape as search_places.
+    """
+    return [
+        {
+            "google_place_id": None,
+            "name": result.get("name") or (result.get("display_name") or "").split(",")[0],
+            "address": result.get("display_name"),
+            "latitude": float(result["lat"]),
+            "longitude": float(result["lon"]),
+        }
+        for result in osm_lookup.nominatim_search(query)
+    ]

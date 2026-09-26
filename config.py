@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -24,7 +25,14 @@ class Settings(BaseSettings):
     VIDEO_MAX_DURATION_SECONDS: int = 600
     VIDEO_MAX_FILESIZE_MB: int = 100
 
-    # Leave GOOGLE_PLACES_API_KEY empty to skip place lookups (users fill in details themselves)
+    # Where place addresses, pins and opening hours come from:
+    # "auto" uses Google when GOOGLE_PLACES_API_KEY is set, otherwise OpenStreetMap.
+    # "none" turns lookups off, so users fill in details themselves.
+    PLACE_LOOKUP_PROVIDER: Literal["auto", "google", "osm", "none"] = "auto"
+
+    # OpenStreetMap's Nominatim requires every app to identify itself
+    OSM_USER_AGENT: str = "Triplet/1.0 (+https://github.com/uwuexdeemeow/Triplet)"
+
     GOOGLE_PLACES_API_KEY: str | None = None
     # Place Details with opening hours is free for 1,000 calls a month, so 30 a day stays under it
     PLACES_DETAILS_DAILY_LIMIT: int = 30

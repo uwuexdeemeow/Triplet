@@ -6,7 +6,8 @@ from database import connect_db
 from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity
 from schemas import TripPlaceResponse, PlaceUpdate, PlaceSearchResult
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES
-from places_lookup import search_places, reserve_call, PlacesError, PlacesQuotaError, SEARCH_API
+from places_lookup import active_provider, search_places, search_places_osm, reserve_call, PlacesError, PlacesQuotaError, SEARCH_API
+from osm_lookup import OsmError
 
 router = APIRouter(
     prefix="/trips/{trip_id}/places",
@@ -72,13 +73,15 @@ def search(
     db: Session = Depends(connect_db),
     membership: TripMembership = Depends(get_trip_membership)
 ):
-    if not settings.GOOGLE_PLACES_API_KEY:
+    provider = active_provider()
+    if provider is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Place search is not configured, drop a pin on the map instead"
         )
 
-    if not reserve_call(db, SEARCH_API, settings.PLACES_SEARCH_DAILY_LIMIT):
+    # Only Google costs money, so only Google searches count towards a daily cap
+    if provider == "google" and not reserve_call(db, SEARCH_API, settings.PLACES_SEARCH_DAILY_LIMIT):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Place search limit reached for today, drop a pin on the map instead"
@@ -89,13 +92,13 @@ def search(
     query = q if not destination or destination.casefold() in q.casefold() else f"{q}, {destination}"
 
     try:
-        return search_places(query)
+        return search_places(query) if provider == "google" else search_places_osm(query)
     except PlacesQuotaError:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Place search limit reached for today, drop a pin on the map instead"
         )
-    except PlacesError:
+    except (PlacesError, OsmError):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Place search is unavailable right now"

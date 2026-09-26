@@ -285,7 +285,8 @@ class PlaceUpdate(BaseModel):
         return self
 
 class PlaceSearchResult(BaseModel):
-    google_place_id: str
+    # Only set for Google results
+    google_place_id: str | None = None
     name: str
     address: str | None = None
     latitude: float | None = None

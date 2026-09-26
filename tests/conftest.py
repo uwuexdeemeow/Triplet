@@ -18,9 +18,10 @@ PASSWORD = "Tr0ub4dor&3-horse-battery"
 
 @pytest.fixture(autouse=True)
 def no_external_calls(monkeypatch):
-    # Tests must never reach TikTok or Gemini, even if a real key is in .env
+    # Tests must never reach TikTok, Gemini, Google or OpenStreetMap, even if a real key is in .env
     monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
     monkeypatch.setattr(settings, "GOOGLE_PLACES_API_KEY", None)
+    monkeypatch.setattr(settings, "PLACE_LOOKUP_PROVIDER", "none")
     monkeypatch.setattr("routers.links.fetch_metadata", lambda url, platform: None)
 
 @pytest.fixture

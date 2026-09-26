@@ -37,6 +37,7 @@ def details(name="Menya Itto", **overrides):
 @pytest.fixture
 def google_enabled(monkeypatch):
     monkeypatch.setattr(settings, "GOOGLE_PLACES_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "PLACE_LOOKUP_PROVIDER", "google")
 
 # ---------- Google API parsing ----------
 
@@ -113,7 +114,7 @@ def test_reserve_call_resets_the_next_day(db):
 def new_place(**fields):
     return ExtractedPlace(name="Menya Itto", city="Tokyo", details_status="pending", needs_review=False, user_edited=False, **fields)
 
-def test_enrich_skipped_without_api_key(db):
+def test_enrich_skipped_when_lookups_are_off(db):
     place = new_place()
 
     enrich_place(db, place)
@@ -348,7 +349,7 @@ SEARCH_RESULTS = [{"google_place_id": "ChIJabc", "name": "Menya Itto", "address"
 def search(client, alice, trip, q="Menya Itto"):
     return client.get(f"/trips/{trip['id']}/places/search", headers=alice["headers"], params={"q": q})
 
-def test_search_needs_an_api_key(client, alice, trip):
+def test_search_needs_lookups_turned_on(client, alice, trip):
     assert search(client, alice, trip).status_code == 503
 
 def test_search_adds_the_trip_destination(client, alice, trip, google_enabled):
