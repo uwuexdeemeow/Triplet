@@ -7,6 +7,7 @@ export default function TripLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}>
       <Stack.Screen name="(sections)" />
       <Stack.Screen name="add-activity" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="add-place" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

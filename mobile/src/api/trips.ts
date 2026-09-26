@@ -6,6 +6,8 @@ export type Trip = Schemas['TripResponse'];
 export type Member = Schemas['MemberResponse'];
 export type Itinerary = Schemas['ItineraryResponse'];
 export type ItineraryActivity = Schemas['ItineraryActivity'];
+export type SavedLink = Schemas['SavedLinkResponse'];
+export type TripPlace = Schemas['TripPlaceResponse'];
 
 // One place for query keys, so screens invalidate the same caches they read
 export const tripKeys = {
@@ -13,7 +15,16 @@ export const tripKeys = {
   trip: (tripId: number) => ['trips', tripId] as const,
   members: (tripId: number) => ['trips', tripId, 'members'] as const,
   itinerary: (tripId: number) => ['trips', tripId, 'itinerary'] as const,
+  links: (tripId: number) => ['trips', tripId, 'links'] as const,
+  places: (tripId: number) => ['trips', tripId, 'places'] as const,
 };
+
+// Extraction runs in the background on the server, so check again every few seconds until it's done
+const POLL_MS = 3000;
+
+export function isProcessing(link: SavedLink): boolean {
+  return link.status === 'pending' || link.status === 'processing';
+}
 
 export function useTrip(tripId: number) {
   return useQuery({
@@ -33,5 +44,24 @@ export function useItinerary(tripId: number) {
   return useQuery({
     queryKey: tripKeys.itinerary(tripId),
     queryFn: () => api<Itinerary>(`/trips/${tripId}/itinerary`),
+  });
+}
+
+export function useLinks(tripId: number) {
+  return useQuery({
+    queryKey: tripKeys.links(tripId),
+    queryFn: () => api<SavedLink[]>(`/trips/${tripId}/links`, { query: { limit: 100 } }),
+    refetchInterval: (query) => (query.state.data?.some(isProcessing) ? POLL_MS : false),
+  });
+}
+
+// Every place found in the trip's links, with which activities it's planned as
+export function usePlaces(tripId: number, { polling = false } = {}) {
+  return useQuery({
+    queryKey: tripKeys.places(tripId),
+    queryFn: () => api<TripPlace[]>(`/trips/${tripId}/places`),
+    // Addresses and opening hours fill in after the places appear, so keep checking meanwhile
+    refetchInterval: (query) =>
+      polling || query.state.data?.some((place) => place.details_status === 'pending') ? POLL_MS : false,
   });
 }

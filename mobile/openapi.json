@@ -3614,6 +3614,17 @@
       "type": "string",
       "title": "Details Status"
      },
+     "details_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Details Source"
+     },
      "needs_review": {
       "type": "boolean",
       "title": "Needs Review"
@@ -4881,6 +4892,17 @@
      "details_status": {
       "type": "string",
       "title": "Details Status"
+     },
+     "details_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Details Source"
      },
      "needs_review": {
       "type": "boolean",

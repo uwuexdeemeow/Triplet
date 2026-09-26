@@ -851,6 +851,8 @@ export interface components {
             phone?: string | null;
             /** Details Status */
             details_status: string;
+            /** Details Source */
+            details_source?: string | null;
             /** Needs Review */
             needs_review: boolean;
             /** User Edited */
@@ -1224,6 +1226,8 @@ export interface components {
             phone?: string | null;
             /** Details Status */
             details_status: string;
+            /** Details Source */
+            details_source?: string | null;
             /** Needs Review */
             needs_review: boolean;
             /** User Edited */

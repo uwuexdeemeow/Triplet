@@ -1,5 +1,452 @@
-import { ComingSoon } from '@/components/coming-soon';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { api, ApiError } from '@/api/client';
+import {
+  isProcessing,
+  tripKeys,
+  useItinerary,
+  useLinks,
+  usePlaces,
+  type SavedLink,
+  type TripPlace,
+} from '@/api/trips';
+import { Button } from '@/components/button';
+import { FormMessage } from '@/components/screen';
+import { Body, Muted, Title } from '@/components/text';
+import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { formatShortDate, todayString } from '@/utils/dates';
+import { hoursOn, linkTitle, needsCheck, platformName } from '@/utils/places';
 
 export default function SavedScreen() {
-  return <ComingSoon icon="bookmark" title="Saved" description="Paste or share TikToks here and see the places found in them. Coming in a later step." />;
+  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  const id = Number(tripId);
+  const queryClient = useQueryClient();
+
+  const links = useLinks(id);
+  const anyProcessing = links.data?.some(isProcessing) ?? false;
+  const places = usePlaces(id, { polling: anyProcessing });
+  const itinerary = useItinerary(id);
+
+  // Which day each planned activity is on, for "In the plan · Fri 2 Oct"
+  const activityDays = new Map<number, string>();
+  for (const day of itinerary.data?.days ?? []) {
+    for (const activity of day.activities) activityDays.set(activity.id, day.date);
+  }
+
+  const refresh = () => {
+    links.refetch();
+    places.refetch();
+    itinerary.refetch();
+  };
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={<RefreshControl refreshing={links.isRefetching} onRefresh={refresh} tintColor={colors.teal} />}>
+      <SaveLinkForm tripId={id} onSaved={() => queryClient.invalidateQueries({ queryKey: tripKeys.links(id) })} />
+
+      {links.isPending ? (
+        <ActivityIndicator color={colors.teal} style={styles.loading} />
+      ) : links.isError ? (
+        <View style={styles.state}>
+          <FormMessage message={links.error.message} />
+          <Button label="Try again" variant="secondary" onPress={refresh} />
+        </View>
+      ) : links.data.length === 0 ? (
+        <View style={styles.empty}>
+          <Title>Nothing saved yet</Title>
+          <Body style={styles.muted}>
+            Paste a TikTok link above. We’ll watch the video and pull out the places it mentions.
+          </Body>
+        </View>
+      ) : (
+        links.data.map((link) => (
+          <LinkCard
+            key={link.id}
+            tripId={id}
+            link={link}
+            // Prefer the places list, which knows what's planned, then fall back to the link's own copy
+            places={places.data?.filter((place) => place.link_id === link.id) ?? (link.places as TripPlace[])}
+            activityDays={activityDays}
+          />
+        ))
+      )}
+    </ScrollView>
+  );
 }
+
+function SaveLinkForm({ tripId, onSaved }: { tripId: number; onSaved: () => void }) {
+  const [url, setUrl] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const saveLink = useMutation({
+    mutationFn: (value: string) => api(`/trips/${tripId}/links`, { method: 'POST', body: { url: value } }),
+    onSuccess: () => {
+      setUrl('');
+      onSaved();
+    },
+    onError: (err) =>
+      setError(
+        err instanceof ApiError && err.status === 403
+          ? 'Viewers can’t save links. Ask the trip owner to make you a member.'
+          : err instanceof ApiError && err.status === 422
+            ? 'That doesn’t look like a link. Copy it from TikTok’s Share button.'
+            : err.message,
+      ),
+  });
+
+  const submit = () => {
+    const value = url.trim();
+    setError(null);
+    if (!/^https?:\/\/\S+$/i.test(value)) {
+      setError('Paste a full link, starting with https://');
+      return;
+    }
+    saveLink.mutate(value);
+  };
+
+  return (
+    <View style={styles.form}>
+      <View style={styles.formRow}>
+        <TextInput
+          accessibilityLabel="Paste a TikTok, YouTube or Instagram link"
+          placeholder="Paste a TikTok link"
+          placeholderTextColor={colors.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          returnKeyType="done"
+          value={url}
+          onChangeText={setUrl}
+          onSubmitEditing={submit}
+          style={[styles.input, error ? styles.inputError : null]}
+        />
+        <Button label="Save" loading={saveLink.isPending} onPress={submit} style={styles.saveButton} />
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+function LinkCard({
+  tripId,
+  link,
+  places,
+  activityDays,
+}: {
+  tripId: number;
+  link: SavedLink;
+  places: TripPlace[];
+  activityDays: Map<number, string>;
+}) {
+  const queryClient = useQueryClient();
+  const retry = useMutation({
+    mutationFn: () => api(`/trips/${tripId}/links/${link.id}/refresh`, { method: 'POST' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: tripKeys.links(tripId) }),
+  });
+
+  const source = [link.author_name ? `@${link.author_name}` : null, platformName(link)].filter(Boolean).join(' · ');
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardTop}>
+        {link.thumbnail_url ? (
+          <Image source={{ uri: link.thumbnail_url }} style={styles.thumbnail} contentFit="cover" accessibilityIgnoresInvertColors />
+        ) : (
+          <View style={[styles.thumbnail, styles.thumbnailEmpty]} />
+        )}
+        <View style={styles.cardText}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {linkTitle(link)}
+          </Text>
+          <Muted numberOfLines={1}>{source}</Muted>
+          <LinkStatus link={link} placeCount={places.length} />
+          {link.status === 'failed' ? (
+            <View style={styles.failed}>
+              {link.error ? <Muted>{link.error}</Muted> : null}
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => retry.mutate()}
+                disabled={retry.isPending}
+                style={styles.retry}>
+                <Text style={styles.retryLabel}>{retry.isPending ? 'Trying…' : 'Try again'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      {places.length > 0 ? (
+        <View style={styles.places}>
+          {places.map((place) => (
+            <PlaceRow key={place.id} tripId={tripId} place={place} activityDays={activityDays} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function LinkStatus({ link, placeCount }: { link: SavedLink; placeCount: number }) {
+  if (isProcessing(link)) {
+    return (
+      <View style={[styles.pill, styles.pillNeutral]}>
+        <ActivityIndicator size="small" color={colors.muted} />
+        <Text style={[styles.pillText, styles.pillNeutralText]}>Finding places…</Text>
+      </View>
+    );
+  }
+  if (link.status === 'failed') {
+    return (
+      <View style={[styles.pill, styles.pillWarning]}>
+        <Text style={[styles.pillText, styles.pillWarningText]}>Couldn’t read this post</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.pill, placeCount > 0 ? styles.pillSuccess : styles.pillNeutral]}>
+      <Text style={[styles.pillText, placeCount > 0 ? styles.pillSuccessText : styles.pillNeutralText]}>
+        {placeCount === 0 ? 'No places found' : `${placeCount} ${placeCount === 1 ? 'place' : 'places'} found`}
+      </Text>
+    </View>
+  );
+}
+
+function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: TripPlace; activityDays: Map<number, string> }) {
+  const plannedDay = place.activity_ids?.map((activityId) => activityDays.get(activityId)).find(Boolean);
+  const planned = (place.activity_ids?.length ?? 0) > 0;
+  const today = hoursOn(place, todayString());
+
+  let detail: { text: string; tone: 'muted' | 'teal' | 'coral' };
+  if (planned) {
+    detail = { text: plannedDay ? `In the plan · ${formatShortDate(plannedDay)}` : 'In the plan', tone: 'teal' };
+  } else if (place.details_status === 'pending') {
+    detail = { text: 'Looking up the address…', tone: 'muted' };
+  } else if (needsCheck(place)) {
+    detail = { text: 'Check the location', tone: 'coral' };
+  } else if (today) {
+    detail = { text: today === 'Closed' ? 'Closed today' : `Open today · ${today}`, tone: 'muted' };
+  } else {
+    detail = { text: place.address ?? place.city ?? '', tone: 'muted' };
+  }
+
+  return (
+    <View style={styles.placeRow}>
+      <View style={styles.placeText}>
+        <Text style={styles.placeName}>{place.name}</Text>
+        {detail.text ? (
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.placeDetail,
+              detail.tone === 'teal' && styles.placeDetailTeal,
+              detail.tone === 'coral' && styles.placeDetailCoral,
+            ]}>
+            {detail.text}
+          </Text>
+        ) : null}
+      </View>
+      {!planned ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Add ${place.name} to the plan`}
+          onPress={() =>
+            router.push({ pathname: '/trips/[tripId]/add-place', params: { tripId: String(tripId), placeId: String(place.id) } })
+          }
+          style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
+          <Text style={styles.addLabel}>Add to plan</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  list: {
+    paddingHorizontal: 20,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
+  form: {
+    gap: 6,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: colors.inputBorder,
+    borderRadius: radii.input,
+    backgroundColor: colors.card,
+    fontFamily: fonts.body,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  inputError: {
+    borderColor: colors.coral,
+  },
+  saveButton: {
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.input,
+  },
+  error: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.coralText,
+  },
+  loading: {
+    marginTop: spacing.xl,
+  },
+  state: {
+    gap: spacing.md,
+  },
+  empty: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+  },
+  muted: {
+    color: colors.muted,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  cardTop: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: 14,
+  },
+  thumbnail: {
+    width: 48,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: colors.ink,
+  },
+  thumbnailEmpty: {
+    backgroundColor: colors.chip,
+  },
+  cardText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  cardTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.ink,
+  },
+  pill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 26,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
+  },
+  pillText: {
+    fontFamily: fonts.bold,
+    fontSize: 12.5,
+  },
+  pillNeutral: {
+    backgroundColor: colors.chip,
+  },
+  pillNeutralText: {
+    color: colors.muted,
+  },
+  pillSuccess: {
+    backgroundColor: colors.tealSoft,
+  },
+  pillSuccessText: {
+    color: colors.teal,
+  },
+  pillWarning: {
+    backgroundColor: colors.coralSoft,
+  },
+  pillWarningText: {
+    color: colors.coralText,
+  },
+  failed: {
+    gap: 2,
+  },
+  retry: {
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  retryLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.teal,
+  },
+  places: {
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+  },
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.chip,
+  },
+  placeText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  placeName: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  placeDetail: {
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    color: colors.muted,
+  },
+  placeDetailTeal: {
+    fontFamily: fonts.bold,
+    color: colors.teal,
+  },
+  placeDetailCoral: {
+    fontFamily: fonts.bold,
+    color: colors.coralText,
+  },
+  addButton: {
+    minHeight: 36,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.teal,
+    borderRadius: 10,
+    justifyContent: 'center',
+  },
+  addLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.teal,
+  },
+  pressed: {
+    opacity: 0.75,
+  },
+});

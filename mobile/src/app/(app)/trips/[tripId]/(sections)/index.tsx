@@ -124,7 +124,9 @@ function ActivityRow({
       <Text style={styles.time}>{activityClock(activity.start_time)}</Text>
       <View style={[styles.card, conflicts.length > 0 && styles.cardConflict]}>
         <Text style={styles.cardTitle}>{activity.title}</Text>
-        <Text style={styles.cardDetails}>{details}</Text>
+        <Text style={styles.cardDetails} numberOfLines={2}>
+          {details}
+        </Text>
         {activity.source_link_id != null || conflicts.length > 0 ? (
           <View style={styles.badges}>
             {activity.source_link_id != null ? (
