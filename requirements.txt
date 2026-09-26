@@ -12,4 +12,4 @@ argon2-cffi
 python-multipart
 zxcvbn
 google-genai
-yt-dlp
+yt-dlp[curl-cffi]

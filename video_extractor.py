@@ -1,8 +1,10 @@
 import mimetypes
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import yt_dlp
 from google import genai
@@ -16,19 +18,21 @@ PlaceCategory = Literal["food", "cafe", "bar", "nightlife", "attraction", "natur
 # Videos up to this size are sent inline, bigger ones go through the Gemini Files API
 INLINE_LIMIT_BYTES = 18 * 1024 * 1024
 
-PROMPT = """You are helping a traveller turn a short travel video into trip plans.
+PROMPT = """You are helping a traveller turn a short travel post into trip plans.
 
-Watch the video and listen to the audio. Use the speech, the on-screen text and the caption below
-to list every real place the video recommends or shows that someone could visit, e.g. restaurants,
-cafes, attractions, shops, hotels or viewpoints.
+The post is either a video or a photo slideshow. Watch the video and listen to the audio, or look at
+the image. Use the speech, the on-screen text and the caption below to list every real place the post
+recommends or shows that someone could visit, e.g. restaurants, cafes, attractions, shops, hotels or viewpoints.
 
 Rules:
 - Only include places that are actually named or clearly identifiable. Never invent places or addresses.
-- Leave a field empty if the video doesn't say it.
-- price_range is what the video says, e.g. "$$" or "¥1,200 per bowl".
-- notes are short practical tips from the video, e.g. what to order, best time to go, whether to book.
-- summary is one or two sentences describing the video.
-- If the video doesn't mention any places, return an empty list.
+- Only use information from the post itself. Don't add facts from your own knowledge, even true ones,
+  and don't attach a detail to a place unless the post links it to that place.
+- Leave a field empty if the post doesn't say it.
+- price_range is what the post says, e.g. "$$" or "¥1,200 per bowl".
+- notes are short practical tips from the post, e.g. what to order, best time to go, whether to book.
+- summary is one or two sentences describing the post.
+- If the post doesn't mention any places, return an empty list.
 
 Caption:
 {caption}
@@ -55,16 +59,50 @@ class ExtractionResult(BaseModel):
 class ExtractionError(Exception):
     """Raised with a message that is safe to show to users."""
 
-def download_video(url: str, dest_dir: str) -> tuple[Path, dict]:
+@dataclass
+class DownloadedPost:
+    info: dict
+    # Set for normal videos
+    video_path: Path | None = None
+    # Set for photo slideshows, which only have background music instead of a video
+    cover_image: bytes | None = None
+
+    @property
+    def caption(self) -> str | None:
+        return self.info.get("description") or self.info.get("title")
+
+def normalise_url(url: str) -> str:
     """
-    Download a video with yt-dlp.
+    yt-dlp doesn't recognise TikTok photo links, but the same post id works as a video link.
+
+    Args:
+        url (str): The shared link.
+
+    Returns:
+        str: A link yt-dlp can handle.
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+
+    if (host == "tiktok.com" or host.endswith(".tiktok.com")) and "/photo/" in parsed.path:
+        return parsed._replace(path=parsed.path.replace("/photo/", "/video/"), query="").geturl()
+
+    return url
+
+def has_video_stream(info: dict) -> bool:
+    formats = info.get("formats") or [info]
+    return any((f.get("vcodec") or "none") != "none" for f in formats)
+
+def download_post(url: str, dest_dir: str) -> DownloadedPost:
+    """
+    Download a video, or the cover image of a photo slideshow, with yt-dlp.
 
     Args:
         url (str): The shared link.
         dest_dir (str): Directory to save the video in.
 
     Returns:
-        tuple[Path, dict]: The downloaded file and the post's metadata.
+        DownloadedPost: The downloaded media and the post's metadata.
     """
     options = {
         "outtmpl": f"{dest_dir}/video.%(ext)s",
@@ -79,7 +117,18 @@ def download_video(url: str, dest_dir: str) -> tuple[Path, dict]:
 
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(normalise_url(url), download=False)
+
+            if not has_video_stream(info):
+                # Slideshows only expose their background music, so use the cover slide instead.
+                # The caption usually carries most of the details for these posts.
+                cover_image = None
+                if info.get("thumbnail"):
+                    try:
+                        cover_image = ydl.urlopen(info["thumbnail"]).read()
+                    except Exception:
+                        cover_image = None
+                return DownloadedPost(info=info, cover_image=cover_image)
 
             duration = info.get("duration")
             if duration and duration > settings.VIDEO_MAX_DURATION_SECONDS:
@@ -87,53 +136,62 @@ def download_video(url: str, dest_dir: str) -> tuple[Path, dict]:
 
             ydl.process_ie_result(info, download=True)
     except yt_dlp.utils.DownloadError as e:
-        raise ExtractionError("Could not download the video. It may be private or deleted.") from e
+        raise ExtractionError("Could not download the post. It may be private or deleted.") from e
 
     files = [path for path in Path(dest_dir).glob("video.*") if not path.name.endswith(".part")]
     if not files:
         raise ExtractionError("Could not download the video. It may be too large.")
 
-    return files[0], info
+    return DownloadedPost(info=info, video_path=files[0])
 
-def analyse_video(client: genai.Client, video_path: Path, caption: str | None) -> VideoExtraction:
+def analyse_post(client: genai.Client, post: DownloadedPost) -> VideoExtraction:
     """
-    Ask Gemini to pull the places out of a downloaded video.
+    Ask Gemini to pull the places out of a downloaded post.
 
     Args:
         client (genai.Client): The Gemini client.
-        video_path (Path): The downloaded video.
-        caption (str | None): The post's caption, used as extra context.
+        post (DownloadedPost): The downloaded video or cover image.
 
     Returns:
-        VideoExtraction: The summary and places found in the video.
+        VideoExtraction: The summary and places found in the post.
     """
-    mime_type = mimetypes.guess_type(video_path.name)[0] or "video/mp4"
-    prompt = PROMPT.format(caption=caption or "(no caption)")
+    prompt = PROMPT.format(caption=post.caption or "(no caption)")
+    contents = []
     uploaded = None
 
     try:
-        if video_path.stat().st_size <= INLINE_LIMIT_BYTES:
-            video = types.Part.from_bytes(data=video_path.read_bytes(), mime_type=mime_type)
-        else:
-            uploaded = client.files.upload(file=video_path, config={"mime_type": mime_type})
+        if post.video_path is not None:
+            mime_type = mimetypes.guess_type(post.video_path.name)[0] or "video/mp4"
 
-            # Large uploads are processed asynchronously by Gemini before they can be used
-            while uploaded.state == types.FileState.PROCESSING:
-                time.sleep(2)
-                uploaded = client.files.get(name=uploaded.name)
+            if post.video_path.stat().st_size <= INLINE_LIMIT_BYTES:
+                contents.append(types.Part.from_bytes(data=post.video_path.read_bytes(), mime_type=mime_type))
+            else:
+                uploaded = client.files.upload(file=post.video_path, config={"mime_type": mime_type})
 
-            if uploaded.state == types.FileState.FAILED:
-                raise ExtractionError("The video could not be processed")
+                # Large uploads are processed asynchronously by Gemini before they can be used
+                while uploaded.state == types.FileState.PROCESSING:
+                    time.sleep(2)
+                    uploaded = client.files.get(name=uploaded.name)
 
-            video = uploaded
+                if uploaded.state == types.FileState.FAILED:
+                    raise ExtractionError("The video could not be processed")
+
+                contents.append(uploaded)
+        elif post.cover_image is not None:
+            contents.append(types.Part.from_bytes(data=post.cover_image, mime_type="image/jpeg"))
+        elif not post.caption:
+            raise ExtractionError("The post has no video, image or caption to read")
+
+        contents.append(prompt)
 
         response = client.models.generate_content(
             model=settings.GEMINI_MODEL,
-            contents=[video, prompt],
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=VideoExtraction,
                 temperature=0.2,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             ),
         )
     finally:
@@ -150,11 +208,11 @@ def analyse_video(client: genai.Client, video_path: Path, caption: str | None) -
     try:
         return VideoExtraction.model_validate_json(response.text or "")
     except ValueError as e:
-        raise ExtractionError("Could not understand the video") from e
+        raise ExtractionError("Could not understand the post") from e
 
 def extract_from_video(url: str) -> ExtractionResult:
     """
-    Download a video and extract the places it mentions.
+    Download a video or photo post and extract the places it mentions.
 
     Args:
         url (str): The shared TikTok, YouTube or Instagram link.
@@ -168,19 +226,18 @@ def extract_from_video(url: str) -> ExtractionResult:
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     with tempfile.TemporaryDirectory(prefix="triplet-") as dest_dir:
-        video_path, info = download_video(url, dest_dir)
-        caption = info.get("description") or info.get("title")
+        post = download_post(url, dest_dir)
 
         try:
-            extraction = analyse_video(client, video_path, caption)
+            extraction = analyse_post(client, post)
         except ExtractionError:
             raise
         except Exception as e:
             # Quota errors, network problems, blocked content etc.
-            raise ExtractionError("The AI service could not process this video") from e
+            raise ExtractionError("The AI service could not process this post") from e
 
     return ExtractionResult(
-        caption=caption,
+        caption=post.caption,
         summary=extraction.summary,
         places=extraction.places,
     )
