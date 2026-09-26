@@ -18,6 +18,17 @@ class UserResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    avatar_url: str | None = None
+
+    model_config={
+        "from_attributes": True
+    }
+
+class UserPublic(BaseModel):
+    # What other users can see, so emails aren't exposed through search
+    id: int
+    name: str
+    avatar_url: str | None = None
 
     model_config={
         "from_attributes": True
@@ -27,6 +38,7 @@ class UserUpdate(BaseModel):
     name: str | None = None
     email: EmailStr | None = None
     password: str | None = None
+    avatar_url: HttpUrl | None = None
 
 class Token(BaseModel):
     access_token: str

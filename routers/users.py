@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
 from models import User
-from schemas import UserCreate, UserLogin, UserResponse, UserUpdate
-from security import hash_password, verify_password, create_access_token
+from schemas import UserResponse, UserPublic, UserUpdate
+from security import hash_password
 from validators import password_strength
 from dependencies import get_current_user
 
@@ -25,13 +26,36 @@ def update_profile(
     db: Session = Depends(connect_db)
 ):
     update_data = user_update.model_dump(exclude_unset=True)
-    if "email" in update_data:
+
+    # name, email and password are NOT NULL, so an explicit null means "leave unchanged"
+    if update_data.get("email") is not None:
+        existing_user = db.query(User).filter(
+            func.lower(User.email) == update_data["email"].lower(),
+            User.id != current_user.id
+        ).first()
+
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email is already in use"
+            )
+
         current_user.email = update_data["email"]
 
-    if "name" in update_data:
+    if update_data.get("name") is not None:
+        if not update_data["name"].isalnum():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid credentials"
+            )
+
         current_user.name = update_data["name"]
 
-    if "password" in update_data:
+    if "avatar_url" in update_data:
+        avatar_url = update_data["avatar_url"]
+        current_user.avatar_url = str(avatar_url) if avatar_url is not None else None
+
+    if update_data.get("password") is not None:
         email_prefix = current_user.email.split("@")[0]
 
         user_inputs = [
@@ -63,3 +87,25 @@ def delete_user(
 ):
     db.delete(current_user)
     db.commit()
+
+@router.get("/search", response_model=list[UserPublic])
+def search_users(
+    q: str = Query(min_length=2, max_length=255),
+    db: Session = Depends(connect_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = q.strip().lower()
+
+    # Emails must match exactly so the endpoint can't be used to list everyone's address
+    users = (
+        db.query(User)
+        .filter(
+            User.id != current_user.id,
+            (func.lower(User.name).startswith(query, autoescape=True)) | (func.lower(User.email) == query)
+        )
+        .order_by(User.name)
+        .limit(20)
+        .all()
+    )
+
+    return users
