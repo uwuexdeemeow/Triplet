@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import connect_db
 from models import User, TripMembership, TripInvitation
 from schemas import MemberResponse, MemberRoleUpdate, InvitationCreate, InvitationResponse
-from dependencies import get_trip_membership, require_role
+from dependencies import get_trip_membership, require_role, Pagination
 
 router = APIRouter(
     prefix="/trips/{trip_id}",
@@ -34,13 +34,16 @@ def get_target_membership(db: Session, trip_id: int, user_id: int) -> TripMember
 def get_members(
     trip_id: int,
     db: Session = Depends(connect_db),
-    membership: TripMembership = Depends(get_trip_membership)
+    membership: TripMembership = Depends(get_trip_membership),
+    pagination: Pagination = Depends()
 ):
     rows = (
         db.query(TripMembership, User)
         .join(User, User.id == TripMembership.user_id)
         .filter(TripMembership.trip_id == trip_id)
         .order_by(TripMembership.id)
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 
@@ -169,12 +172,15 @@ def create_invitation(
 def get_trip_invitations(
     trip_id: int,
     db: Session = Depends(connect_db),
-    membership: TripMembership = Depends(get_trip_membership)
+    membership: TripMembership = Depends(get_trip_membership),
+    pagination: Pagination = Depends()
 ):
     invitations = (
         db.query(TripInvitation)
         .filter(TripInvitation.trip_id == trip_id)
-        .order_by(TripInvitation.created_at.desc())
+        .order_by(TripInvitation.created_at.desc(), TripInvitation.id.desc())
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 

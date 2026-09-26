@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import connect_db
 from models import User, Trip, TripMembership, Activity, Expense
 from schemas import ExpenseCreate, ExpenseUpdate, ExpenseResponse, BudgetSummary, MemberBalance
-from dependencies import get_trip_membership, require_role, EDITOR_ROLES
+from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
     prefix="/trips/{trip_id}",
@@ -85,12 +85,15 @@ def create_expense(
 def get_expenses(
     trip_id: int,
     db: Session = Depends(connect_db),
-    membership: TripMembership = Depends(get_trip_membership)
+    membership: TripMembership = Depends(get_trip_membership),
+    pagination: Pagination = Depends()
 ):
     expenses = (
         db.query(Expense)
         .filter(Expense.trip_id == trip_id)
-        .order_by(Expense.spent_on, Expense.created_at)
+        .order_by(Expense.spent_on, Expense.created_at, Expense.id)
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 

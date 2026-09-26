@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from argon2 import PasswordHasher
@@ -53,3 +55,11 @@ def decode_access_token(token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
+
+def generate_token() -> str:
+    # Random opaque token for refresh and password reset links
+    return secrets.token_urlsafe(32)
+
+def hash_token(token: str) -> str:
+    # Tokens are long and random, so a fast hash is enough (unlike passwords)
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

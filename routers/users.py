@@ -6,7 +6,8 @@ from models import User
 from schemas import UserResponse, UserPublic, UserUpdate
 from security import hash_password
 from validators import password_strength
-from dependencies import get_current_user
+from dependencies import get_current_user, Pagination
+from routers.auth import revoke_refresh_tokens
 
 router = APIRouter(
     prefix="/users",
@@ -74,6 +75,8 @@ def update_profile(
                 detail="Invalid credentials"
             )
         current_user.password = hash_password(update_data["password"])
+        # Sign out other devices after a password change
+        revoke_refresh_tokens(db, current_user.id)
 
     db.commit()
     db.refresh(current_user)
@@ -92,7 +95,8 @@ def delete_user(
 def search_users(
     q: str = Query(min_length=2, max_length=255),
     db: Session = Depends(connect_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    pagination: Pagination = Depends()
 ):
     query = q.strip().lower()
 
@@ -103,8 +107,9 @@ def search_users(
             User.id != current_user.id,
             (func.lower(User.name).startswith(query, autoescape=True)) | (func.lower(User.email) == query)
         )
-        .order_by(User.name)
-        .limit(20)
+        .order_by(User.name, User.id)
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 

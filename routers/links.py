@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from database import connect_db
-from models import TripMembership, SavedLink, Activity
+import logging
+from datetime import datetime, timezone
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy.orm import Session, selectinload
+from config import settings
+from database import connect_db, SessionLocal
+from models import TripMembership, SavedLink, ExtractedPlace, Activity
 from schemas import SavedLinkCreate, SavedLinkUpdate, SavedLinkResponse, LinkToActivity, ActivityResponse
-from dependencies import get_trip_membership, require_role, EDITOR_ROLES
-from link_parser import parse_link
+from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
+from link_parser import detect_platform, fetch_metadata, VIDEO_PLATFORMS
+from video_extractor import extract_from_video, ExtractionError
 from routers.activities import validate_activity
+
+logger = logging.getLogger("triplet.links")
 
 router = APIRouter(
     prefix="/trips/{trip_id}/links",
@@ -26,10 +32,71 @@ def get_link_or_404(db: Session, trip_id: int, link_id: int) -> SavedLink:
 
     return link
 
+def process_link(link_id: int):
+    """
+    Fetch a link's details and extract the places from its video.
+
+    Runs in the background after the response has been sent, so it opens its own database session.
+    """
+    db = SessionLocal()
+
+    try:
+        link = db.query(SavedLink).filter(SavedLink.id == link_id).first()
+        if link is None:
+            return
+
+        link.status = "processing"
+        link.error = None
+        db.commit()
+
+        metadata = fetch_metadata(link.url, link.platform)
+        if metadata is not None:
+            for field, value in metadata.items():
+                setattr(link, field, value)
+
+        if link.platform in VIDEO_PLATFORMS and settings.GEMINI_API_KEY:
+            try:
+                result = extract_from_video(link.url)
+            except ExtractionError as e:
+                link.status = "failed"
+                link.error = str(e)[:500]
+            else:
+                link.caption = result.caption
+                link.summary = result.summary
+                # Replace any places from an earlier run
+                link.places = [
+                    ExtractedPlace(**place.model_dump())
+                    for place in result.places
+                ]
+                if link.place_name is None and result.places:
+                    link.place_name = result.places[0].name[:255]
+                link.status = "processed"
+        elif link.platform in VIDEO_PLATFORMS and metadata is None:
+            link.status = "failed"
+            link.error = "Could not fetch the post's details"
+        else:
+            link.status = "processed"
+
+        link.processed_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception:
+        # Never leave a link stuck in "processing"
+        logger.exception("Failed to process link %s", link_id)
+        db.rollback()
+        link = db.query(SavedLink).filter(SavedLink.id == link_id).first()
+        if link is not None:
+            link.status = "failed"
+            link.error = "Unexpected error while processing the link"
+            link.processed_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
 @router.post("", response_model=SavedLinkResponse, status_code=201)
 def create_link(
     trip_id: int,
     link_create: SavedLinkCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db),
     membership: TripMembership = Depends(get_trip_membership)
 ):
@@ -41,14 +108,18 @@ def create_link(
         trip_id=trip_id,
         added_by_id=membership.user_id,
         url=url,
+        platform=detect_platform(url),
         place_name=link_create.place_name,
         notes=link_create.notes,
-        **parse_link(url)
+        status="pending"
     )
 
     db.add(link)
     db.commit()
     db.refresh(link)
+
+    # Downloading and analysing the video can take a while, so the client polls for the result
+    background_tasks.add_task(process_link, link.id)
 
     return link
 
@@ -56,12 +127,16 @@ def create_link(
 def get_links(
     trip_id: int,
     db: Session = Depends(connect_db),
-    membership: TripMembership = Depends(get_trip_membership)
+    membership: TripMembership = Depends(get_trip_membership),
+    pagination: Pagination = Depends()
 ):
     links = (
         db.query(SavedLink)
+        .options(selectinload(SavedLink.places))
         .filter(SavedLink.trip_id == trip_id)
-        .order_by(SavedLink.created_at.desc())
+        .order_by(SavedLink.created_at.desc(), SavedLink.id.desc())
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 
@@ -100,10 +175,11 @@ def update_link(
 
     return link
 
-@router.post("/{link_id}/refresh", response_model=SavedLinkResponse)
+@router.post("/{link_id}/refresh", response_model=SavedLinkResponse, status_code=status.HTTP_202_ACCEPTED)
 def refresh_link(
     trip_id: int,
     link_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db),
     membership: TripMembership = Depends(get_trip_membership)
 ):
@@ -111,11 +187,12 @@ def refresh_link(
 
     link = get_link_or_404(db, trip_id, link_id)
 
-    for field, value in parse_link(link.url).items():
-        setattr(link, field, value)
-
+    link.status = "pending"
+    link.error = None
     db.commit()
     db.refresh(link)
+
+    background_tasks.add_task(process_link, link.id)
 
     return link
 
@@ -145,8 +222,25 @@ def add_link_to_itinerary(
 
     link = get_link_or_404(db, trip_id, link_id)
 
-    title = link_to_activity.title or link.place_name or link.title
-    location = link_to_activity.location or link.place_name
+    place = None
+    if link_to_activity.place_id is not None:
+        place = db.query(ExtractedPlace).filter(
+            ExtractedPlace.id == link_to_activity.place_id,
+            ExtractedPlace.link_id == link.id
+        ).first()
+
+        if place is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Place not found"
+            )
+
+    place_location = None
+    if place is not None:
+        place_location = ", ".join(part for part in [place.name, place.address, place.city] if part)
+
+    title = link_to_activity.title or (place.name if place else None) or link.place_name or link.title
+    location = link_to_activity.location or place_location or link.place_name
 
     if not title or not location:
         raise HTTPException(
@@ -167,8 +261,8 @@ def add_link_to_itinerary(
         trip_id=trip_id,
         source_link_id=link.id,
         title=title[:255],
-        description=link_to_activity.description or link.notes,
-        location=location,
+        description=link_to_activity.description or (place.notes if place else None) or link.notes,
+        location=location[:255],
         start_time=link_to_activity.start_time,
         end_time=link_to_activity.end_time,
         estimated_cost=link_to_activity.estimated_cost

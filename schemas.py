@@ -43,6 +43,21 @@ class UserUpdate(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    # Guests only get a short lived access token
+    refresh_token: str | None = None
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+class MessageResponse(BaseModel):
+    detail: str
 
 class GuestAccessCreate(BaseModel):
     access_code: str
@@ -194,6 +209,20 @@ class SavedLinkUpdate(BaseModel):
     place_name: str | None = None
     notes: str | None = None
 
+class ExtractedPlaceResponse(BaseModel):
+    id: int
+    name: str
+    category: str | None = None
+    address: str | None = None
+    city: str | None = None
+    country: str | None = None
+    price_range: str | None = None
+    notes: str | None = None
+
+    model_config={
+        "from_attributes": True
+    }
+
 class SavedLinkResponse(BaseModel):
     id: int
     trip_id: int
@@ -205,7 +234,12 @@ class SavedLinkResponse(BaseModel):
     thumbnail_url: str | None = None
     place_name: str | None = None
     notes: str | None = None
+    caption: str | None = None
+    summary: str | None = None
     status: str
+    error: str | None = None
+    processed_at: datetime | None = None
+    places: list[ExtractedPlaceResponse] = []
     created_at: datetime
 
     model_config={
@@ -213,6 +247,8 @@ class SavedLinkResponse(BaseModel):
     }
 
 class LinkToActivity(BaseModel):
+    # Fill in the title and location from one of the places found in the video
+    place_id: int | None = None
     title: str | None = None
     description: str | None = None
     location: str | None = None

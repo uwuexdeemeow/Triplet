@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 
 from sqlalchemy.orm import Session
@@ -16,6 +16,17 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 EDITOR_ROLES = ["owner", "member"]
+
+class Pagination:
+    """Shared ?limit=&offset= query parameters for list endpoints."""
+
+    def __init__(
+        self,
+        limit: int = Query(50, ge=1, le=100),
+        offset: int = Query(0, ge=0)
+    ):
+        self.limit = limit
+        self.offset = offset
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),

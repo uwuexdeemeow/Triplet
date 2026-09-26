@@ -9,6 +9,9 @@ PLATFORM_DOMAINS = {
     "google_maps": ["maps.google.com", "maps.app.goo.gl", "goo.gl"],
 }
 
+# Platforms whose links point at a video that can be downloaded and analysed
+VIDEO_PLATFORMS = ["tiktok", "youtube", "instagram"]
+
 # Public oEmbed endpoints that don't need an API key
 OEMBED_ENDPOINTS = {
     "tiktok": "https://www.tiktok.com/oembed",
@@ -65,30 +68,4 @@ def fetch_metadata(url: str, platform: str, timeout: float = 5.0) -> dict | None
         "title": (data.get("title") or "")[:500] or None,
         "author_name": (data.get("author_name") or "")[:255] or None,
         "thumbnail_url": (data.get("thumbnail_url") or "")[:2048] or None,
-    }
-
-def parse_link(url: str) -> dict:
-    """
-    Dissect a shared link into the fields stored on a SavedLink.
-
-    Args:
-        url (str): The shared link.
-
-    Returns:
-        dict: platform, status and any metadata that could be fetched.
-    """
-    platform = detect_platform(url)
-    metadata = fetch_metadata(url, platform)
-
-    if metadata is None:
-        # Nothing to fetch for unsupported platforms, so keep it for the user to fill in
-        return {
-            "platform": platform,
-            "status": "failed" if platform in OEMBED_ENDPOINTS else "pending",
-        }
-
-    return {
-        "platform": platform,
-        "status": "processed",
-        **metadata,
     }

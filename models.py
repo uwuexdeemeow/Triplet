@@ -1,5 +1,5 @@
 from sqlalchemy import Date, String, Integer, DateTime, func, Text, ForeignKey, UniqueConstraint, Numeric
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import date, datetime
 from decimal import Decimal
 from database import Base
@@ -176,10 +176,91 @@ class SavedLink(Base):
         nullable=True
     )
 
+    # Full caption from the post, which is often longer than the oEmbed title
+    caption: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    # pending -> processing -> processed / failed
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default="pending"
+    )
+
+    error: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    places: Mapped[list["ExtractedPlace"]] = relationship(
+        order_by="ExtractedPlace.id",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+class ExtractedPlace(Base):
+    __tablename__ = "extracted_places"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    link_id: Mapped[int] = mapped_column(
+        ForeignKey("saved_links.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    category: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    address: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
+    city: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    country: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    price_range: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -368,4 +449,73 @@ class TripInvitation(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "trip_id", name="uq_invitation_user_trip"),
+    )
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # Only a hash is stored so a database leak doesn't leak usable tokens
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
     )

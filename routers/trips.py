@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import connect_db
 from models import User, Trip, TripMembership
 from schemas import TripCreate, TripResponse, TripUpdate
-from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES
+from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
     prefix="/trips",
@@ -43,13 +43,16 @@ def create_trip(
 @router.get("", response_model=list[TripResponse])
 def get_trips(
     db: Session = Depends(connect_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    pagination: Pagination = Depends()
 ):
     trips = (
         db.query(Trip)
         .join(TripMembership, TripMembership.trip_id == Trip.id)
         .filter(TripMembership.user_id == current_user.id)
-        .order_by(Trip.start_date)
+        .order_by(Trip.start_date, Trip.id)
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 

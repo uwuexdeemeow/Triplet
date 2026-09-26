@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import connect_db
 from models import Trip, TripMembership, Activity, SavedLink
 from schemas import ActivityCreate, ActivityUpdate, ActivityResponse, ItineraryResponse, ItineraryDay, ItineraryActivity
-from dependencies import get_trip_membership, require_role, EDITOR_ROLES
+from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 from validators import as_utc
 
 router = APIRouter(
@@ -86,12 +86,15 @@ def create_activity(
 def get_activities(
     trip_id: int,
     db: Session = Depends(connect_db),
-    membership: TripMembership = Depends(get_trip_membership)
+    membership: TripMembership = Depends(get_trip_membership),
+    pagination: Pagination = Depends()
 ):
     activities = (
         db.query(Activity)
         .filter(Activity.trip_id == trip_id)
-        .order_by(Activity.start_time)
+        .order_by(Activity.start_time, Activity.id)
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 
@@ -200,7 +203,7 @@ def get_itinerary(
     activities = (
         db.query(Activity)
         .filter(Activity.trip_id == trip_id)
-        .order_by(Activity.start_time)
+        .order_by(Activity.start_time, Activity.id)
         .all()
     )
 

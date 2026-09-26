@@ -75,7 +75,7 @@ def get_guest_activities(
     activities = (
         db.query(Activity)
         .filter(Activity.trip_id == guest.trip_id)
-        .order_by(Activity.start_time)
+        .order_by(Activity.start_time, Activity.id)
         .all()
     )
 
@@ -89,7 +89,7 @@ def get_guest_itinerary(
     activities = (
         db.query(Activity)
         .filter(Activity.trip_id == guest.trip_id)
-        .order_by(Activity.start_time)
+        .order_by(Activity.start_time, Activity.id)
         .all()
     )
 

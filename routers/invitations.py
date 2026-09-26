@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import connect_db
 from models import User, TripMembership, TripInvitation
 from schemas import InvitationResponse
-from dependencies import get_current_user
+from dependencies import get_current_user, Pagination
 
 router = APIRouter(
     prefix="/invitations",
@@ -33,7 +33,8 @@ def get_pending_invitation(db: Session, invitation_id: int, user_id: int) -> Tri
 @router.get("", response_model=list[InvitationResponse])
 def get_my_invitations(
     db: Session = Depends(connect_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    pagination: Pagination = Depends()
 ):
     invitations = (
         db.query(TripInvitation)
@@ -41,7 +42,9 @@ def get_my_invitations(
             TripInvitation.user_id == current_user.id,
             TripInvitation.status == "pending"
         )
-        .order_by(TripInvitation.created_at.desc())
+        .order_by(TripInvitation.created_at.desc(), TripInvitation.id.desc())
+        .limit(pagination.limit)
+        .offset(pagination.offset)
         .all()
     )
 

@@ -10,13 +10,20 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from config import settings
 from database import Base, connect_db
 from main import app
 
 PASSWORD = "Tr0ub4dor&3-horse-battery"
 
+@pytest.fixture(autouse=True)
+def no_external_calls(monkeypatch):
+    # Tests must never reach TikTok or Gemini, even if a real key is in .env
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
+    monkeypatch.setattr("routers.links.fetch_metadata", lambda url, platform: None)
+
 @pytest.fixture
-def client():
+def client(monkeypatch):
     # Fresh in-memory database for every test
     engine = create_engine(
         "sqlite://",
@@ -40,6 +47,8 @@ def client():
             db.close()
 
     app.dependency_overrides[connect_db] = override_connect_db
+    # Background jobs open their own session instead of using the request's one
+    monkeypatch.setattr("routers.links.SessionLocal", TestingSession)
 
     with TestClient(app) as test_client:
         yield test_client
