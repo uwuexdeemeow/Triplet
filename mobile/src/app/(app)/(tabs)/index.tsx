@@ -1,19 +1,20 @@
+import { Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { api, type Schemas } from '@/api/client';
+import { api } from '@/api/client';
+import { tripKeys, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
 import { colors, fonts, radii, spacing } from '@/theme/tokens';
 import { formatDateRange, tripCountdown } from '@/utils/dates';
 
-type Trip = Schemas['TripResponse'];
-
 export default function TripsScreen() {
   const trips = useQuery({
-    queryKey: ['trips'],
+    queryKey: tripKeys.all,
     queryFn: () => api<Trip[]>('/trips'),
   });
 
@@ -26,7 +27,18 @@ export default function TripsScreen() {
         refreshControl={
           <RefreshControl refreshing={trips.isRefetching} onRefresh={trips.refetch} tintColor={colors.teal} />
         }
-        ListHeaderComponent={<Heading style={styles.heading}>Your trips</Heading>}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Heading>Your trips</Heading>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/trips/new')}
+              style={({ pressed }) => [styles.newTrip, pressed && styles.pressed]}>
+              <Feather name="plus" size={18} color={colors.white} />
+              <Text style={styles.newTripLabel}>New trip</Text>
+            </Pressable>
+          </View>
+        }
         ListEmptyComponent={
           trips.isPending ? (
             <ActivityIndicator color={colors.teal} style={styles.loading} />
@@ -38,7 +50,7 @@ export default function TripsScreen() {
           ) : (
             <View style={styles.empty}>
               <Title>No trips yet</Title>
-              <Body style={styles.emptyText}>Trips you create, or that friends invite you to, will show up here.</Body>
+              <Body style={styles.emptyText}>Create a trip to start planning, or ask a friend to invite you to theirs.</Body>
             </View>
           )
         }
@@ -52,7 +64,11 @@ function TripCard({ trip }: { trip: Trip }) {
   const countdown = trip.start_date && trip.end_date ? tripCountdown(trip.start_date, trip.end_date) : null;
 
   return (
-    <View style={styles.card} accessible accessibilityLabel={`${trip.title}, ${trip.destination}`}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${trip.title}, ${trip.destination}`}
+      onPress={() => router.push({ pathname: '/trips/[tripId]', params: { tripId: String(trip.id) } })}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.cardBanner}>
         <Text style={styles.cardTitle} numberOfLines={1}>
           {trip.title}
@@ -69,7 +85,7 @@ function TripCard({ trip }: { trip: Trip }) {
         ) : null}
         <Muted>{trip.destination}</Muted>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -87,8 +103,29 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     alignSelf: 'center',
   },
-  heading: {
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
     marginBottom: spacing.sm,
+  },
+  newTrip: {
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.button,
+    backgroundColor: colors.teal,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  newTripLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.white,
+  },
+  pressed: {
+    opacity: 0.85,
   },
   loading: {
     marginTop: spacing.xxl,

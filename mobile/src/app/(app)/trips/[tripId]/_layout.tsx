@@ -2,12 +2,11 @@ import { Stack } from 'expo-router';
 
 import { colors } from '@/theme/tokens';
 
-export default function AppLayout() {
+export default function TripLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="trips/new" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="trips/[tripId]" />
+      <Stack.Screen name="(sections)" />
+      <Stack.Screen name="add-activity" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
