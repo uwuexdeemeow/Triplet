@@ -1,6 +1,7 @@
-from sqlalchemy import Date, String, Integer, DateTime, func, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Date, String, Integer, DateTime, func, Text, ForeignKey, UniqueConstraint, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import date, datetime
+from decimal import Decimal
 from database import Base
 
 class User(Base):
@@ -31,7 +32,7 @@ class User(Base):
         nullable=True
     )
 
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -60,14 +61,26 @@ class Trip(Base):
         nullable=False
     )
 
-    start_date: Mapped[date | None] = mapped_column(
+    start_date: Mapped[date] = mapped_column(
         Date,
         nullable=False
     )
 
-    end_date: Mapped[date | None] = mapped_column(
+    end_date: Mapped[date] = mapped_column(
         Date,
         nullable=False
+    )
+
+    budget: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(3),
+        nullable=False,
+        default="USD",
+        server_default="USD"
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -75,7 +88,7 @@ class Trip(Base):
         nullable=False,
         server_default=func.now()
     )
-    
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -110,55 +123,179 @@ class TripMembership(Base):
         UniqueConstraint("user_id", "trip_id", name="uq_user_trip"),
     )
 
-    class Activity(Base):
-        __tablename__ = "activities"
+class SavedLink(Base):
+    __tablename__ = "saved_links"
 
-        id: Mapped[int] = mapped_column(
-            primary_key=True
-        )
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
 
-        trip_id: Mapped[int] = mapped_column(
-            ForeignKey("trips.id", ondelete="CASCADE"),
-            nullable=False
-        )
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False
+    )
 
-        title: Mapped[str] = mapped_column(
-            String(255),
-            nullable=False
-        )
+    added_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
 
-        description: Mapped[str | None] = mapped_column(
-            Text,
-            nullable=True
-        )
+    url: Mapped[str] = mapped_column(
+        String(2048),
+        nullable=False
+    )
 
-        location: Mapped[str] = mapped_column(
-            String(255),
-            nullable=False
-        )
+    platform: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="other"
+    )
 
-        start_time: Mapped[datetime | None] = mapped_column(
-            DateTime(timezone=True),
-            nullable=False
-        )
+    title: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
 
-        end_time: Mapped[datetime | None] = mapped_column(
-            DateTime(timezone=True),
-            nullable=False
-        )
+    author_name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
 
-        created_at: Mapped[datetime] = mapped_column(
-            DateTime(timezone=True),
-            nullable=False,
-            server_default=func.now()
-        )
+    thumbnail_url: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True
+    )
 
-        updated_at: Mapped[datetime] = mapped_column(
-            DateTime(timezone=True),
-            nullable=False,
-            server_default=func.now(),
-            onupdate=func.now()
-        )
+    place_name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="pending"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+class Activity(Base):
+    __tablename__ = "activities"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    source_link_id: Mapped[int | None] = mapped_column(
+        ForeignKey("saved_links.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    location: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    start_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    end_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    estimated_cost: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now()
+    )
+
+class Expense(Base):
+    __tablename__ = "expenses"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    paid_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    activity_id: Mapped[int | None] = mapped_column(
+        ForeignKey("activities.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="other"
+    )
+
+    spent_on: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
 
 class TripGuestAccess(Base):
     __tablename__ = "trip_guest_access"
@@ -175,7 +312,8 @@ class TripGuestAccess(Base):
 
     access_code: Mapped[str] = mapped_column(
         String(10),
-        nullable=False
+        nullable=False,
+        unique=True
     )
 
     pin_hash: Mapped[str] = mapped_column(
@@ -209,6 +347,11 @@ class TripInvitation(Base):
     trip_id: Mapped[int] = mapped_column(
         ForeignKey("trips.id", ondelete="CASCADE"),
         nullable=False
+    )
+
+    invited_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
     )
 
     status: Mapped[str] = mapped_column(

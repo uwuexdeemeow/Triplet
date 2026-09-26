@@ -24,7 +24,7 @@ def signup(
         )
     if not user.name.isalnum():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid credentials"
         )
     email_prefix = user.email.split('@')[0]  # Extract the part before '@' for additional checks
@@ -32,7 +32,7 @@ def signup(
     result = password_strength(user.password.lower(), user_inputs)
     if not result["is_valid"]:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid credentials"
         )
 

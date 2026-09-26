@@ -2,10 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import connect_db
 from models import User, Trip, TripMembership
-from schemas import UserCreate, UserLogin, UserResponse, TripCreate, TripResponse, TripUpdate
-from security import hash_password, verify_password, create_access_token
-from validators import password_strength
-from dependencies import get_current_user
+from schemas import TripCreate, TripResponse, TripUpdate
+from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES
 
 router = APIRouter(
     prefix="/trips",
@@ -23,7 +21,9 @@ def create_trip(
         description=trip_create.description,
         destination=trip_create.destination,
         start_date=trip_create.start_date,
-        end_date=trip_create.end_date
+        end_date=trip_create.end_date,
+        budget=trip_create.budget,
+        currency=trip_create.currency.upper()
     )
     db.add(trip)
     db.flush()
@@ -44,11 +44,12 @@ def create_trip(
 def get_trips(
     db: Session = Depends(connect_db),
     current_user: User = Depends(get_current_user)
-): 
+):
     trips = (
         db.query(Trip)
         .join(TripMembership, TripMembership.trip_id == Trip.id)
         .filter(TripMembership.user_id == current_user.id)
+        .order_by(Trip.start_date)
         .all()
     )
 
@@ -58,17 +59,11 @@ def get_trips(
 def get_trip(
     trip_id: int,
     db: Session = Depends(connect_db),
-    current_user: User = Depends(get_current_user)
+    membership: TripMembership = Depends(get_trip_membership)
 ):
-    trip = (
-        db.query(Trip)
-        .join(TripMembership, TripMembership.trip_id == Trip.id)
-        .filter(
-            Trip.id == trip_id,
-            TripMembership.user_id == current_user.id
-        )
-        .first()
-    )
+    trip = db.query(Trip).filter(
+        Trip.id == trip_id
+    ).first()
 
     if trip is None:
         raise HTTPException(
@@ -82,28 +77,9 @@ def update_trips(
     trip_id: int,
     trip_update: TripUpdate,
     db: Session = Depends(connect_db),
-    current_user: User = Depends(get_current_user)
+    membership: TripMembership = Depends(get_trip_membership)
 ):
-    membership = (
-        db.query(TripMembership)
-        .filter(
-            Trip.id == trip_id,
-            TripMembership.user_id == current_user.id
-        )
-        .first()
-    )
-
-    if membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trip not found"
-        )
-
-    if membership.role not in ["owner", "member"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permission"
-        )
+    require_role(membership, EDITOR_ROLES)
 
     trip = db.query(Trip).filter(
         Trip.id == trip_id
@@ -114,7 +90,7 @@ def update_trips(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Trip not found"
         )
-    
+
     # Determine what the dates will be after the update
     new_start_date = (
         trip_update.start_date
@@ -138,7 +114,14 @@ def update_trips(
         exclude_unset=True
     )
 
+    # These columns are NOT NULL, so an explicit null means "leave unchanged"
+    required_fields = ["title", "destination", "start_date", "end_date", "currency"]
+
     for field, value in update_data.items():
+        if value is None and field in required_fields:
+            continue
+        if field == "currency":
+            value = value.upper()
         setattr(trip, field, value)
 
     db.commit()
@@ -150,28 +133,9 @@ def update_trips(
 def delete_trip(
     trip_id:int,
     db: Session = Depends(connect_db),
-    current_user: User = Depends(get_current_user)
+    membership: TripMembership = Depends(get_trip_membership)
 ):
-    membership = (
-        db.query(TripMembership)
-        .filter(
-            Trip.id == trip_id,
-            TripMembership.user_id == current_user.id
-        )
-        .first()
-    )
-
-    if membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trip not found"
-        )
-
-    if membership.role != "owner":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permission"
-        )
+    require_role(membership, ["owner"])
 
     trip = db.query(Trip).filter(
         Trip.id == trip_id
