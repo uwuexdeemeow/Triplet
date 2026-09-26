@@ -329,6 +329,12 @@ class ExtractedPlace(Base):
         nullable=True
     )
 
+    # "osm" or "google": which service the looked-up details came from, so the app can credit it
+    details_source: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

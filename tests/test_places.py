@@ -136,6 +136,7 @@ def test_enrich_fills_in_details(db, google_enabled):
     assert place.latitude == 35.717
     assert place.needs_review is False
     assert place.details_fetched_at is not None
+    assert place.details_source == "google"
 
 def test_enrich_uses_trip_destination_when_post_has_no_city(db, google_enabled):
     place = ExtractedPlace(name="Menya Itto", details_status="pending", needs_review=False, user_edited=False)

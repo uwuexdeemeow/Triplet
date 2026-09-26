@@ -92,6 +92,7 @@ def test_enrich_from_osm_matches_any_language_name(db, osm_enabled):
     assert place.opening_hours == ["11:00 – 15:00, 18:00 – 22:00"] * 7
     assert place.website == "https://example.com/itto"
     assert place.details_fetched_at is not None
+    assert place.details_source == "osm"
 
 def test_enrich_from_osm_ignores_results_with_other_names(db, osm_enabled):
     place = new_place("Chukasoba Shibata")

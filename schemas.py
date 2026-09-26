@@ -250,6 +250,8 @@ class ExtractedPlaceResponse(BaseModel):
     website: str | None = None
     phone: str | None = None
     details_status: str
+    # "osm" or "google". OpenStreetMap's licence requires showing "© OpenStreetMap contributors"
+    details_source: str | None = None
     needs_review: bool
     user_edited: bool
 

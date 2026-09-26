@@ -207,6 +207,7 @@ def enrich_place(db: Session, place: ExtractedPlace, fallback_city: str | None =
 
     if place.details_status == "found":
         place.details_fetched_at = datetime.now(timezone.utc)
+        place.details_source = provider
 
 def _enrich_from_osm(place: ExtractedPlace, query: str):
     try:

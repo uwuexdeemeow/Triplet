@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # Leave GEMINI_API_KEY empty to skip video extraction
     GEMINI_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-3.5-flash"
+    # Tried in order when the main model is overloaded or rate limited
+    GEMINI_FALLBACK_MODELS: list[str] = ["gemini-3.6-flash", "gemini-3.1-flash-lite"]
     VIDEO_MAX_DURATION_SECONDS: int = 600
     VIDEO_MAX_FILESIZE_MB: int = 100
 

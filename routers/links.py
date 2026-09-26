@@ -73,8 +73,16 @@ def process_link(link_id: int):
             else:
                 link.caption = result.caption
                 link.summary = result.summary
-                # Replace places from an earlier run, except ones the user has corrected
-                kept = [place for place in link.places if place.user_edited]
+                # TikTok's embed info is often missing for photo posts, so fall back to the post's own
+                link.author_name = link.author_name or (result.author_name or "")[:255] or None
+                link.thumbnail_url = link.thumbnail_url or (result.thumbnail_url or "")[:2048] or None
+                # Replace places from an earlier run, except ones the user has corrected or planned
+                planned_ids = {
+                    place_id for (place_id,) in db.query(Activity.place_id).filter(
+                        Activity.place_id.in_([place.id for place in link.places])
+                    )
+                }
+                kept = [place for place in link.places if place.user_edited or place.id in planned_ids]
                 kept_names = {place.name.casefold() for place in kept}
                 link.places = kept + [
                     ExtractedPlace(**fit_to_columns(place.model_dump()))
@@ -96,6 +104,9 @@ def process_link(link_id: int):
         # Show the places straight away, then fill in addresses and opening hours one by one
         destination = db.query(Trip.destination).filter(Trip.id == link.trip_id).scalar()
         for place in link.places:
+            # Places kept from an earlier run already have their details
+            if place.details_status != "pending":
+                continue
             try:
                 enrich_place(db, place, fallback_city=destination)
             except Exception:
@@ -260,9 +271,12 @@ def add_link_to_itinerary(
 
     place_location = None
     if place is not None:
-        # Google's addresses already end with the city, so don't repeat it
-        city = place.city if place.city and place.city not in (place.address or "") else None
-        place_location = ", ".join(part for part in [place.name, place.address, city] if part)
+        # Google's addresses already end with the city and OpenStreetMap's start with the name,
+        # so don't repeat either
+        address = place.address or ""
+        name = None if address.casefold().startswith(place.name.casefold()) else place.name
+        city = place.city if place.city and place.city not in address else None
+        place_location = ", ".join(part for part in [name, place.address, city] if part)
 
     title = link_to_activity.title or (place.name if place else None) or link.place_name or link.title
     location = link_to_activity.location or place_location or link.place_name

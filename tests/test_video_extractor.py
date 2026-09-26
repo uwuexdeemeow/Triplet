@@ -15,14 +15,34 @@ from video_extractor import (
 
 VIDEO_INFO = {"duration": 30, "description": "Best ramen", "formats": [{"vcodec": "h264", "acodec": "aac"}]}
 SLIDESHOW_INFO = {
+    "id": "7",
+    "extractor_key": "TikTok",
+    "webpage_url": "https://www.tiktok.com/@a/video/7",
     "duration": 51,
     "description": "5 ramen shops 📍 Menya Itto",
     "thumbnail": "https://example.com/cover.jpg",
     "formats": [{"vcodec": "none", "acodec": "aac"}],
 }
+JPEG = b"\xff\xd8\xff" + b"cover"
 
-def fake_youtube_dl(info: dict, write_file: bool = True, error: Exception | None = None, cover: bytes | None = b"jpeg"):
+def slideshow_page(count: int) -> dict:
+    """TikTok's page data for a slideshow, as yt-dlp's extractor returns it."""
+    return {"imagePost": {"images": [{"imageURL": {"urlList": [f"https://example.com/slide{i}.jpg"]}} for i in range(count)]}}
+
+def fake_youtube_dl(
+    info: dict,
+    write_file: bool = True,
+    error: Exception | None = None,
+    cover: bytes | None = JPEG,
+    page_data: dict | Exception | None = None,
+):
     """Build a stand-in for yt_dlp.YoutubeDL that 'downloads' into the requested folder."""
+    class FakeExtractor:
+        def _extract_web_data_and_status(self, url, video_id, fatal=True):
+            if isinstance(page_data, Exception):
+                raise page_data
+            return page_data or {}, 0
+
     class FakeYoutubeDL:
         requested_urls = []
 
@@ -45,7 +65,12 @@ def fake_youtube_dl(info: dict, write_file: bool = True, error: Exception | None
             if write_file:
                 (self.dest_dir / "video.mp4").write_bytes(b"fake video")
 
+        def get_info_extractor(self, key):
+            return FakeExtractor()
+
         def urlopen(self, url):
+            if "slide" in url:
+                return io.BytesIO(f"slide:{url[-5]}".encode())
             if cover is None:
                 raise OSError("404")
             return io.BytesIO(cover)
@@ -68,26 +93,50 @@ def test_download_video(tmp_path):
         post = download_post("https://www.tiktok.com/@a/video/1", str(tmp_path))
 
     assert post.video_path.name == "video.mp4"
-    assert post.cover_image is None
+    assert post.images == []
     assert post.caption == "Best ramen"
 
-def test_download_photo_post_uses_cover_image(tmp_path):
-    fake = fake_youtube_dl(SLIDESHOW_INFO)
+def test_download_photo_post_reads_every_slide(tmp_path):
+    fake = fake_youtube_dl(SLIDESHOW_INFO, page_data=slideshow_page(3))
 
     with patch("yt_dlp.YoutubeDL", fake):
         post = download_post("https://www.tiktok.com/@a/photo/1", str(tmp_path))
 
     assert fake.requested_urls == ["https://www.tiktok.com/@a/video/1"]
     assert post.video_path is None
-    assert post.cover_image == b"jpeg"
-    # Slideshows are allowed to be longer than videos because only the cover is used
+    assert post.images == [b"slide:0", b"slide:1", b"slide:2"]
+    # Slideshows are allowed to be longer than videos because nothing is downloaded to disk
     assert list(tmp_path.iterdir()) == []
+
+def test_slides_are_capped(tmp_path, monkeypatch):
+    monkeypatch.setattr(video_extractor, "MAX_SLIDES", 2)
+
+    with patch("yt_dlp.YoutubeDL", fake_youtube_dl(SLIDESHOW_INFO, page_data=slideshow_page(5))):
+        post = download_post("https://www.tiktok.com/@a/photo/1", str(tmp_path))
+
+    assert post.images == [b"slide:0", b"slide:1"]
+
+def test_slides_stop_before_the_size_limit(tmp_path, monkeypatch):
+    # Each fake slide is 7 bytes
+    monkeypatch.setattr(video_extractor, "MAX_SLIDE_BYTES", 15)
+
+    with patch("yt_dlp.YoutubeDL", fake_youtube_dl(SLIDESHOW_INFO, page_data=slideshow_page(5))):
+        post = download_post("https://www.tiktok.com/@a/photo/1", str(tmp_path))
+
+    assert len(post.images) == 2
+
+def test_falls_back_to_the_cover_when_slides_fail(tmp_path):
+    # e.g. a yt-dlp update renamed the internal method
+    with patch("yt_dlp.YoutubeDL", fake_youtube_dl(SLIDESHOW_INFO, page_data=AttributeError("renamed"))):
+        post = download_post("https://www.tiktok.com/@a/photo/1", str(tmp_path))
+
+    assert post.images == [JPEG]
 
 def test_photo_post_without_cover_still_has_caption(tmp_path):
     with patch("yt_dlp.YoutubeDL", fake_youtube_dl(SLIDESHOW_INFO, cover=None)):
         post = download_post("https://www.tiktok.com/@a/photo/1", str(tmp_path))
 
-    assert post.cover_image is None
+    assert post.images == []
     assert post.caption == SLIDESHOW_INFO["description"]
 
 def test_download_rejects_long_videos(tmp_path):
@@ -132,12 +181,15 @@ def test_analyse_small_video_is_sent_inline(tmp_path):
     assert contents[0].inline_data.mime_type == "video/mp4"
     assert "Best ramen #tokyo" in contents[1]
 
-def test_analyse_photo_post_sends_cover_image():
+def test_analyse_photo_post_sends_every_slide():
     client = gemini_client(parsed=VideoExtraction())
+    webp = b"RIFF\x00\x00\x00\x00WEBPVP8 "
 
-    analyse_post(client, DownloadedPost(info={"description": "Ramen"}, cover_image=b"jpeg"))
+    analyse_post(client, DownloadedPost(info={"description": "Ramen"}, images=[JPEG, webp]))
 
-    assert sent_contents(client)[0].inline_data.mime_type == "image/jpeg"
+    contents = sent_contents(client)
+    assert [part.inline_data.mime_type for part in contents[:2]] == ["image/jpeg", "image/webp"]
+    assert "Ramen" in contents[2]
 
 def test_analyse_caption_only():
     client = gemini_client(parsed=VideoExtraction())
@@ -197,3 +249,103 @@ def test_extract_returns_caption_and_places(monkeypatch):
 
     assert result.caption == "Best ramen"
     assert result.places[0].name == "Ichiran"
+
+def api_error(code: int):
+    return video_extractor.genai_errors.APIError(code, {"error": {"code": code, "message": "test", "status": "TEST"}})
+
+def test_busy_gemini_is_retried(monkeypatch):
+    monkeypatch.setattr(video_extractor.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", [])
+    client = gemini_client(parsed=VideoExtraction(places=[Place(name="Ichiran")]))
+    good_response = client.models.generate_content.return_value
+    client.models.generate_content.side_effect = [api_error(503), good_response]
+
+    result = analyse_post(client, DownloadedPost(info={"description": "Ramen"}))
+
+    assert result.places[0].name == "Ichiran"
+    assert client.models.generate_content.call_count == 2
+
+def test_bad_request_is_not_retried(monkeypatch):
+    monkeypatch.setattr(video_extractor.time, "sleep", lambda seconds: None)
+    client = gemini_client()
+    client.models.generate_content.side_effect = api_error(400)
+
+    with pytest.raises(video_extractor.genai_errors.APIError):
+        analyse_post(client, DownloadedPost(info={"description": "Ramen"}))
+
+    assert client.models.generate_content.call_count == 1
+
+def test_still_busy_after_retries_says_so(monkeypatch):
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", ["backup-model"])
+    monkeypatch.setattr(video_extractor.time, "sleep", lambda seconds: None)
+
+    with patch("yt_dlp.YoutubeDL", fake_youtube_dl(VIDEO_INFO)), \
+         patch("video_extractor.genai.Client") as client_class:
+        client_class.return_value.models.generate_content.side_effect = api_error(429)
+        with pytest.raises(ExtractionError, match="busy"):
+            extract_from_video("https://www.tiktok.com/@a/video/1")
+
+    # Main model: first try and one retry. Backup (last) model: first try and two retries.
+    assert client_class.return_value.models.generate_content.call_count == 5
+
+class FakeResponse:
+    def __init__(self, url):
+        self.url = url
+
+def test_short_links_are_expanded():
+    with patch("curl_cffi.requests.head", return_value=FakeResponse("https://www.tiktok.com/@a/photo/1?_r=1")) as head:
+        assert video_extractor.expand_short_link("https://vt.tiktok.com/ZSb2Lx5Wx/") == "https://www.tiktok.com/@a/photo/1?_r=1"
+
+    assert head.call_args.kwargs["allow_redirects"] is True
+
+@pytest.mark.parametrize("url", [
+    "https://www.tiktok.com/@a/video/1",
+    "https://youtu.be/abc",
+])
+def test_full_links_are_not_fetched(url):
+    with patch("curl_cffi.requests.head") as head:
+        assert video_extractor.expand_short_link(url) == url
+
+    head.assert_not_called()
+
+def test_unresolvable_short_link_is_kept():
+    with patch("curl_cffi.requests.head", side_effect=OSError("offline")):
+        assert video_extractor.expand_short_link("https://vm.tiktok.com/abc/") == "https://vm.tiktok.com/abc/"
+
+def test_short_link_to_a_photo_post(tmp_path):
+    fake = fake_youtube_dl(SLIDESHOW_INFO, page_data=slideshow_page(2))
+
+    with patch("curl_cffi.requests.head", return_value=FakeResponse("https://www.tiktok.com/@a/photo/7?_r=1&_t=x")), \
+         patch("yt_dlp.YoutubeDL", fake):
+        post = download_post("https://vt.tiktok.com/ZSb2Lx5Wx/", str(tmp_path))
+
+    assert fake.requested_urls[-1] == "https://www.tiktok.com/@a/video/7"
+    assert post.images == [b"slide:0", b"slide:1"]
+
+def test_busy_model_falls_back_to_the_next(monkeypatch):
+    monkeypatch.setattr(video_extractor.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "main-model")
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", ["backup-model"])
+    client = gemini_client(parsed=VideoExtraction(places=[Place(name="Ichiran")]))
+    good_response = client.models.generate_content.return_value
+    # The main model stays busy through its retry, the backup answers
+    client.models.generate_content.side_effect = [api_error(503), api_error(503), good_response]
+
+    result = analyse_post(client, DownloadedPost(info={"description": "Ramen"}))
+
+    assert result.places[0].name == "Ichiran"
+    models = [call.kwargs["model"] for call in client.models.generate_content.call_args_list]
+    assert models == ["main-model", "main-model", "backup-model"]
+
+def test_unknown_model_is_skipped(monkeypatch):
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "retired-model")
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", ["backup-model"])
+    client = gemini_client(parsed=VideoExtraction())
+    good_response = client.models.generate_content.return_value
+    client.models.generate_content.side_effect = [api_error(404), good_response]
+
+    analyse_post(client, DownloadedPost(info={"description": "Ramen"}))
+
+    models = [call.kwargs["model"] for call in client.models.generate_content.call_args_list]
+    assert models == ["retired-model", "backup-model"]

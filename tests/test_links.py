@@ -197,3 +197,46 @@ def test_links_are_scoped_to_trip(client, eve, trip, save_link):
 
     assert client.get(f"/trips/{trip['id']}/links", headers=eve["headers"]).status_code == 404
     assert client.get(f"/trips/{other_trip['id']}/links/{link['id']}", headers=eve["headers"]).status_code == 404
+
+def test_author_and_thumbnail_fall_back_to_the_post(client, alice, trip, save_link, gemini_enabled):
+    extraction = EXTRACTION.model_copy(update={"author_name": "japan_travel_guide__", "thumbnail_url": "https://example.com/cover.jpg"})
+
+    link = get_link(client, alice, trip, save_link(metadata=None, extraction=extraction))
+
+    assert link["author_name"] == "japan_travel_guide__"
+    assert link["thumbnail_url"] == "https://example.com/cover.jpg"
+
+def test_embed_info_wins_over_the_post(client, alice, trip, save_link, gemini_enabled):
+    extraction = EXTRACTION.model_copy(update={"author_name": "someone_else"})
+
+    link = get_link(client, alice, trip, save_link(extraction=extraction))
+
+    assert link["author_name"] == METADATA["author_name"]
+
+def test_location_does_not_repeat_a_name_the_address_starts_with(client, alice, trip, save_link, gemini_enabled):
+    # OpenStreetMap addresses start with the place's name
+    extraction = ExtractionResult(places=[Place(name="Menya Itto", address="Menya Itto, 1-4-17 Higashishinkoiwa, Tokyo", city="Tokyo")])
+    link = get_link(client, alice, trip, save_link(extraction=extraction))
+
+    activity = add_to_itinerary(client, alice, trip, link, place_id=link["places"][0]["id"]).json()
+
+    assert activity["location"] == "Menya Itto, 1-4-17 Higashishinkoiwa, Tokyo"
+
+def test_try_again_keeps_places_already_in_the_plan(client, alice, trip, save_link, gemini_enabled):
+    link = get_link(client, alice, trip, save_link())
+    ichiran = link["places"][0]
+    activity = add_to_itinerary(client, alice, trip, link, place_id=ichiran["id"]).json()
+
+    looked_up = []
+    with patch("routers.links.fetch_metadata", return_value=METADATA), \
+         patch("routers.links.extract_from_video", return_value=EXTRACTION), \
+         patch("routers.links.enrich_place", side_effect=lambda db, place, fallback_city: looked_up.append(place.name)):
+        client.post(f"/trips/{trip['id']}/links/{link['id']}/refresh", headers=alice["headers"])
+
+    places = get_link(client, alice, trip, link)["places"]
+    assert [p["name"] for p in places] == ["Ichiran Shinjuku", "Fuunji"]
+    assert places[0]["id"] == ichiran["id"]
+    # Only the replaced place is looked up again, the kept one keeps its details
+    assert looked_up == ["Fuunji"]
+    remaining = client.get(f"/trips/{trip['id']}/activities/{activity['id']}", headers=alice["headers"]).json()
+    assert remaining["place_id"] == ichiran["id"]
