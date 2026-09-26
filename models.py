@@ -1,4 +1,4 @@
-from sqlalchemy import Date, String, Integer, DateTime, func, Text, ForeignKey, UniqueConstraint, Numeric
+from sqlalchemy import Boolean, Date, Float, JSON, String, Integer, DateTime, false, func, Text, ForeignKey, UniqueConstraint, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import date, datetime
 from decimal import Decimal
@@ -263,10 +263,104 @@ class ExtractedPlace(Base):
         nullable=True
     )
 
+    # Opening hours as the post describes them, e.g. "11am - 9pm, closed Mondays"
+    hours_from_post: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    latitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    longitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    # Seven entries, Monday first, e.g. "11:00 AM – 3:00 PM" or "Closed"
+    opening_hours: Mapped[list[str] | None] = mapped_column(
+        JSON,
+        nullable=True
+    )
+
+    website: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True
+    )
+
+    phone: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    google_place_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    # pending, found, not_found, limit_reached, failed or skipped (no API key)
+    details_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="pending",
+        server_default="pending"
+    )
+
+    # The lookup matched more than one place, so the user should check the address
+    needs_review: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false()
+    )
+
+    # Set once the user edits the place, so lookups never overwrite their changes
+    user_edited: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false()
+    )
+
+    details_fetched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now()
+    )
+
+class ApiUsage(Base):
+    """Daily call counts for paid APIs, used to stay inside the free allowance."""
+    __tablename__ = "api_usage"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    api: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False
+    )
+
+    day: Mapped[date] = mapped_column(
+        Date,
+        nullable=False
+    )
+
+    count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0
+    )
+
+    __table_args__ = (
+        UniqueConstraint("api", "day", name="uq_api_usage_api_day"),
     )
 
 class Activity(Base):
@@ -286,6 +380,12 @@ class Activity(Base):
         nullable=True
     )
 
+    # The extracted place this activity was planned from, so the map knows it's planned
+    place_id: Mapped[int | None] = mapped_column(
+        ForeignKey("extracted_places.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
     title: Mapped[str] = mapped_column(
         String(255),
         nullable=False
@@ -299,6 +399,16 @@ class Activity(Base):
     location: Mapped[str] = mapped_column(
         String(255),
         nullable=False
+    )
+
+    latitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    longitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
     )
 
     start_time: Mapped[datetime] = mapped_column(

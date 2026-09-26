@@ -31,6 +31,7 @@ Rules:
 - Leave a field empty if the post doesn't say it.
 - price_range is what the post says, e.g. "$$" or "¥1,200 per bowl".
 - notes are short practical tips from the post, e.g. what to order, best time to go, whether to book.
+- hours_from_post is the opening hours exactly as the post states them, e.g. "11am - 9pm, closed Mondays".
 - summary is one or two sentences describing the post.
 - If the post doesn't mention any places, return an empty list.
 
@@ -46,6 +47,7 @@ class Place(BaseModel):
     country: str | None = None
     price_range: str | None = None
     notes: str | None = None
+    hours_from_post: str | None = Field(default=None, description="Opening hours, only if the post states them")
 
 class VideoExtraction(BaseModel):
     summary: str | None = None

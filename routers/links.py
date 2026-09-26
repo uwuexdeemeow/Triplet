@@ -4,14 +4,24 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 from config import settings
 from database import connect_db, SessionLocal
-from models import TripMembership, SavedLink, ExtractedPlace, Activity
+from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity
 from schemas import SavedLinkCreate, SavedLinkUpdate, SavedLinkResponse, LinkToActivity, ActivityResponse
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 from link_parser import detect_platform, fetch_metadata, VIDEO_PLATFORMS
 from video_extractor import extract_from_video, ExtractionError
+from places_lookup import enrich_place
 from routers.activities import validate_activity
 
 logger = logging.getLogger("triplet.links")
+
+def fit_to_columns(values: dict) -> dict:
+    """Cut AI generated text down to the column sizes so an overly long value can't fail the insert."""
+    fitted = {}
+    for field, value in values.items():
+        column = ExtractedPlace.__table__.columns[field]
+        max_length = getattr(column.type, "length", None)
+        fitted[field] = value[:max_length] if isinstance(value, str) and max_length else value
+    return fitted
 
 router = APIRouter(
     prefix="/trips/{trip_id}/links",
@@ -63,10 +73,13 @@ def process_link(link_id: int):
             else:
                 link.caption = result.caption
                 link.summary = result.summary
-                # Replace any places from an earlier run
-                link.places = [
-                    ExtractedPlace(**place.model_dump())
+                # Replace places from an earlier run, except ones the user has corrected
+                kept = [place for place in link.places if place.user_edited]
+                kept_names = {place.name.casefold() for place in kept}
+                link.places = kept + [
+                    ExtractedPlace(**fit_to_columns(place.model_dump()))
                     for place in result.places
+                    if place.name.casefold() not in kept_names
                 ]
                 if link.place_name is None and result.places:
                     link.place_name = result.places[0].name[:255]
@@ -79,6 +92,16 @@ def process_link(link_id: int):
 
         link.processed_at = datetime.now(timezone.utc)
         db.commit()
+
+        # Show the places straight away, then fill in addresses and opening hours one by one
+        destination = db.query(Trip.destination).filter(Trip.id == link.trip_id).scalar()
+        for place in link.places:
+            try:
+                enrich_place(db, place, fallback_city=destination)
+            except Exception:
+                logger.exception("Failed to look up place %s", place.id)
+                place.details_status = "failed"
+            db.commit()
     except Exception:
         # Never leave a link stuck in "processing"
         logger.exception("Failed to process link %s", link_id)
@@ -237,7 +260,9 @@ def add_link_to_itinerary(
 
     place_location = None
     if place is not None:
-        place_location = ", ".join(part for part in [place.name, place.address, place.city] if part)
+        # Google's addresses already end with the city, so don't repeat it
+        city = place.city if place.city and place.city not in (place.address or "") else None
+        place_location = ", ".join(part for part in [place.name, place.address, city] if part)
 
     title = link_to_activity.title or (place.name if place else None) or link.place_name or link.title
     location = link_to_activity.location or place_location or link.place_name
@@ -260,9 +285,12 @@ def add_link_to_itinerary(
     activity = Activity(
         trip_id=trip_id,
         source_link_id=link.id,
+        place_id=place.id if place else None,
         title=title[:255],
         description=link_to_activity.description or (place.notes if place else None) or link.notes,
         location=location[:255],
+        latitude=place.latitude if place else None,
+        longitude=place.longitude if place else None,
         start_time=link_to_activity.start_time,
         end_time=link_to_activity.end_time,
         estimated_cost=link_to_activity.estimated_cost

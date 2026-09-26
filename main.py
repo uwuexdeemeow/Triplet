@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from routers import auth, users, trips, guest, members, invitations, activities, links, expenses
+from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses
 
 app = FastAPI(
     title="Triplet API",
@@ -16,6 +16,7 @@ app.include_router(members.router)
 app.include_router(invitations.router)
 app.include_router(activities.router)
 app.include_router(links.router)
+app.include_router(places.router)
 app.include_router(expenses.router)
 app.include_router(guest.router)
 app.include_router(guest.setup_router)

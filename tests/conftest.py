@@ -20,10 +20,11 @@ PASSWORD = "Tr0ub4dor&3-horse-battery"
 def no_external_calls(monkeypatch):
     # Tests must never reach TikTok or Gemini, even if a real key is in .env
     monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
+    monkeypatch.setattr(settings, "GOOGLE_PLACES_API_KEY", None)
     monkeypatch.setattr("routers.links.fetch_metadata", lambda url, platform: None)
 
 @pytest.fixture
-def client(monkeypatch):
+def session_factory():
     # Fresh in-memory database for every test
     engine = create_engine(
         "sqlite://",
@@ -37,7 +38,18 @@ def client(monkeypatch):
         connection.execute("PRAGMA foreign_keys=ON")
 
     Base.metadata.create_all(engine)
-    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    yield sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    engine.dispose()
+
+@pytest.fixture
+def db(session_factory):
+    session = session_factory()
+    yield session
+    session.close()
+
+@pytest.fixture
+def client(monkeypatch, session_factory):
+    TestingSession = session_factory
 
     def override_connect_db():
         db = TestingSession()
@@ -54,7 +66,6 @@ def client(monkeypatch):
         yield test_client
 
     app.dependency_overrides.clear()
-    engine.dispose()
 
 @pytest.fixture
 def make_user(client):

@@ -147,6 +147,15 @@ class InvitationResponse(BaseModel):
         "from_attributes": True
     }
 
+Latitude = Field(default=None, ge=-90, le=90)
+Longitude = Field(default=None, ge=-180, le=180)
+
+def validate_coordinates(model):
+    # A pin needs both halves, or neither
+    if (model.latitude is None) != (model.longitude is None):
+        raise ValueError("Latitude and longitude must be set together")
+    return model
+
 class ActivityCreate(BaseModel):
     title: str
     description: str | None = None
@@ -155,13 +164,15 @@ class ActivityCreate(BaseModel):
     end_time: datetime
     estimated_cost: float | None = Field(default=None, ge=0)
     source_link_id: int | None = None
+    latitude: float | None = Latitude
+    longitude: float | None = Longitude
 
     @model_validator(mode="after")
     def validate_times(self):
         if self.end_time < self.start_time:
             raise ValueError("End time cannot be before start time")
 
-        return self
+        return validate_coordinates(self)
 
 class ActivityUpdate(BaseModel):
     title: str | None = None
@@ -171,14 +182,25 @@ class ActivityUpdate(BaseModel):
     end_time: datetime | None = None
     estimated_cost: float | None = Field(default=None, ge=0)
     source_link_id: int | None = None
+    latitude: float | None = Latitude
+    longitude: float | None = Longitude
+
+    @model_validator(mode="after")
+    def validate_pin(self):
+        if "latitude" in self.model_fields_set or "longitude" in self.model_fields_set:
+            return validate_coordinates(self)
+        return self
 
 class ActivityResponse(BaseModel):
     id: int
     trip_id: int
     source_link_id: int | None = None
+    place_id: int | None = None
     title: str
     description: str | None = None
     location: str
+    latitude: float | None = None
+    longitude: float | None = None
     start_time: datetime
     end_time: datetime
     estimated_cost: float | None = None
@@ -209,8 +231,11 @@ class SavedLinkUpdate(BaseModel):
     place_name: str | None = None
     notes: str | None = None
 
+PlaceCategory = Literal["food", "cafe", "bar", "nightlife", "attraction", "nature", "shopping", "accommodation", "activity", "other"]
+
 class ExtractedPlaceResponse(BaseModel):
     id: int
+    link_id: int
     name: str
     category: str | None = None
     address: str | None = None
@@ -218,10 +243,53 @@ class ExtractedPlaceResponse(BaseModel):
     country: str | None = None
     price_range: str | None = None
     notes: str | None = None
+    hours_from_post: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    opening_hours: list[str] | None = None
+    website: str | None = None
+    phone: str | None = None
+    details_status: str
+    needs_review: bool
+    user_edited: bool
 
     model_config={
         "from_attributes": True
     }
+
+class TripPlaceResponse(ExtractedPlaceResponse):
+    # Activities planned from this place, empty when it's only saved
+    activity_ids: list[int] = []
+
+class PlaceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    category: PlaceCategory | None = None
+    address: str | None = Field(default=None, max_length=500)
+    city: str | None = Field(default=None, max_length=255)
+    country: str | None = Field(default=None, max_length=255)
+    price_range: str | None = Field(default=None, max_length=50)
+    notes: str | None = None
+    latitude: float | None = Latitude
+    longitude: float | None = Longitude
+    # Seven entries, Monday first, e.g. "11:00 – 15:00" or "Closed"
+    opening_hours: list[str] | None = Field(default=None, min_length=7, max_length=7)
+    website: HttpUrl | None = None
+    phone: str | None = Field(default=None, max_length=50)
+    # Set when the user picked a search result in the pin picker
+    google_place_id: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def validate_pin(self):
+        if "latitude" in self.model_fields_set or "longitude" in self.model_fields_set:
+            return validate_coordinates(self)
+        return self
+
+class PlaceSearchResult(BaseModel):
+    google_place_id: str
+    name: str
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 class SavedLinkResponse(BaseModel):
     id: int
