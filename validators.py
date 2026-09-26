@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from zxcvbn import zxcvbn
 
 def password_strength(password: str, user_inputs: list = None) -> dict:
@@ -42,3 +43,17 @@ def password_strength(password: str, user_inputs: list = None) -> dict:
             "feedback": result['feedback'],
             "error": None
         }
+
+def as_utc(value: datetime) -> datetime:
+    """
+    Treat datetimes without an offset as UTC so they can be compared with timezone-aware ones.
+
+    Args:
+        value (datetime): The datetime to normalise.
+
+    Returns:
+        datetime: A timezone-aware datetime.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
