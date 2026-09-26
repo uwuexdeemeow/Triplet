@@ -1,12 +1,22 @@
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from config import settings
 from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses
 
 app = FastAPI(
     title="Triplet API",
     description="Trip planning aplication API",
     version="1.0.0"
+)
+
+# Lets the web version of the app call the API from the browser. Phone apps don't need this.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(auth.router)

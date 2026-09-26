@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     PASSWORD_RESET_EXPIRE_MINUTES: int = 30
 
+    # Browser origins allowed to call the API, e.g. the Expo web dev server
+    CORS_ORIGINS: list[str] = ["http://localhost:8081"]
+
     # Link sent in password reset emails, the token is appended as ?token=...
     PASSWORD_RESET_URL: str = "http://localhost:3000/reset-password"
 

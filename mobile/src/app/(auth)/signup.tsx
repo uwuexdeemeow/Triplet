@@ -1,0 +1,160 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Link } from 'expo-router';
+import { useRef, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { StyleSheet, Text, View, type TextInput } from 'react-native';
+
+import { ApiError } from '@/api/client';
+import { useSession } from '@/auth/session';
+import { signupSchema, type SignupValues } from '@/auth/validation';
+import { Button } from '@/components/button';
+import { FormMessage, Screen } from '@/components/screen';
+import { Body, Heading } from '@/components/text';
+import { TextField } from '@/components/text-field';
+import { colors, fonts, spacing } from '@/theme/tokens';
+
+// The backend keeps its signup errors vague ("Invalid credentials"), so explain them by status code
+function signupError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 409) return 'An account with this email already exists. Try logging in instead.';
+    if (error.status === 422) return 'That password is too easy to guess. Try a longer phrase, or mix in words that aren’t your name or email.';
+    return error.message;
+  }
+  return 'Something went wrong.';
+}
+
+export default function SignupScreen() {
+  const { signUp } = useSession();
+  const [formError, setFormError] = useState<string | null>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+
+  const { control, handleSubmit, formState } = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { name: '', email: '', password: '' },
+  });
+
+  const onSubmit = handleSubmit(async ({ name, email, password }) => {
+    setFormError(null);
+    try {
+      await signUp(name, email, password);
+    } catch (error) {
+      setFormError(signupError(error));
+    }
+  });
+
+  return (
+    <Screen>
+      <View style={styles.container}>
+        <View style={styles.intro}>
+          <Heading>Create your account</Heading>
+          <Body style={styles.muted}>Plan trips with friends from the videos you save.</Body>
+        </View>
+
+        <View style={styles.form}>
+          <FormMessage message={formError} />
+
+          <Controller
+            control={control}
+            name="name"
+            render={({ field, fieldState }) => (
+              <TextField
+                label="Name"
+                hint="Letters and numbers only"
+                autoComplete="username"
+                textContentType="username"
+                autoCapitalize="none"
+                returnKeyType="next"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+                onSubmitEditing={() => emailRef.current?.focus()}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="email"
+            render={({ field, fieldState }) => (
+              <TextField
+                ref={emailRef}
+                label="Email"
+                placeholder="you@example.com"
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="password"
+            render={({ field, fieldState }) => (
+              <TextField
+                ref={passwordRef}
+                label="Password"
+                hint="8 to 64 characters. A few random words works well."
+                secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="go"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+                onSubmitEditing={onSubmit}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+
+          <Button label="Create account" loading={formState.isSubmitting} onPress={onSubmit} />
+        </View>
+      </View>
+
+      <Text style={styles.footer}>
+        Already have an account?{' '}
+        <Link href="/login" style={styles.link}>
+          Log in
+        </Link>
+      </Text>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    gap: 32,
+    paddingTop: spacing.xl,
+  },
+  intro: {
+    gap: spacing.sm,
+  },
+  muted: {
+    color: colors.muted,
+  },
+  form: {
+    gap: 18,
+  },
+  footer: {
+    marginTop: spacing.xxl,
+    textAlign: 'center',
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.muted,
+  },
+  link: {
+    fontFamily: fonts.bold,
+    color: colors.teal,
+  },
+});
