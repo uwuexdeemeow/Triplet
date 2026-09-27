@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useLinks, usePlaces, useTrip } from '@/api/trips';
 import { Button } from '@/components/button';
-import { TimeField } from '@/components/date-time-field';
+import { TimeRangeField } from '@/components/time-range-field';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { Muted } from '@/components/text';
@@ -17,7 +17,7 @@ import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { parseAmount } from '@/trips/validation';
-import { addMinutes, dayOfMonth, eachDay, formatShortDate, toActivityTime, todayString, weekdayShort } from '@/utils/dates';
+import { dayOfMonth, eachDay, formatShortDate, toActivityTime, todayString, weekdayShort } from '@/utils/dates';
 import { detailsCredit, hoursOn, needsCheck } from '@/utils/places';
 
 const schema = z
@@ -53,7 +53,7 @@ export default function AddPlaceScreen() {
   const days = trip.data?.start_date && trip.data.end_date ? eachDay(trip.data.start_date, trip.data.end_date) : [];
   const today = todayString();
 
-  const { control, handleSubmit, setValue, getValues } = useForm<Values>({
+  const { control, handleSubmit, setValue } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
       day: days.includes(today) ? today : (trip.data?.start_date ?? ''),
@@ -64,6 +64,7 @@ export default function AddPlaceScreen() {
   });
   // Falls back like the Plan tab if the trip hadn't loaded when the form opened
   const pickedDay = useWatch({ control, name: 'day' });
+  const [startTime, endTime] = useWatch({ control, name: ['startTime', 'endTime'] });
   const day = days.includes(pickedDay) ? pickedDay : days.includes(today) ? today : days[0];
 
   const addToPlan = useMutation({
@@ -198,32 +199,21 @@ export default function AddPlaceScreen() {
           )}
         />
 
-        <View style={styles.row}>
-          <Controller
-            control={control}
-            name="startTime"
-            render={({ field }) => (
-              <TimeField
-                label="From"
-                value={field.value}
-                onChange={(value) => {
-                  const [h1, m1] = field.value.split(':').map(Number);
-                  const [h2, m2] = getValues('endTime').split(':').map(Number);
-                  const length = h2 * 60 + m2 - (h1 * 60 + m1);
-                  field.onChange(value);
-                  setValue('endTime', addMinutes(value, length > 0 ? length : 60));
-                }}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="endTime"
-            render={({ field, fieldState }) => (
-              <TimeField label="To" value={field.value} onChange={field.onChange} error={fieldState.error?.message} />
-            )}
-          />
-        </View>
+        <Controller
+          control={control}
+          name="endTime"
+          render={({ fieldState }) => (
+            <TimeRangeField
+              start={startTime}
+              end={endTime}
+              onChange={(nextStart, nextEnd) => {
+                setValue('startTime', nextStart, { shouldDirty: true });
+                setValue('endTime', nextEnd, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={fieldState.error?.message}
+            />
+          )}
+        />
 
         <Controller
           control={control}

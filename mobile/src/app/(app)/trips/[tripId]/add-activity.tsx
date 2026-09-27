@@ -8,7 +8,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useItinerary, useTrip, type ItineraryActivity, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
-import { TimeField } from '@/components/date-time-field';
+import { TimeRangeField } from '@/components/time-range-field';
 import { LocationField, type Pin } from '@/components/location-field';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
@@ -16,7 +16,7 @@ import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { activitySchema, parseAmount, type ActivityValues } from '@/trips/validation';
-import { activityClock, addMinutes, dayOfMonth, eachDay, toActivityTime, weekdayShort } from '@/utils/dates';
+import { activityClock, dayOfMonth, eachDay, toActivityTime, weekdayShort } from '@/utils/dates';
 
 type Params = {
   tripId: string;
@@ -97,7 +97,7 @@ function ActivityForm({
   // Keep a plan's own day selectable even if the trip's dates have since changed
   const days = existing && !tripDays.includes(existing.day) ? [...tripDays, existing.day].sort() : tripDays;
 
-  const { control, handleSubmit, setValue, getValues } = useForm<ActivityValues>({
+  const { control, handleSubmit, setValue } = useForm<ActivityValues>({
     resolver: zodResolver(activitySchema),
     defaultValues: activity
       ? {
@@ -129,6 +129,7 @@ function ActivityForm({
     return null;
   });
   const title = useWatch({ control, name: 'title' });
+  const [startTime, endTime] = useWatch({ control, name: ['startTime', 'endTime'] });
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: tripKeys.itinerary(id) });
@@ -242,31 +243,21 @@ function ActivityForm({
           )}
         />
 
-        <View style={styles.row}>
-          <Controller
-            control={control}
-            name="startTime"
-            render={({ field }) => (
-              <TimeField
-                label="From"
-                value={field.value}
-                onChange={(value) => {
-                  // Keep the same length when the start moves, defaulting to an hour
-                  const length = minutesBetween(field.value, getValues('endTime'));
-                  field.onChange(value);
-                  setValue('endTime', addMinutes(value, length > 0 ? length : 60));
-                }}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="endTime"
-            render={({ field, fieldState }) => (
-              <TimeField label="To" value={field.value} onChange={field.onChange} error={fieldState.error?.message} />
-            )}
-          />
-        </View>
+        <Controller
+          control={control}
+          name="endTime"
+          render={({ fieldState }) => (
+            <TimeRangeField
+              start={startTime}
+              end={endTime}
+              onChange={(nextStart, nextEnd) => {
+                setValue('startTime', nextStart, { shouldDirty: true });
+                setValue('endTime', nextEnd, { shouldDirty: true, shouldValidate: true });
+              }}
+              error={fieldState.error?.message}
+            />
+          )}
+        />
 
         <Controller
           control={control}
@@ -314,13 +305,6 @@ function ActivityForm({
   );
 }
 
-function minutesBetween(start: string, end: string): number {
-  const toMinutes = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
-  };
-  return toMinutes(end) - toMinutes(start);
-}
 
 const useStyles = makeStyles((colors) => ({
   container: {
