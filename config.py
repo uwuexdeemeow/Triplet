@@ -1,10 +1,20 @@
 from typing import Literal
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Example keys from docs and tutorials; anyone could forge sign-in tokens with them
+KNOWN_WEAK_KEYS = {"secret", "changeme", "change-me", "your-secret-key", "supersecret", "test-secret-key"}
+
 class Settings(BaseSettings):
+    # "production" hides the API docs and insists on safe settings
+    ENVIRONMENT: Literal["development", "production"] = "development"
+    # Print every SQL statement, handy when debugging locally; never in production (it logs emails)
+    SQL_ECHO: bool = False
+
     DB_SETTINGS: str
+    # Signs sign-in tokens. At least 32 random characters: python secret.py prints one
     SECRET_KEY: str
-    ALGORITHM: str = "HS256"
+    ALGORITHM: Literal["HS256", "HS384", "HS512"] = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     PASSWORD_RESET_EXPIRE_MINUTES: int = 30
@@ -43,6 +53,22 @@ class Settings(BaseSettings):
     PLACES_DETAILS_DAILY_LIMIT: int = 30
     # Pin picker searches are free for 5,000 a month
     PLACES_SEARCH_DAILY_LIMIT: int = 150
+
+    # Slow down password guessing, sign-up spam and costly lookups. Tests switch this off.
+    RATE_LIMITS_ENABLED: bool = True
+    # Saving a link costs a video download and an AI call, so cap it per person per day
+    LINK_SAVES_DAILY_LIMIT: int = 40
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def strong_secret_key(cls, value: str) -> str:
+        if len(value) < 32 or value.lower() in KNOWN_WEAK_KEYS:
+            raise ValueError("SECRET_KEY must be at least 32 random characters. Run: python secret.py")
+        return value
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
 
     model_config = SettingsConfigDict(
         env_file=".env",

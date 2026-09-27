@@ -348,6 +348,31 @@ class ExtractedPlace(Base):
         server_default=func.now()
     )
 
+class RateLimit(Base):
+    """Recent attempts per key (e.g. "login-email:sam@example.com"), to slow down guessing and abuse."""
+    __tablename__ = "rate_limits"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        unique=True
+    )
+
+    window_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0
+    )
+
 class ApiUsage(Base):
     """Daily call counts for paid APIs, used to stay inside the free allowance."""
     __tablename__ = "api_usage"

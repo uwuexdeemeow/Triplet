@@ -1,14 +1,19 @@
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import connect_db
 from models import User, TripMembership, TripInvitation
 from schemas import MemberResponse, MemberRoleUpdate, InvitationCreate, InvitationResponse
 from dependencies import get_trip_membership, require_role, Pagination
+import rate_limit
 
 router = APIRouter(
     prefix="/trips/{trip_id}",
     tags=["Trip Members"]
 )
+
+INVITE_LIMIT = 30
+INVITE_WINDOW = timedelta(hours=1)
 
 def count_owners(db: Session, trip_id: int) -> int:
     return db.query(TripMembership).filter(
@@ -107,6 +112,10 @@ def create_invitation(
     membership: TripMembership = Depends(get_trip_membership)
 ):
     require_role(membership, ["owner"])
+
+    # An invite says whether an email has an account, so don't let anyone check thousands
+    rate_limit.hit(db, f"invite-user:{membership.user_id}", INVITE_LIMIT, INVITE_WINDOW,
+                   "You've sent a lot of invites. Try again in a while.")
 
     # Invitees can be looked up by email (from the app) or by id
     if invitation_create.email is not None:

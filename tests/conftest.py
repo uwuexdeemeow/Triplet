@@ -2,7 +2,7 @@ import os
 
 # Must be set before the app is imported so tests never touch the real database from .env
 os.environ["DB_SETTINGS"] = "sqlite://"
-os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ["SECRET_KEY"] = "tests-only-secret-key-0123456789abcdef"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,6 +23,8 @@ def no_external_calls(monkeypatch):
     monkeypatch.setattr(settings, "GOOGLE_PLACES_API_KEY", None)
     monkeypatch.setattr(settings, "PLACE_LOOKUP_PROVIDER", "none")
     monkeypatch.setattr("routers.links.fetch_metadata", lambda url, platform: None)
+    # Rate limits have their own tests (test_security.py), which switch them back on
+    monkeypatch.setattr(settings, "RATE_LIMITS_ENABLED", False)
 
 @pytest.fixture
 def session_factory():

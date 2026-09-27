@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 from config import settings
@@ -7,6 +7,7 @@ from database import connect_db, SessionLocal
 from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity
 from schemas import SavedLinkCreate, SavedLinkUpdate, SavedLinkResponse, LinkToActivity, ActivityResponse
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
+import rate_limit
 from link_parser import detect_platform, fetch_metadata, VIDEO_PLATFORMS
 from video_extractor import extract_from_video, ExtractionError
 from places_lookup import enrich_place
@@ -126,6 +127,16 @@ def process_link(link_id: int):
     finally:
         db.close()
 
+def limit_link_processing(db: Session, membership: TripMembership):
+    """Each save or re-check downloads a video and asks the AI about it, which costs money."""
+    rate_limit.hit(
+        db,
+        f"link-saves:{membership.user_id}",
+        settings.LINK_SAVES_DAILY_LIMIT,
+        timedelta(days=1),
+        "You've saved a lot of posts today. Try again tomorrow."
+    )
+
 @router.post("", response_model=SavedLinkResponse, status_code=201)
 def create_link(
     trip_id: int,
@@ -135,6 +146,7 @@ def create_link(
     membership: TripMembership = Depends(get_trip_membership)
 ):
     require_role(membership, EDITOR_ROLES)
+    limit_link_processing(db, membership)
 
     url = str(link_create.url)
 
@@ -220,6 +232,7 @@ def refresh_link(
     require_role(membership, EDITOR_ROLES)
 
     link = get_link_or_404(db, trip_id, link_id)
+    limit_link_processing(db, membership)
 
     link.status = "pending"
     link.error = None

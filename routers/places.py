@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from config import settings
@@ -6,6 +7,7 @@ from database import connect_db
 from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity
 from schemas import TripPlaceResponse, PlaceUpdate, PlaceSearchResult
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES
+import rate_limit
 from places_lookup import active_provider, search_places, search_places_osm, reserve_call, PlacesError, PlacesQuotaError, SEARCH_API
 from osm_lookup import OsmError
 from photon_lookup import PhotonError, locate, reverse, suggest
@@ -14,6 +16,16 @@ router = APIRouter(
     prefix="/trips/{trip_id}/places",
     tags=["Places"]
 )
+
+# Searches go to shared free services (OpenStreetMap, Photon) that ban heavy users,
+# so each person gets a generous but finite number per minute
+# Suggestions fire as people type, so this is well above what a fast typist needs
+LOOKUP_LIMIT = 120
+LOOKUP_WINDOW = timedelta(minutes=1)
+
+def limit_lookups(db: Session, membership: TripMembership):
+    rate_limit.hit(db, f"lookup-user:{membership.user_id}", LOOKUP_LIMIT, LOOKUP_WINDOW,
+                   "Too many searches in a row. Wait a moment and try again.")
 
 def get_place_or_404(db: Session, trip_id: int, place_id: int) -> ExtractedPlace:
     place = (
@@ -74,6 +86,7 @@ def search(
     db: Session = Depends(connect_db),
     membership: TripMembership = Depends(get_trip_membership)
 ):
+    limit_lookups(db, membership)
     provider = active_provider()
     if provider is None:
         raise HTTPException(
@@ -113,6 +126,7 @@ def suggest_places(
     membership: TripMembership = Depends(get_trip_membership)
 ):
     """Suggestions while typing a location. Free OpenStreetMap data, so no daily cap."""
+    limit_lookups(db, membership)
     destination = db.query(Trip.destination).filter(Trip.id == trip_id).scalar()
 
     try:
@@ -130,9 +144,11 @@ def reverse_place(
     trip_id: int,
     lat: float = Query(ge=-90, le=90),
     lon: float = Query(ge=-180, le=180),
+    db: Session = Depends(connect_db),
     membership: TripMembership = Depends(get_trip_membership)
 ):
     """The name and address at a pin dropped on the map, or null when there's nothing there."""
+    limit_lookups(db, membership)
     try:
         return reverse(lat, lon)
     except PhotonError:
