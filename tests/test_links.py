@@ -142,6 +142,30 @@ def test_update_and_delete_link(client, alice, trip, save_link, gemini_enabled):
     assert client.delete(f"/trips/{trip['id']}/links/{link['id']}", headers=alice["headers"]).status_code == 204
     assert client.get(f"/trips/{trip['id']}/links", headers=alice["headers"]).json() == []
 
+def test_rename_link_and_undo(client, alice, trip, save_link, gemini_enabled):
+    link = get_link(client, alice, trip, save_link())
+    url = f"/trips/{trip['id']}/links/{link['id']}"
+
+    renamed = client.patch(url, headers=alice["headers"], json={"custom_title": "  Our ramen night  "}).json()
+    assert renamed["custom_title"] == "Our ramen night"
+    # The post's own title is kept, so the rename can be undone
+    assert renamed["title"] == link["title"]
+
+    # An empty name goes back to the post's own title
+    cleared = client.patch(url, headers=alice["headers"], json={"custom_title": "   "}).json()
+    assert cleared["custom_title"] is None
+
+def test_rename_is_capped(client, alice, trip, save_link, gemini_enabled):
+    link = save_link()
+    response = client.patch(f"/trips/{trip['id']}/links/{link['id']}", headers=alice["headers"], json={"custom_title": "x" * 256})
+    assert response.status_code == 422
+
+def test_viewers_cannot_rename(client, alice, bob, trip, save_link, add_member, gemini_enabled):
+    link = save_link()
+    add_member(bob, role="viewer")
+    response = client.patch(f"/trips/{trip['id']}/links/{link['id']}", headers=bob["headers"], json={"custom_title": "Mine"})
+    assert response.status_code == 403
+
 def add_to_itinerary(client, alice, trip, link, **body):
     return client.post(f"/trips/{trip['id']}/links/{link['id']}/activity", headers=alice["headers"], json={
         "start_time": "2026-10-03T19:00:00Z",

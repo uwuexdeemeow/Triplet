@@ -4702,6 +4702,17 @@
       ],
       "title": "Title"
      },
+     "custom_title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Title"
+     },
      "author_name": {
       "anyOf": [
        {
@@ -4843,6 +4854,18 @@
        }
       ],
       "title": "Notes"
+     },
+     "custom_title": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Title"
      }
     },
     "type": "object",

@@ -156,6 +156,13 @@ class SavedLink(Base):
         nullable=True
     )
 
+    # The name the user gave the post; shown instead of the post's own title, and kept when
+    # the post is looked up again
+    custom_title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
     author_name: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True

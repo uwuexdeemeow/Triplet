@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, HttpUrl, model_validator
+from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
 from datetime import date, datetime
 from typing import Literal
 
@@ -237,6 +237,13 @@ class SavedLinkCreate(BaseModel):
 class SavedLinkUpdate(BaseModel):
     place_name: str | None = None
     notes: str | None = None
+    # Renames the post; empty or null goes back to the post's own title
+    custom_title: str | None = Field(default=None, max_length=255)
+
+    @field_validator("custom_title")
+    @classmethod
+    def blank_title_is_none(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
 
 PlaceCategory = Literal["food", "cafe", "bar", "nightlife", "attraction", "nature", "shopping", "accommodation", "activity", "other"]
 
@@ -308,6 +315,7 @@ class SavedLinkResponse(BaseModel):
     url: str
     platform: str
     title: str | None = None
+    custom_title: str | None = None
     author_name: str | None = None
     thumbnail_url: str | None = None
     place_name: str | None = None

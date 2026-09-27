@@ -1178,6 +1178,8 @@ export interface components {
             platform: string;
             /** Title */
             title?: string | null;
+            /** Custom Title */
+            custom_title?: string | null;
             /** Author Name */
             author_name?: string | null;
             /** Thumbnail Url */
@@ -1213,6 +1215,8 @@ export interface components {
             place_name?: string | null;
             /** Notes */
             notes?: string | null;
+            /** Custom Title */
+            custom_title?: string | null;
         };
         /** Token */
         Token: {
