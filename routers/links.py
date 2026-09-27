@@ -282,6 +282,22 @@ def add_link_to_itinerary(
                 detail="Place not found"
             )
 
+    activity = new_activity_from_link(db, trip_id, link, place, link_to_activity)
+
+    db.add(activity)
+    db.commit()
+    db.refresh(activity)
+
+    return activity
+
+def new_activity_from_link(
+    db: Session,
+    trip_id: int,
+    link: SavedLink,
+    place: ExtractedPlace | None,
+    link_to_activity: LinkToActivity
+) -> Activity:
+    """A plan for a saved post (or one place in it), filled in from the place. Not added to the session."""
     place_location = None
     if place is not None:
         # Google's addresses already end with the city and OpenStreetMap's start with the name,
@@ -309,7 +325,7 @@ def add_link_to_itinerary(
     )
 
     # Keep a reference back to the original post so users remember why they saved it
-    activity = Activity(
+    return Activity(
         trip_id=trip_id,
         source_link_id=link.id,
         place_id=place.id if place else None,
@@ -322,9 +338,3 @@ def add_link_to_itinerary(
         end_time=link_to_activity.end_time,
         estimated_cost=link_to_activity.estimated_cost
     )
-
-    db.add(activity)
-    db.commit()
-    db.refresh(activity)
-
-    return activity

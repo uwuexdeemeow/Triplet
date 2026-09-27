@@ -467,6 +467,116 @@
     ]
    }
   },
+  "/users/me/avatar": {
+   "put": {
+    "tags": [
+     "User Data"
+    ],
+    "summary": "Upload Avatar",
+    "operationId": "upload_avatar_users_me_avatar_put",
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_upload_avatar_users_me_avatar_put"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ]
+   },
+   "delete": {
+    "tags": [
+     "User Data"
+    ],
+    "summary": "Delete Avatar",
+    "operationId": "delete_avatar_users_me_avatar_delete",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserResponse"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ]
+   }
+  },
+  "/users/{user_id}/avatar": {
+   "get": {
+    "tags": [
+     "User Data"
+    ],
+    "summary": "Get Avatar",
+    "operationId": "get_avatar_users__user_id__avatar_get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "User Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/users/search": {
    "get": {
     "tags": [
@@ -1642,6 +1752,116 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/ItineraryResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/schedule/suggest": {
+   "get": {
+    "tags": [
+     "Activities"
+    ],
+    "summary": "Suggest Time",
+    "description": "The earliest time on a day when the place is open and there's time to get there.",
+    "operationId": "suggest_time_trips__trip_id__schedule_suggest_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "date",
+       "title": "Date"
+      }
+     },
+     {
+      "name": "duration",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 720,
+       "minimum": 15,
+       "default": 60,
+       "title": "Duration"
+      }
+     },
+     {
+      "name": "place_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Place Id"
+      }
+     },
+     {
+      "name": "exclude_activity_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Exclude Activity Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/SlotSuggestion"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Suggest Time Trips  Trip Id  Schedule Suggest Get"
         }
        }
       }
@@ -2841,6 +3061,163 @@
     }
    }
   },
+  "/trips/{trip_id}/budget/estimate": {
+   "get": {
+    "tags": [
+     "Budget"
+    ],
+    "summary": "Get Budget Estimate",
+    "operationId": "get_budget_estimate_trips__trip_id__budget_estimate_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BudgetEstimate"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/plan-draft": {
+   "post": {
+    "tags": [
+     "Plan draft"
+    ],
+    "summary": "Draft Plan",
+    "description": "Suggest where every saved place could go, merging places several people saved.\nNothing changes until the draft is applied.",
+    "operationId": "draft_plan_trips__trip_id__plan_draft_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanDraftResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/plan-draft/apply": {
+   "post": {
+    "tags": [
+     "Plan draft"
+    ],
+    "summary": "Apply Draft",
+    "description": "Add the draft items the user kept to the plan, all at once.",
+    "operationId": "apply_draft_trips__trip_id__plan_draft_apply_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlanDraftApply"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ActivityResponse"
+         },
+         "title": "Response Apply Draft Trips  Trip Id  Plan Draft Apply Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/guest/access": {
    "post": {
     "tags": [
@@ -3453,6 +3830,136 @@
     "type": "object",
     "title": "ActivityUpdate"
    },
+   "Body_upload_avatar_users_me_avatar_put": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_upload_avatar_users_me_avatar_put"
+   },
+   "BudgetEstimate": {
+    "properties": {
+     "currency": {
+      "type": "string",
+      "title": "Currency"
+     },
+     "people": {
+      "type": "integer",
+      "title": "People"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/BudgetEstimateDay"
+      },
+      "type": "array",
+      "title": "Days"
+     },
+     "plans_total": {
+      "type": "number",
+      "title": "Plans Total"
+     },
+     "meals_total": {
+      "type": "number",
+      "title": "Meals Total"
+     },
+     "transport_total": {
+      "type": "number",
+      "title": "Transport Total"
+     },
+     "total": {
+      "type": "number",
+      "title": "Total"
+     },
+     "budget": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Budget"
+     },
+     "over_budget_by": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Over Budget By"
+     },
+     "unpriced_plans": {
+      "type": "integer",
+      "title": "Unpriced Plans"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Notes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "currency",
+     "people",
+     "days",
+     "plans_total",
+     "meals_total",
+     "transport_total",
+     "total",
+     "unpriced_plans",
+     "notes"
+    ],
+    "title": "BudgetEstimate",
+    "description": "Roughly what the whole trip will cost the group, day by day."
+   },
+   "BudgetEstimateDay": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date"
+     },
+     "plans": {
+      "type": "number",
+      "title": "Plans"
+     },
+     "meals": {
+      "type": "number",
+      "title": "Meals"
+     },
+     "transport": {
+      "type": "number",
+      "title": "Transport"
+     },
+     "total": {
+      "type": "number",
+      "title": "Total"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "plans",
+     "meals",
+     "transport",
+     "total"
+    ],
+    "title": "BudgetEstimateDay"
+   },
    "BudgetSummary": {
     "properties": {
      "trip_id": {
@@ -3518,6 +4025,52 @@
      "balances"
     ],
     "title": "BudgetSummary"
+   },
+   "DayWeather": {
+    "properties": {
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "high": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "High"
+     },
+     "low": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Low"
+     },
+     "rain_chance": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rain Chance"
+     }
+    },
+    "type": "object",
+    "required": [
+     "summary"
+    ],
+    "title": "DayWeather"
    },
    "ExpenseCreate": {
     "properties": {
@@ -4262,6 +4815,35 @@
       "type": "array",
       "title": "Conflicts With",
       "default": []
+     },
+     "source_platform": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Platform"
+     },
+     "warnings": {
+      "items": {
+       "$ref": "#/components/schemas/ScheduleWarning"
+      },
+      "type": "array",
+      "title": "Warnings",
+      "default": []
+     },
+     "travel_from_previous": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TravelLeg"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "type": "object",
@@ -4292,6 +4874,16 @@
      "estimated_cost": {
       "type": "number",
       "title": "Estimated Cost"
+     },
+     "weather": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DayWeather"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "type": "object",
@@ -4459,6 +5051,17 @@
      "role": {
       "type": "string",
       "title": "Role"
+     },
+     "avatar_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Url"
      }
     },
     "type": "object",
@@ -4774,6 +5377,152 @@
     "type": "object",
     "title": "PlaceUpdate"
    },
+   "PlanDraftApply": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PlanDraftApplyItem"
+      },
+      "type": "array",
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Items"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "PlanDraftApply"
+   },
+   "PlanDraftApplyItem": {
+    "properties": {
+     "place_id": {
+      "type": "integer",
+      "title": "Place Id"
+     },
+     "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+     },
+     "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "start_time",
+     "end_time"
+    ],
+    "title": "PlanDraftApplyItem"
+   },
+   "PlanDraftItem": {
+    "properties": {
+     "place_id": {
+      "type": "integer",
+      "title": "Place Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+     },
+     "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+     },
+     "saved_by": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Saved By"
+     },
+     "merged_place_ids": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Merged Place Ids"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "name",
+     "start_time",
+     "end_time",
+     "saved_by",
+     "merged_place_ids",
+     "reason"
+    ],
+    "title": "PlanDraftItem"
+   },
+   "PlanDraftResponse": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PlanDraftItem"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "skipped": {
+      "items": {
+       "$ref": "#/components/schemas/PlanDraftSkipped"
+      },
+      "type": "array",
+      "title": "Skipped"
+     },
+     "merged_count": {
+      "type": "integer",
+      "title": "Merged Count"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "skipped",
+     "merged_count"
+    ],
+    "title": "PlanDraftResponse"
+   },
+   "PlanDraftSkipped": {
+    "properties": {
+     "place_id": {
+      "type": "integer",
+      "title": "Place Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "name",
+     "reason"
+    ],
+    "title": "PlanDraftSkipped"
+   },
    "RefreshRequest": {
     "properties": {
      "refresh_token": {
@@ -5057,6 +5806,54 @@
     "type": "object",
     "title": "SavedLinkUpdate"
    },
+   "ScheduleWarning": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "closed",
+       "outside_hours",
+       "tight_travel"
+      ],
+      "title": "Kind"
+     },
+     "message": {
+      "type": "string",
+      "title": "Message"
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "message"
+    ],
+    "title": "ScheduleWarning"
+   },
+   "SlotSuggestion": {
+    "properties": {
+     "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+     },
+     "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     }
+    },
+    "type": "object",
+    "required": [
+     "start_time",
+     "end_time",
+     "reason"
+    ],
+    "title": "SlotSuggestion"
+   },
    "Token": {
     "properties": {
      "access_token": {
@@ -5085,6 +5882,34 @@
      "token_type"
     ],
     "title": "Token"
+   },
+   "TravelLeg": {
+    "properties": {
+     "minutes": {
+      "type": "integer",
+      "title": "Minutes"
+     },
+     "mode": {
+      "type": "string",
+      "enum": [
+       "walk",
+       "transit"
+      ],
+      "title": "Mode"
+     },
+     "km": {
+      "type": "number",
+      "title": "Km"
+     }
+    },
+    "type": "object",
+    "required": [
+     "minutes",
+     "mode",
+     "km"
+    ],
+    "title": "TravelLeg",
+    "description": "Rough travel from the plan before, from the straight-line distance."
    },
    "TripCreate": {
     "properties": {
@@ -5159,6 +5984,17 @@
      "name": {
       "type": "string",
       "title": "Name"
+     },
+     "avatar_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Url"
      }
     },
     "type": "object",

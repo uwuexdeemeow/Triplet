@@ -133,6 +133,7 @@ class TripResponse(BaseModel):
 class TripMemberPreview(BaseModel):
     user_id: int
     name: str
+    avatar_url: str | None = None
 
 class TripSummaryResponse(TripResponse):
     """A trip in the trips list, with enough to show what's in it."""
@@ -157,6 +158,7 @@ class MemberResponse(BaseModel):
     name: str
     email: EmailStr
     role: str
+    avatar_url: str | None = None
 
 class MemberRoleUpdate(BaseModel):
     role: TripRole
@@ -255,13 +257,77 @@ class ActivityResponse(BaseModel):
         "from_attributes": True
     }
 
+class ScheduleWarning(BaseModel):
+    # closed: the place is shut that day; outside_hours: open that day, but not at this time;
+    # tight_travel: not enough time to get here from the plan before
+    kind: Literal["closed", "outside_hours", "tight_travel"]
+    message: str
+
+class TravelLeg(BaseModel):
+    """Rough travel from the plan before, from the straight-line distance."""
+    minutes: int
+    mode: Literal["walk", "transit"]
+    km: float
+
 class ItineraryActivity(ActivityResponse):
     conflicts_with: list[int] = []
+    # Where the plan's saved post came from, e.g. "tiktok", "youtube", "instagram"
+    source_platform: str | None = None
+    warnings: list[ScheduleWarning] = []
+    travel_from_previous: TravelLeg | None = None
+
+class DayWeather(BaseModel):
+    summary: str
+    high: float | None = None
+    low: float | None = None
+    rain_chance: int | None = None
 
 class ItineraryDay(BaseModel):
     date: date
     activities: list[ItineraryActivity]
     estimated_cost: float
+    # Only for days within the next two weeks, where a plan has a map pin
+    weather: DayWeather | None = None
+
+class PlanDraftItem(BaseModel):
+    place_id: int
+    name: str
+    start_time: datetime
+    end_time: datetime
+    # Everyone who saved this place, across all their posts
+    saved_by: list[str]
+    # Other people's copies of the same place, merged into this one
+    merged_place_ids: list[int]
+    reason: str
+
+class PlanDraftSkipped(BaseModel):
+    place_id: int
+    name: str
+    reason: str
+
+class PlanDraftResponse(BaseModel):
+    items: list[PlanDraftItem]
+    skipped: list[PlanDraftSkipped]
+    merged_count: int
+
+class PlanDraftApplyItem(BaseModel):
+    place_id: int
+    start_time: datetime
+    end_time: datetime
+
+    @model_validator(mode="after")
+    def validate_times(self):
+        if self.end_time < self.start_time:
+            raise ValueError("End time cannot be before start time")
+        return self
+
+class PlanDraftApply(BaseModel):
+    items: list[PlanDraftApplyItem] = Field(min_length=1, max_length=100)
+
+class SlotSuggestion(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    reason: str
 
 class ItineraryResponse(BaseModel):
     trip_id: int
@@ -425,6 +491,29 @@ class MemberBalance(BaseModel):
     paid: float
     share: float
     balance: float
+
+class BudgetEstimateDay(BaseModel):
+    date: date
+    plans: float
+    meals: float
+    transport: float
+    total: float
+
+class BudgetEstimate(BaseModel):
+    """Roughly what the whole trip will cost the group, day by day."""
+    currency: str
+    people: int
+    days: list[BudgetEstimateDay]
+    plans_total: float
+    meals_total: float
+    transport_total: float
+    total: float
+    budget: float | None = None
+    # Positive when the estimate is over the budget
+    over_budget_by: float | None = None
+    # Plans with no cost and no way to guess one
+    unpriced_plans: int
+    notes: list[str]
 
 class BudgetSummary(BaseModel):
     trip_id: int

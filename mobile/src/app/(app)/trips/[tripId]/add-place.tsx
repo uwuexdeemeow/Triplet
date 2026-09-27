@@ -1,13 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { z } from 'zod';
 
 import { api, ApiError } from '@/api/client';
-import { tripKeys, useLinks, usePlaces, useTrip } from '@/api/trips';
+import { tripKeys, useLinks, usePlaces, useTrip, type SlotSuggestion } from '@/api/trips';
 import { Button } from '@/components/button';
 import { TimeRangeField } from '@/components/time-range-field';
 import { FormMessage, Screen } from '@/components/screen';
@@ -17,7 +17,15 @@ import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { parseAmount } from '@/trips/validation';
-import { dayOfMonth, eachDay, formatShortDate, toActivityTime, todayString, weekdayShort } from '@/utils/dates';
+import {
+  activityClock,
+  dayOfMonth,
+  eachDay,
+  formatShortDate,
+  toActivityTime,
+  todayString,
+  weekdayShort,
+} from '@/utils/dates';
 import { detailsCredit, hoursOn, needsCheck } from '@/utils/places';
 
 const schema = z
@@ -215,6 +223,20 @@ export default function AddPlaceScreen() {
           )}
         />
 
+        {day ? (
+          <SuggestedTime
+            tripId={id}
+            placeId={place.id}
+            day={day}
+            duration={minutesBetween(startTime, endTime)}
+            current={startTime}
+            onUse={(start, end) => {
+              setValue('startTime', start, { shouldDirty: true });
+              setValue('endTime', end, { shouldDirty: true, shouldValidate: true });
+            }}
+          />
+        ) : null}
+
         <Controller
           control={control}
           name="estimatedCost"
@@ -242,11 +264,120 @@ export default function AddPlaceScreen() {
   );
 }
 
+// "12:00" to "13:30" -> 90
+function minutesBetween(start: string, end: string): number {
+  const toMinutes = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  return Math.max(15, toMinutes(end) - toMinutes(start));
+}
+
+// The earliest time that day when the place is open, the plan is free, and there's time to get there
+function SuggestedTime({
+  tripId,
+  placeId,
+  day,
+  duration,
+  current,
+  onUse,
+}: {
+  tripId: number;
+  placeId: number;
+  day: string;
+  duration: number;
+  current: string;
+  onUse: (start: string, end: string) => void;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const suggestion = useQuery({
+    queryKey: [...tripKeys.itinerary(tripId), 'suggest', placeId, day, duration],
+    queryFn: () =>
+      api<SlotSuggestion | null>(`/trips/${tripId}/schedule/suggest`, {
+        query: { date: day, duration, place_id: placeId },
+      }),
+    placeholderData: keepPreviousData,
+  });
+
+  if (suggestion.isPending || suggestion.isError) return null;
+  if (!suggestion.data) {
+    return (
+      <View style={styles.suggestion}>
+        <Feather name="alert-circle" size={16} color={colors.secondText} />
+        <Text style={styles.suggestionText}>No free time while it’s open on {formatShortDate(day)}. Try another day.</Text>
+      </View>
+    );
+  }
+
+  const start = activityClock(suggestion.data.start_time);
+  const end = activityClock(suggestion.data.end_time);
+  const inUse = start === current;
+
+  return (
+    <View style={styles.suggestion}>
+      <Feather name="zap" size={16} color={colors.accent} />
+      <View style={styles.suggestionBody}>
+        <Text style={styles.suggestionTitle}>
+          Best time: {start} – {end}
+        </Text>
+        <Text style={styles.suggestionText}>{suggestion.data.reason}</Text>
+      </View>
+      {inUse ? (
+        <Feather name="check" size={18} color={colors.accent} accessibilityLabel="Using this time" />
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Use ${start} to ${end}`}
+          onPress={() => onUse(start, end)}
+          style={({ pressed }) => [styles.suggestionButton, pressed && { opacity: 0.7 }]}>
+          <Text style={styles.suggestionButtonText}>Use</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 const useStyles = makeStyles((colors) => ({
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.input,
+    backgroundColor: colors.accentSoft,
+  },
+  suggestionBody: {
+    flex: 1,
+    gap: 2,
+  },
+  suggestionTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  suggestionText: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.muted,
+  },
+  suggestionButton: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent,
+  },
+  suggestionButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.onAccent,
+  },
   container: {
     gap: 18,
   },

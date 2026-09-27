@@ -20,6 +20,7 @@ import {
 import { Enter } from '@/components/enter';
 import { Button } from '@/components/button';
 import { ItemMenu } from '@/components/item-menu';
+import { PressableScale } from '@/components/pressable-scale';
 import { FormMessage } from '@/components/screen';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Muted, Title } from '@/components/text';
@@ -60,6 +61,10 @@ export default function SavedScreen() {
     for (const activity of day.activities) activityDays.set(activity.id, day.date);
   }
 
+  // Places to stay aren't planned as outings, so they don't count
+  const unplanned =
+    places.data?.filter((place) => place.activity_ids.length === 0 && place.category !== 'accommodation').length ?? 0;
+
   const refresh = () => {
     links.refetch();
     places.refetch();
@@ -89,6 +94,23 @@ export default function SavedScreen() {
         </View>
       ) : (
         <>
+          {canEdit && unplanned > 0 ? (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityHint="Suggests a day and time for each saved place, for you to check before adding"
+              onPress={() => router.push({ pathname: '/trips/[tripId]/plan-draft', params: { tripId } })}
+              scaleTo={0.98}
+              style={styles.planAll}>
+              <Feather name="zap" size={20} color={colors.onAccent} />
+              <View style={styles.planAllText}>
+                <Text style={styles.planAllTitle}>Plan everyone’s saves</Text>
+                <Text style={styles.planAllDetail}>
+                  {unplanned} saved {unplanned === 1 ? 'place isn’t' : 'places aren’t'} in the plan yet
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.onAccent} />
+            </PressableScale>
+          ) : null}
           <Muted style={styles.hint}>
             Tap a post to see its places, or press and hold to rename or delete it.
           </Muted>
@@ -406,6 +428,29 @@ function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: Trip
 }
 
 const useStyles = makeStyles((colors) => ({
+  planAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radii.card,
+    backgroundColor: colors.accent,
+  },
+  planAllText: {
+    flex: 1,
+    gap: 2,
+  },
+  planAllTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.onAccent,
+  },
+  planAllDetail: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.onAccent,
+    opacity: 0.85,
+  },
   list: {
     paddingHorizontal: 20,
     paddingTop: spacing.xs,

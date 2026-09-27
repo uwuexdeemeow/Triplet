@@ -84,15 +84,15 @@ def summarise(db: Session, trips: list[Trip]) -> list[TripSummaryResponse]:
 
     previews = defaultdict(list)
     rows = (
-        db.query(TripMembership.trip_id, User.id, User.name)
+        db.query(TripMembership.trip_id, User.id, User.name, User.avatar_url)
         .join(User, User.id == TripMembership.user_id)
         .filter(TripMembership.trip_id.in_(ids))
         .order_by(TripMembership.trip_id, TripMembership.id)
         .all()
     )
-    for trip_id, user_id, name in rows:
+    for trip_id, user_id, name, avatar_url in rows:
         if len(previews[trip_id]) < MEMBER_PREVIEW:
-            previews[trip_id].append(TripMemberPreview(user_id=user_id, name=name))
+            previews[trip_id].append(TripMemberPreview(user_id=user_id, name=name, avatar_url=avatar_url))
 
     return [
         TripSummaryResponse(

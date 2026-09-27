@@ -6,6 +6,12 @@ export type Schemas = components['schemas'];
 // network address (e.g. http://192.168.1.20:8000). The Android emulator uses http://10.0.2.2:8000.
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
+// Profile photos come back as paths on the API, like /users/3/avatar?v=...
+export function resolveApiUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url.startsWith('/') ? `${API_URL}${url}` : url;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -44,15 +50,17 @@ async function send(path: string, options: RequestOptions, token: string | null)
   }
   const query = params.toString();
 
+  // Uploads go as multipart form data, and fetch sets that Content-Type with its boundary
+  const isForm = options.body instanceof FormData;
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.refreshCookie) headers['X-Refresh-Cookie'] = '1';
 
   return fetch(`${API_URL}${path}${query ? `?${query}` : ''}`, {
     method: options.method ?? 'GET',
     headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: isForm ? (options.body as FormData) : options.body !== undefined ? JSON.stringify(options.body) : undefined,
     // Other requests leave cookies out; the refresh cookie is only for /auth anyway
     credentials: options.refreshCookie ? 'include' : 'same-origin',
   });

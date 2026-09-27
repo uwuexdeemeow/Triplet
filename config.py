@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     PASSWORD_RESET_EXPIRE_MINUTES: int = 30
+    # Guests can't refresh, so their token lasts a day (or until the code expires, if sooner)
+    GUEST_TOKEN_EXPIRE_HOURS: int = 24
 
     # Browser origins allowed to call the API, e.g. the Expo web dev server. The website signs in
     # with a cookie, so these must be exact origins on the same site as the API (see SECURITY.md)
@@ -43,6 +45,11 @@ class Settings(BaseSettings):
     GEMINI_FALLBACK_MODELS: list[str] = ["gemini-3.6-flash", "gemini-3.1-flash-lite"]
     VIDEO_MAX_DURATION_SECONDS: int = 600
     VIDEO_MAX_FILESIZE_MB: int = 100
+
+    # Daily forecasts on the plan, from Open-Meteo (free, no key)
+    WEATHER_ENABLED: bool = True
+    # Budget estimates convert their typical prices with Frankfurter's rates (free, no key)
+    EXCHANGE_RATES_ENABLED: bool = True
 
     # Where place addresses, pins and opening hours come from:
     # "auto" uses Google when GOOGLE_PLACES_API_KEY is set, otherwise OpenStreetMap.

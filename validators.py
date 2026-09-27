@@ -44,6 +44,25 @@ def password_strength(password: str, user_inputs: list = None) -> dict:
             "error": None
         }
 
+NAME_ERROR = "Names can use letters, numbers, spaces, hyphens, apostrophes and full stops"
+NAME_PUNCTUATION = set(" -'’.")
+
+def clean_name(name: str) -> str | None:
+    """
+    Tidy a person's name, like "  Mary-Jane   O'Neil " -> "Mary-Jane O'Neil".
+
+    Returns:
+        str | None: The tidied name, or None if it has other characters or no letters or numbers.
+    """
+    tidied = " ".join(name.split())
+    if not tidied or len(tidied) > 255:
+        return None
+    if not any(char.isalnum() for char in tidied):
+        return None
+    if not all(char.isalnum() or char in NAME_PUNCTUATION for char in tidied):
+        return None
+    return tidied
+
 def as_utc(value: datetime) -> datetime:
     """
     Treat datetimes without an offset as UTC so they can be compared with timezone-aware ones.

@@ -43,6 +43,8 @@ def no_external_calls(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
     monkeypatch.setattr(settings, "GOOGLE_PLACES_API_KEY", None)
     monkeypatch.setattr(settings, "PLACE_LOOKUP_PROVIDER", "none")
+    monkeypatch.setattr(settings, "WEATHER_ENABLED", False)
+    monkeypatch.setattr(settings, "EXCHANGE_RATES_ENABLED", False)
     monkeypatch.setattr("routers.links.fetch_metadata", lambda url, platform: None)
     # Rate limits have their own tests (test_security.py), which switch them back on
     monkeypatch.setattr(settings, "RATE_LIMITS_ENABLED", False)

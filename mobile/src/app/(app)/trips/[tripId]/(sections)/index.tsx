@@ -5,7 +5,16 @@ import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { api } from '@/api/client';
-import { tripKeys, useExpenses, useItinerary, useMe, useMembers, useTrip, type ItineraryActivity } from '@/api/trips';
+import {
+  tripKeys,
+  useExpenses,
+  useItinerary,
+  useMe,
+  useMembers,
+  useTrip,
+  type ItineraryActivity,
+  type TravelLeg,
+} from '@/api/trips';
 import { Enter } from '@/components/enter';
 import { Button } from '@/components/button';
 import { Fab } from '@/components/fab';
@@ -14,10 +23,12 @@ import { FormMessage } from '@/components/screen';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Muted, Title } from '@/components/text';
 import { PressableScale } from '@/components/pressable-scale';
+import { WeatherLine } from '@/components/weather-line';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { activityClock, dayOfMonth, eachDay, formatLongDate, todayString, weekdayShort } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
+import { platformLabel } from '@/utils/places';
 import { select, warn } from '@/utils/haptics';
 
 export default function PlanScreen() {
@@ -95,6 +106,7 @@ export default function PlanScreen() {
             <Text style={styles.dayCost}>About {formatMoney(day.estimated_cost, currency)}</Text>
           ) : null}
         </View>
+        {day?.weather ? <WeatherLine weather={day.weather} /> : null}
 
         {itinerary.isPending ? (
           <ActivityIndicator color={colors.accent} style={styles.loading} />
@@ -111,6 +123,7 @@ export default function PlanScreen() {
           <>
             {activities.map((activity, index) => (
               <Enter key={activity.id} index={index}>
+                {activity.travel_from_previous ? <TravelConnector leg={activity.travel_from_previous} /> : null}
                 <ActivityRow
                   tripId={id}
                   activity={activity}
@@ -135,6 +148,22 @@ export default function PlanScreen() {
         bottom={32}
         onPress={() => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, day: selectedDay } })}
       />
+    </View>
+  );
+}
+
+// Between two plans: roughly how long it takes to get from one to the next
+function TravelConnector({ leg }: { leg: TravelLeg }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const how = leg.mode === 'walk' ? 'walk' : 'by train or taxi';
+  return (
+    <View style={styles.travel} accessibilityLabel={`About ${leg.minutes} minutes ${how}, ${leg.km} kilometres`}>
+      <View style={styles.travelLine} />
+      <Feather name={leg.mode === 'walk' ? 'user' : 'navigation'} size={12} color={colors.muted} />
+      <Text style={styles.travelText}>
+        ~{leg.minutes} min {how} · {leg.km} km
+      </Text>
     </View>
   );
 }
@@ -181,6 +210,7 @@ function ActivityRow({
   });
 
   const conflicts = activity.conflicts_with ?? [];
+  const warnings = activity.warnings ?? [];
   const details = [
     `Until ${activityClock(activity.end_time)}`,
     activity.location,
@@ -214,12 +244,27 @@ function ActivityRow({
       <Text style={styles.cardDetails} numberOfLines={2}>
         {details}
       </Text>
+      {warnings.map((warning) => {
+        const closed = warning.kind === 'closed';
+        return (
+          <View key={warning.kind} style={[styles.warning, closed ? styles.warningDanger : styles.warningCheck]}>
+            <Feather
+              name={warning.kind === 'tight_travel' ? 'navigation' : 'clock'}
+              size={13}
+              color={closed ? colors.dangerText : colors.secondText}
+            />
+            <Text style={[styles.warningText, { color: closed ? colors.dangerText : colors.secondText }]}>
+              {warning.message}
+            </Text>
+          </View>
+        );
+      })}
       {activity.source_link_id != null || conflicts.length > 0 ? (
         <View style={styles.badges}>
           {activity.source_link_id != null ? (
             <View style={styles.badge}>
               <Feather name="link" size={12} color={colors.muted} />
-              <Text style={styles.badgeText}>From TikTok</Text>
+              <Text style={styles.badgeText}>From {platformLabel(activity.source_platform)}</Text>
             </View>
           ) : null}
           {conflicts.map((otherId) => (
@@ -425,5 +470,48 @@ const useStyles = makeStyles((colors) => ({
   },
   badgeConflictText: {
     color: colors.dangerText,
+  },
+  warning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  warningDanger: {
+    backgroundColor: colors.dangerSoft,
+  },
+  warningCheck: {
+    backgroundColor: colors.secondSoft,
+  },
+  warningText: {
+    flex: 1,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  travel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    // Lines up under the cards, past the time column
+    paddingLeft: 48 + spacing.md + 14,
+    marginBottom: spacing.sm,
+  },
+  travelLine: {
+    position: 'absolute',
+    left: 48 + spacing.md + 5,
+    top: -spacing.md,
+    bottom: -spacing.sm,
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: colors.chip,
+  },
+  travelText: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.muted,
   },
 }));

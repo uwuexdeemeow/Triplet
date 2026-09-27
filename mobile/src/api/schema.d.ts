@@ -176,6 +176,41 @@ export interface paths {
         patch: operations["update_profile_users_me_patch"];
         trace?: never;
     };
+    "/users/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upload Avatar */
+        put: operations["upload_avatar_users_me_avatar_put"];
+        post?: never;
+        /** Delete Avatar */
+        delete: operations["delete_avatar_users_me_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Avatar */
+        get: operations["get_avatar_users__user_id__avatar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/search": {
         parameters: {
             query?: never;
@@ -405,6 +440,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/schedule/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest Time
+         * @description The earliest time on a day when the place is open and there's time to get there.
+         */
+        get: operations["suggest_time_trips__trip_id__schedule_suggest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/links": {
         parameters: {
             query?: never;
@@ -623,6 +678,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/budget/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Budget Estimate */
+        get: operations["get_budget_estimate_trips__trip_id__budget_estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/plan-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft Plan
+         * @description Suggest where every saved place could go, merging places several people saved.
+         *     Nothing changes until the draft is applied.
+         */
+        post: operations["draft_plan_trips__trip_id__plan_draft_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/plan-draft/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Draft
+         * @description Add the draft items the user kept to the plan, all at once.
+         */
+        post: operations["apply_draft_trips__trip_id__plan_draft_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guest/access": {
         parameters: {
             query?: never;
@@ -817,6 +930,55 @@ export interface components {
             /** Longitude */
             longitude?: number | null;
         };
+        /** Body_upload_avatar_users_me_avatar_put */
+        Body_upload_avatar_users_me_avatar_put: {
+            /** File */
+            file: string;
+        };
+        /**
+         * BudgetEstimate
+         * @description Roughly what the whole trip will cost the group, day by day.
+         */
+        BudgetEstimate: {
+            /** Currency */
+            currency: string;
+            /** People */
+            people: number;
+            /** Days */
+            days: components["schemas"]["BudgetEstimateDay"][];
+            /** Plans Total */
+            plans_total: number;
+            /** Meals Total */
+            meals_total: number;
+            /** Transport Total */
+            transport_total: number;
+            /** Total */
+            total: number;
+            /** Budget */
+            budget?: number | null;
+            /** Over Budget By */
+            over_budget_by?: number | null;
+            /** Unpriced Plans */
+            unpriced_plans: number;
+            /** Notes */
+            notes: string[];
+        };
+        /** BudgetEstimateDay */
+        BudgetEstimateDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Plans */
+            plans: number;
+            /** Meals */
+            meals: number;
+            /** Transport */
+            transport: number;
+            /** Total */
+            total: number;
+        };
         /** BudgetSummary */
         BudgetSummary: {
             /** Trip Id */
@@ -837,6 +999,17 @@ export interface components {
             };
             /** Balances */
             balances: components["schemas"]["MemberBalance"][];
+        };
+        /** DayWeather */
+        DayWeather: {
+            /** Summary */
+            summary: string;
+            /** High */
+            high?: number | null;
+            /** Low */
+            low?: number | null;
+            /** Rain Chance */
+            rain_chance?: number | null;
         };
         /** ExpenseCreate */
         ExpenseCreate: {
@@ -1044,6 +1217,14 @@ export interface components {
              * @default []
              */
             conflicts_with: number[];
+            /** Source Platform */
+            source_platform?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["ScheduleWarning"][];
+            travel_from_previous?: components["schemas"]["TravelLeg"] | null;
         };
         /** ItineraryDay */
         ItineraryDay: {
@@ -1056,6 +1237,7 @@ export interface components {
             activities: components["schemas"]["ItineraryActivity"][];
             /** Estimated Cost */
             estimated_cost: number;
+            weather?: components["schemas"]["DayWeather"] | null;
         };
         /** ItineraryResponse */
         ItineraryResponse: {
@@ -1115,6 +1297,8 @@ export interface components {
             email: string;
             /** Role */
             role: string;
+            /** Avatar Url */
+            avatar_url?: string | null;
         };
         /** MemberRoleUpdate */
         MemberRoleUpdate: {
@@ -1185,6 +1369,67 @@ export interface components {
             phone?: string | null;
             /** Google Place Id */
             google_place_id?: string | null;
+        };
+        /** PlanDraftApply */
+        PlanDraftApply: {
+            /** Items */
+            items: components["schemas"]["PlanDraftApplyItem"][];
+        };
+        /** PlanDraftApplyItem */
+        PlanDraftApplyItem: {
+            /** Place Id */
+            place_id: number;
+            /**
+             * Start Time
+             * Format: date-time
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: date-time
+             */
+            end_time: string;
+        };
+        /** PlanDraftItem */
+        PlanDraftItem: {
+            /** Place Id */
+            place_id: number;
+            /** Name */
+            name: string;
+            /**
+             * Start Time
+             * Format: date-time
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: date-time
+             */
+            end_time: string;
+            /** Saved By */
+            saved_by: string[];
+            /** Merged Place Ids */
+            merged_place_ids: number[];
+            /** Reason */
+            reason: string;
+        };
+        /** PlanDraftResponse */
+        PlanDraftResponse: {
+            /** Items */
+            items: components["schemas"]["PlanDraftItem"][];
+            /** Skipped */
+            skipped: components["schemas"]["PlanDraftSkipped"][];
+            /** Merged Count */
+            merged_count: number;
+        };
+        /** PlanDraftSkipped */
+        PlanDraftSkipped: {
+            /** Place Id */
+            place_id: number;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -1265,6 +1510,31 @@ export interface components {
             /** Custom Title */
             custom_title?: string | null;
         };
+        /** ScheduleWarning */
+        ScheduleWarning: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "closed" | "outside_hours" | "tight_travel";
+            /** Message */
+            message: string;
+        };
+        /** SlotSuggestion */
+        SlotSuggestion: {
+            /**
+             * Start Time
+             * Format: date-time
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: date-time
+             */
+            end_time: string;
+            /** Reason */
+            reason: string;
+        };
         /** Token */
         Token: {
             /** Access Token */
@@ -1273,6 +1543,21 @@ export interface components {
             token_type: string;
             /** Refresh Token */
             refresh_token?: string | null;
+        };
+        /**
+         * TravelLeg
+         * @description Rough travel from the plan before, from the straight-line distance.
+         */
+        TravelLeg: {
+            /** Minutes */
+            minutes: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "walk" | "transit";
+            /** Km */
+            km: number;
         };
         /** TripCreate */
         TripCreate: {
@@ -1306,6 +1591,8 @@ export interface components {
             user_id: number;
             /** Name */
             name: string;
+            /** Avatar Url */
+            avatar_url?: string | null;
         };
         /** TripPlaceResponse */
         TripPlaceResponse: {
@@ -1874,6 +2161,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_avatar_users_me_avatar_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_avatar_users_me_avatar_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_avatar_users_me_avatar_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+        };
+    };
+    get_avatar_users__user_id__avatar_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2571,6 +2942,42 @@ export interface operations {
             };
         };
     };
+    suggest_time_trips__trip_id__schedule_suggest_get: {
+        parameters: {
+            query: {
+                date: string;
+                duration?: number;
+                place_id?: number | null;
+                exclude_activity_id?: number | null;
+            };
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotSuggestion"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_links_trips__trip_id__links_get: {
         parameters: {
             query?: {
@@ -3220,6 +3627,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_budget_estimate_trips__trip_id__budget_estimate_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetEstimate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_plan_trips__trip_id__plan_draft_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDraftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_draft_trips__trip_id__plan_draft_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanDraftApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityResponse"][];
                 };
             };
             /** @description Validation Error */

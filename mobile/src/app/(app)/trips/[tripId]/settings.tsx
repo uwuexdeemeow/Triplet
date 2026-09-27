@@ -1,9 +1,9 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Share, Text, View } from 'react-native';
 
-import { api, ApiError } from '@/api/client';
+import { api, ApiError, type Schemas } from '@/api/client';
 import { tripKeys, useMe, useMembers, useTrip, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
@@ -13,6 +13,7 @@ import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { parseAmount } from '@/trips/validation';
+import { addDays, formatShortDate } from '@/utils/dates';
 
 export default function TripSettingsScreen() {
   const styles = useStyles();
@@ -43,6 +44,7 @@ export default function TripSettingsScreen() {
             ) : (
               <TripDetails trip={trip.data} />
             )}
+            {role === 'owner' ? <GuestAccess trip={trip.data} /> : null}
             {role === 'owner' ? <DeleteTrip trip={trip.data} /> : null}
           </>
         )}
@@ -116,6 +118,174 @@ function TripDetails({ trip }: { trip: Trip }) {
       />
       {saved ? <FormMessage tone="success" message="Saved. Everyone on the trip sees the change." /> : null}
       <Button label="Save changes" loading={save.isPending} disabled={unchanged} onPress={submit} />
+    </View>
+  );
+}
+
+type GuestAccessInfo = Schemas['GuestAccessResponse'];
+type Expiry = 'never' | 'tripEnd' | 'week';
+
+// When a guest code stops working, as the API's expires_at
+function expiryDate(expiry: Expiry, trip: Trip): string | null {
+  if (expiry === 'tripEnd' && trip.end_date) return `${addDays(trip.end_date, 1)}T00:00:00Z`;
+  if (expiry === 'week') return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  return null;
+}
+
+// A code and PIN that let people without an account see the plan, but not change it
+function GuestAccess({ trip }: { trip: Trip }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const key = ['trips', trip.id, 'guest-access'];
+  const [editing, setEditing] = useState(false);
+  const [pin, setPin] = useState('');
+  const [expiry, setExpiry] = useState<Expiry>(trip.end_date ? 'tripEnd' : 'never');
+  const [pinError, setPinError] = useState<string | null>(null);
+  // Only known right after it's set; the server keeps a hash
+  const [newPin, setNewPin] = useState<string | null>(null);
+  const [openedAt] = useState(() => Date.now());
+
+  const access = useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      try {
+        return await api<GuestAccessInfo>(`/trips/${trip.id}/guest-access`);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: (body: { pin: string; expires_at: string | null }) =>
+      api<GuestAccessInfo>(`/trips/${trip.id}/guest-access`, { method: 'PUT', body }),
+    onSuccess: (updated, body) => {
+      queryClient.setQueryData(key, updated);
+      setNewPin(body.pin);
+      setPin('');
+      setEditing(false);
+    },
+  });
+
+  const turnOff = useMutation({
+    mutationFn: () => api(`/trips/${trip.id}/guest-access`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.setQueryData(key, null);
+      setNewPin(null);
+    },
+  });
+
+  const submit = () => {
+    if (!/^\d{4,12}$/.test(pin)) {
+      setPinError('Use 4 to 12 digits');
+      return;
+    }
+    setPinError(null);
+    save.mutate({ pin, expires_at: expiryDate(expiry, trip) });
+  };
+
+  const share = (code: string) => {
+    const lines = [
+      `See our “${trip.title}” plan on Triplet: choose “View their trip” on the log in screen.`,
+      `Code: ${code}`,
+      newPin ? `PIN: ${newPin}` : 'I’ll send you the PIN separately.',
+    ];
+    Share.share({ message: lines.join('\n') }).catch(() => {});
+  };
+
+  const current = access.data;
+  const expired = current?.expires_at != null && new Date(current.expires_at).getTime() <= openedAt;
+  const expiryOptions: { value: Expiry; label: string }[] = [
+    ...(trip.end_date ? [{ value: 'tripEnd' as const, label: 'Until the trip ends' }] : []),
+    { value: 'week', label: 'For a week' },
+    { value: 'never', label: 'No end date' },
+  ];
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Guest access</Text>
+      <Muted>
+        Share a code and PIN so people without Triplet can see the plan. They can’t change anything, and a new code
+        stops the old one working.
+      </Muted>
+
+      {access.isPending ? (
+        <ActivityIndicator color={colors.accent} />
+      ) : access.isError ? (
+        <FormMessage message={access.error.message} />
+      ) : current && !editing ? (
+        <View style={styles.guestCard}>
+          <Text style={styles.guestLabel}>Trip code</Text>
+          <Text selectable style={styles.guestCode}>
+            {current.access_code}
+          </Text>
+          {newPin ? (
+            <Text style={styles.guestMeta}>
+              PIN <Text style={styles.guestPin}>{newPin}</Text>. Note it down, it won’t be shown again.
+            </Text>
+          ) : null}
+          <Text style={[styles.guestMeta, expired && styles.guestExpired]}>
+            {current.expires_at
+              ? `${expired ? 'Stopped working' : 'Works until'} ${formatShortDate(current.expires_at.slice(0, 10))}`
+              : 'Works until you turn it off'}
+          </Text>
+          <FormMessage message={turnOff.error?.message ?? null} />
+          <Button label="Share code" onPress={() => share(current.access_code)} />
+          <View style={styles.buttons}>
+            <Button label="New code or PIN" variant="secondary" onPress={() => setEditing(true)} style={styles.flex} />
+            <Button
+              label="Turn off"
+              variant="secondary"
+              loading={turnOff.isPending}
+              onPress={() => turnOff.mutate()}
+              style={styles.flex}
+            />
+          </View>
+        </View>
+      ) : (
+        <View style={styles.section}>
+          <TextField
+            label="PIN for guests"
+            hint="4 to 12 digits. Guests need it with the code."
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={12}
+            value={pin}
+            onChangeText={setPin}
+            onSubmitEditing={submit}
+            error={pinError ?? undefined}
+          />
+          <View accessibilityRole="radiogroup" style={styles.chips}>
+            {expiryOptions.map((option) => {
+              const selected = option.value === expiry;
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => setExpiry(option.value)}
+                  style={[styles.chip, selected && styles.chipSelected]}>
+                  <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <FormMessage message={save.error?.message ?? null} />
+          <View style={styles.buttons}>
+            {current ? (
+              <Button label="Cancel" variant="secondary" onPress={() => setEditing(false)} style={styles.flex} />
+            ) : null}
+            <Button
+              label={current ? 'Make new code' : 'Turn on guest access'}
+              loading={save.isPending}
+              onPress={submit}
+              style={styles.flex}
+            />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -205,6 +375,64 @@ const useStyles = makeStyles((colors) => ({
   },
   section: {
     gap: spacing.md,
+  },
+  sectionTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  guestCard: {
+    gap: spacing.sm,
+    padding: spacing.lg,
+    borderRadius: radii.card,
+    backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
+  },
+  guestLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.muted,
+  },
+  guestCode: {
+    fontFamily: fonts.bold,
+    fontSize: 28,
+    letterSpacing: 3,
+    color: colors.ink,
+  },
+  guestMeta: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.muted,
+  },
+  guestPin: {
+    fontFamily: fonts.bold,
+    color: colors.ink,
+  },
+  guestExpired: {
+    color: colors.dangerText,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  chip: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    backgroundColor: colors.chip,
+  },
+  chipSelected: {
+    backgroundColor: colors.accent,
+  },
+  chipLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  chipLabelSelected: {
+    color: colors.onAccent,
   },
   danger: {
     gap: spacing.md,

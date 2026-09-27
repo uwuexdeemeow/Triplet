@@ -1,3 +1,5 @@
+import pytest
+
 from tests.conftest import PASSWORD, link_token
 
 def test_update_name_and_avatar(client, alice):
@@ -22,6 +24,86 @@ def test_rejects_invalid_avatar_url(client, alice):
 
     assert response.status_code == 422
 
+@pytest.mark.parametrize("name, saved", [
+    ("Alex Smith", "Alex Smith"),
+    ("  Mary-Jane   O'Neil ", "Mary-Jane O'Neil"),
+    ("J. R. Tolkien", "J. R. Tolkien"),
+    ("佐藤 花子", "佐藤 花子"),
+])
+def test_names_can_have_spaces_and_punctuation(client, alice, name, saved):
+    response = client.patch("/users/me", headers=alice["headers"], json={"name": name})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == saved
+
+@pytest.mark.parametrize("name", ["<script>", "---", "   ", "alex@home"])
+def test_rejects_names_without_letters_or_with_symbols(client, alice, name):
+    response = client.patch("/users/me", headers=alice["headers"], json={"name": name})
+
+    assert response.status_code == 422
+    assert response.json()["detail"].startswith("Names can use letters")
+
+def test_signup_accepts_a_full_name(client, db):
+    from models import User
+
+    response = client.post("/auth/signup", json={
+        "name": " Alex  Smith ", "email": "alex@example.com", "password": "Tr0ub4dor&3-horse-battery"
+    })
+
+    # Sign-up only says to check the inbox, so look at what was saved
+    assert response.status_code < 300, response.text
+    assert db.query(User).filter(User.email == "alex@example.com").one().name == "Alex Smith"
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+def test_upload_and_serve_avatar(client, alice):
+    response = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("me.png", PNG, "image/png")})
+
+    assert response.status_code == 200, response.text
+    avatar_url = response.json()["avatar_url"]
+    assert avatar_url.startswith(f"/users/{response.json()['id']}/avatar?v=")
+
+    # Anyone can load it, since image views don't send a token
+    photo = client.get(avatar_url)
+    assert photo.status_code == 200
+    assert photo.headers["content-type"] == "image/png"
+    assert photo.content == PNG
+
+def test_new_avatar_changes_its_url(client, alice):
+    first = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("a.png", PNG, "image/png")})
+    second = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("b.png", PNG + b"x", "image/png")})
+
+    assert first.json()["avatar_url"] != second.json()["avatar_url"]
+
+def test_avatar_must_be_an_image(client, alice):
+    response = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("a.txt", b"hello", "text/plain")})
+
+    assert response.status_code == 422
+
+def test_avatar_size_is_capped(client, alice):
+    # Over the photo limit but under the API's 1 MB request limit, so the photo check answers
+    big = PNG + b"\x00" * (950 * 1024)
+    response = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("big.png", big, "image/png")})
+
+    assert response.status_code == 413
+
+def test_remove_avatar(client, alice):
+    uploaded = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("me.png", PNG, "image/png")})
+
+    response = client.delete("/users/me/avatar", headers=alice["headers"])
+
+    assert response.json()["avatar_url"] is None
+    assert client.get(uploaded.json()["avatar_url"]).status_code == 404
+
+def test_members_include_avatars(client, alice, trip):
+    client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("me.png", PNG, "image/png")})
+
+    members = client.get(f"/trips/{trip['id']}/members", headers=alice["headers"]).json()
+    trips = client.get("/trips", headers=alice["headers"]).json()
+
+    assert members[0]["avatar_url"].startswith("/users/")
+    assert trips[0]["members"][0]["avatar_url"] == members[0]["avatar_url"]
+
 def test_cannot_take_another_users_email(client, alice, bob, outbox):
     response = client.patch("/users/me", headers=alice["headers"], json={"email": "BOB@example.com", "current_password": PASSWORD})
 
@@ -42,11 +124,6 @@ def test_null_required_fields_are_ignored(client, alice):
 
     assert response.status_code == 200
     assert response.json()["name"] == "alice"
-
-def test_rejects_non_alphanumeric_name(client, alice):
-    response = client.patch("/users/me", headers=alice["headers"], json={"name": "alice smith"})
-
-    assert response.status_code == 422
 
 def share_a_trip(client, owner, *people):
     trip = client.post("/trips", headers=owner["headers"], json={

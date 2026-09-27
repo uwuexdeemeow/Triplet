@@ -1,9 +1,9 @@
 import secrets
 import string
-from datetime import datetime, timezone
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from config import settings
 from database import connect_db
 from models import Trip, TripMembership, TripGuestAccess, Activity
 from schemas import GuestAccessCreate, GuestAccessSetup, GuestAccessResponse, Token, TripResponse, ActivityResponse, ItineraryResponse
@@ -48,14 +48,17 @@ def guest_access(
     request: Request,
     db: Session = Depends(connect_db)
 ):
+    # Codes are shown in capitals, but people often type them in lower case
+    access_code = guest_access_create.access_code.strip().upper()
+
     # A 4-digit PIN has only 10,000 options, so only a few wrong guesses per code are allowed
-    code_key = f"guest-code:{guest_access_create.access_code.upper()}"
+    code_key = f"guest-code:{access_code}"
     ip_key = f"guest-ip:{client_ip(request)}"
     rate_limit.check(db, code_key, GUEST_CODE_LIMIT, GUEST_WINDOW, TOO_MANY_GUESSES)
     rate_limit.check(db, ip_key, GUEST_IP_LIMIT, GUEST_WINDOW, TOO_MANY_GUESSES)
 
     guest_access = db.query(TripGuestAccess).filter(
-        TripGuestAccess.access_code == guest_access_create.access_code
+        TripGuestAccess.access_code == access_code
     ).first()
     if guest_access is None or not verify_password(guest_access.pin_hash, guest_access_create.pin):
         rate_limit.record(db, code_key, GUEST_WINDOW)
@@ -70,7 +73,13 @@ def guest_access(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Guest access has expired"
         )
-    token = create_access_token({"sub": str(guest_access.id), "type": "guest", "trip_id": str(guest_access.trip_id)})
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.GUEST_TOKEN_EXPIRE_HOURS)
+    if guest_access.expires_at is not None:
+        expires_at = min(expires_at, as_utc(guest_access.expires_at))
+    token = create_access_token(
+        {"sub": str(guest_access.id), "type": "guest", "trip_id": str(guest_access.trip_id)},
+        expires_at=expires_at
+    )
     return {"access_token": token, "token_type": "bearer"}
 
 @router.get("/trip", response_model=TripResponse)
@@ -106,7 +115,7 @@ def get_guest_itinerary(
         .all()
     )
 
-    return build_itinerary(guest.trip_id, activities)
+    return build_itinerary(db, guest.trip_id, activities)
 
 @setup_router.put("", response_model=GuestAccessResponse)
 def set_guest_access(

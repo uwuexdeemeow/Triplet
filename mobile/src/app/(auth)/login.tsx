@@ -123,6 +123,12 @@ export default function LoginScreen() {
           Create an account
         </Link>
       </Text>
+      <Text style={styles.guest}>
+        Got a trip code from a friend?{' '}
+        <Link href="/guest" style={styles.link}>
+          View their trip
+        </Link>
+      </Text>
     </Screen>
   );
 }
@@ -165,6 +171,13 @@ const useStyles = makeStyles((colors) => ({
   },
   footer: {
     marginTop: spacing.xxl,
+    textAlign: 'center',
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.muted,
+  },
+  guest: {
+    marginTop: spacing.md,
     textAlign: 'center',
     fontFamily: fonts.body,
     fontSize: 15,

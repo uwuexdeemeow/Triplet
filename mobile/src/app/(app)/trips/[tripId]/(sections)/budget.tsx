@@ -1,16 +1,19 @@
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { api } from '@/api/client';
 import {
   tripKeys,
   useBudget,
+  useBudgetEstimate,
   useExpenses,
   useItinerary,
   useMe,
   useMembers,
+  type BudgetEstimate,
   type BudgetSummary,
   type Expense,
 } from '@/api/trips';
@@ -33,6 +36,7 @@ export default function BudgetScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const budget = useBudget(id);
+  const estimate = useBudgetEstimate(id);
   const expenses = useExpenses(id);
   const itinerary = useItinerary(id);
   const members = useMembers(id);
@@ -40,6 +44,7 @@ export default function BudgetScreen() {
 
   const refresh = () => {
     budget.refetch();
+    estimate.refetch();
     expenses.refetch();
     itinerary.refetch();
   };
@@ -77,6 +82,8 @@ export default function BudgetScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={budget.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
         <SummaryCard tripId={tripId} summary={summary} stillToPay={stillToPay} canEdit={canEdit} money={money} />
+
+        {estimate.data ? <EstimateCard estimate={estimate.data} money={money} /> : null}
 
         {summary.total_spent > 0 ? <CategoryCard summary={summary} money={money} /> : null}
 
@@ -215,6 +222,84 @@ function SummaryCard({
           </Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// What the whole trip will roughly cost: the plans, meals they don't cover, and getting around
+function EstimateCard({ estimate, money }: { estimate: BudgetEstimate; money: (amount: number) => string }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const [showDays, setShowDays] = useState(false);
+  const over = estimate.over_budget_by != null && estimate.over_budget_by > 0;
+  const rows = [
+    { label: 'Plans', icon: 'map-pin' as const, amount: estimate.plans_total },
+    { label: 'Meals not in the plan', icon: 'coffee' as const, amount: estimate.meals_total },
+    { label: 'Getting around', icon: 'navigation' as const, amount: estimate.transport_total },
+  ];
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardLabel}>Estimated trip cost</Text>
+      <View style={styles.hero}>
+        <Text style={styles.heroValue}>≈ {money(estimate.total)}</Text>
+        <Text style={styles.heroOf}>
+          for {estimate.people} {estimate.people === 1 ? 'person' : 'people'}
+        </Text>
+      </View>
+      {estimate.over_budget_by != null ? (
+        <View style={styles.status}>
+          {over ? <Feather name="alert-triangle" size={15} color={colors.dangerText} /> : null}
+          <Text style={[styles.statusText, over && styles.statusOver]}>
+            {over
+              ? `About ${money(estimate.over_budget_by)} over budget`
+              : `About ${money(-estimate.over_budget_by)} under budget`}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.legend}>
+        {rows.map((row) => (
+          <View key={row.label} style={styles.legendRow}>
+            <Feather name={row.icon} size={14} color={colors.muted} />
+            <Text style={styles.legendLabel}>{row.label}</Text>
+            <Text style={styles.legendAmount}>{money(row.amount)}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: showDays }}
+        onPress={() => setShowDays((value) => !value)}
+        style={styles.textButton}>
+        <Text style={styles.textButtonLabel}>{showDays ? 'Hide days' : 'See each day'}</Text>
+      </Pressable>
+      {showDays ? (
+        <View style={styles.legend}>
+          {estimate.days.map((day) => (
+            <View
+              key={day.date}
+              style={styles.legendRow}
+              accessible
+              accessibilityLabel={`${formatShortDate(day.date)}: about ${money(day.total)}`}>
+              <Text style={styles.legendLabel}>{formatShortDate(day.date)}</Text>
+              <Text style={styles.legendPercent}>
+                {[day.plans > 0 ? `plans ${money(day.plans)}` : null, day.transport > 0 ? `rides ${money(day.transport)}` : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+              <Text style={styles.legendAmount}>{money(day.total)}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {estimate.notes.map((note) => (
+        <Text key={note} style={styles.estimateNote}>
+          {note}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -376,6 +461,12 @@ function ExpenseRow({
 }
 
 const useStyles = makeStyles((colors) => ({
+  estimateNote: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+  },
   screen: {
     flex: 1,
     width: '100%',
