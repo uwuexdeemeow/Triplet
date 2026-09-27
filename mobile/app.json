@@ -8,9 +8,11 @@
     "scheme": "triplet",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.uwuexdeemeow.triplet",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.uwuexdeemeow.triplet",
       "adaptiveIcon": {
         "backgroundColor": "#F7F8FA",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,11 +40,50 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-share-intent",
+        {
+          "iosShareExtensionName": "Triplet",
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsText": true
+          },
+          "androidIntentFilters": [
+            "text/*"
+          ]
+        }
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "Triplet",
+                  "bundleIdentifier": "com.uwuexdeemeow.triplet.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.uwuexdeemeow.triplet"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "646bece0-31b6-40a8-af8e-d82e43d63614"
+      }
+    },
+    "owner": "ruka1269"
   }
 }

@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ApiError } from '@/api/client';
 import { SessionProvider, useSession } from '@/auth/session';
+import { ShareProvider } from '@/share/share-intent';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -34,16 +35,19 @@ export default function RootLayout() {
 
 
   return (
-    <ThemeProvider>
-      <ThemedRoot>
-        <QueryClientProvider client={queryClient}>
-          <SessionProvider>
-            {/* If the fonts fail to load, carry on with the system fonts */}
-            <RootNavigator fontsReady={fontsLoaded || fontError !== null} />
-          </SessionProvider>
-        </QueryClientProvider>
-      </ThemedRoot>
-    </ThemeProvider>
+    // First, so a share that launched the app is caught before anything else loads
+    <ShareProvider>
+      <ThemeProvider>
+        <ThemedRoot>
+          <QueryClientProvider client={queryClient}>
+            <SessionProvider>
+              {/* If the fonts fail to load, carry on with the system fonts */}
+              <RootNavigator fontsReady={fontsLoaded || fontError !== null} />
+            </SessionProvider>
+          </QueryClientProvider>
+        </ThemedRoot>
+      </ThemeProvider>
+    </ShareProvider>
   );
 }
 
