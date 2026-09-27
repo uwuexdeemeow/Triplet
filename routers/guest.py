@@ -102,7 +102,7 @@ def get_guest_itinerary(
         .all()
     )
 
-    return build_itinerary(guest.trip_id, activities)
+    return build_itinerary(db, guest.trip_id, activities)
 
 @setup_router.put("", response_model=GuestAccessResponse)
 def set_guest_access(

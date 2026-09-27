@@ -406,6 +406,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/schedule/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest Time
+         * @description The earliest time on a day when the place is open and there's time to get there.
+         */
+        get: operations["suggest_time_trips__trip_id__schedule_suggest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/links": {
         parameters: {
             query?: never;
@@ -839,6 +859,17 @@ export interface components {
             /** Balances */
             balances: components["schemas"]["MemberBalance"][];
         };
+        /** DayWeather */
+        DayWeather: {
+            /** Summary */
+            summary: string;
+            /** High */
+            high?: number | null;
+            /** Low */
+            low?: number | null;
+            /** Rain Chance */
+            rain_chance?: number | null;
+        };
         /** ExpenseCreate */
         ExpenseCreate: {
             /** Title */
@@ -1045,6 +1076,12 @@ export interface components {
              * @default []
              */
             conflicts_with: number[];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["ScheduleWarning"][];
+            travel_from_previous?: components["schemas"]["TravelLeg"] | null;
         };
         /** ItineraryDay */
         ItineraryDay: {
@@ -1057,6 +1094,7 @@ export interface components {
             activities: components["schemas"]["ItineraryActivity"][];
             /** Estimated Cost */
             estimated_cost: number;
+            weather?: components["schemas"]["DayWeather"] | null;
         };
         /** ItineraryResponse */
         ItineraryResponse: {
@@ -1260,6 +1298,31 @@ export interface components {
             /** Custom Title */
             custom_title?: string | null;
         };
+        /** ScheduleWarning */
+        ScheduleWarning: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "closed" | "outside_hours" | "tight_travel";
+            /** Message */
+            message: string;
+        };
+        /** SlotSuggestion */
+        SlotSuggestion: {
+            /**
+             * Start Time
+             * Format: date-time
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: date-time
+             */
+            end_time: string;
+            /** Reason */
+            reason: string;
+        };
         /** Token */
         Token: {
             /** Access Token */
@@ -1268,6 +1331,21 @@ export interface components {
             token_type: string;
             /** Refresh Token */
             refresh_token?: string | null;
+        };
+        /**
+         * TravelLeg
+         * @description Rough travel from the plan before, from the straight-line distance.
+         */
+        TravelLeg: {
+            /** Minutes */
+            minutes: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "walk" | "transit";
+            /** Km */
+            km: number;
         };
         /** TripCreate */
         TripCreate: {
@@ -2551,6 +2629,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItineraryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggest_time_trips__trip_id__schedule_suggest_get: {
+        parameters: {
+            query: {
+                date: string;
+                duration?: number;
+                place_id?: number | null;
+                exclude_activity_id?: number | null;
+            };
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotSuggestion"] | null;
                 };
             };
             /** @description Validation Error */

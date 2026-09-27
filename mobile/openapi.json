@@ -1653,6 +1653,116 @@
     }
    }
   },
+  "/trips/{trip_id}/schedule/suggest": {
+   "get": {
+    "tags": [
+     "Activities"
+    ],
+    "summary": "Suggest Time",
+    "description": "The earliest time on a day when the place is open and there's time to get there.",
+    "operationId": "suggest_time_trips__trip_id__schedule_suggest_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "date",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "date",
+       "title": "Date"
+      }
+     },
+     {
+      "name": "duration",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 720,
+       "minimum": 15,
+       "default": 60,
+       "title": "Duration"
+      }
+     },
+     {
+      "name": "place_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Place Id"
+      }
+     },
+     {
+      "name": "exclude_activity_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Exclude Activity Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/SlotSuggestion"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Suggest Time Trips  Trip Id  Schedule Suggest Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/links": {
    "post": {
     "tags": [
@@ -3505,6 +3615,52 @@
     ],
     "title": "BudgetSummary"
    },
+   "DayWeather": {
+    "properties": {
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "high": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "High"
+     },
+     "low": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Low"
+     },
+     "rain_chance": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rain Chance"
+     }
+    },
+    "type": "object",
+    "required": [
+     "summary"
+    ],
+    "title": "DayWeather"
+   },
    "ExpenseCreate": {
     "properties": {
      "title": {
@@ -4230,6 +4386,24 @@
       "type": "array",
       "title": "Conflicts With",
       "default": []
+     },
+     "warnings": {
+      "items": {
+       "$ref": "#/components/schemas/ScheduleWarning"
+      },
+      "type": "array",
+      "title": "Warnings",
+      "default": []
+     },
+     "travel_from_previous": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TravelLeg"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "type": "object",
@@ -4260,6 +4434,16 @@
      "estimated_cost": {
       "type": "number",
       "title": "Estimated Cost"
+     },
+     "weather": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DayWeather"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "type": "object",
@@ -5006,6 +5190,54 @@
     "type": "object",
     "title": "SavedLinkUpdate"
    },
+   "ScheduleWarning": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "closed",
+       "outside_hours",
+       "tight_travel"
+      ],
+      "title": "Kind"
+     },
+     "message": {
+      "type": "string",
+      "title": "Message"
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "message"
+    ],
+    "title": "ScheduleWarning"
+   },
+   "SlotSuggestion": {
+    "properties": {
+     "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+     },
+     "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     }
+    },
+    "type": "object",
+    "required": [
+     "start_time",
+     "end_time",
+     "reason"
+    ],
+    "title": "SlotSuggestion"
+   },
    "Token": {
     "properties": {
      "access_token": {
@@ -5034,6 +5266,34 @@
      "token_type"
     ],
     "title": "Token"
+   },
+   "TravelLeg": {
+    "properties": {
+     "minutes": {
+      "type": "integer",
+      "title": "Minutes"
+     },
+     "mode": {
+      "type": "string",
+      "enum": [
+       "walk",
+       "transit"
+      ],
+      "title": "Mode"
+     },
+     "km": {
+      "type": "number",
+      "title": "Km"
+     }
+    },
+    "type": "object",
+    "required": [
+     "minutes",
+     "mode",
+     "km"
+    ],
+    "title": "TravelLeg",
+    "description": "Rough travel from the plan before, from the straight-line distance."
    },
    "TripCreate": {
     "properties": {

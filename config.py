@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     VIDEO_MAX_DURATION_SECONDS: int = 600
     VIDEO_MAX_FILESIZE_MB: int = 100
 
+    # Daily forecasts on the plan, from Open-Meteo (free, no key)
+    WEATHER_ENABLED: bool = True
+
     # Where place addresses, pins and opening hours come from:
     # "auto" uses Google when GOOGLE_PLACES_API_KEY is set, otherwise OpenStreetMap.
     # "none" turns lookups off, so users fill in details themselves.

@@ -7,6 +7,7 @@ import { Button } from '@/components/button';
 import { Enter } from '@/components/enter';
 import { FormMessage } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
+import { WeatherLine } from '@/components/weather-line';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { activityClock, formatDateRange, formatLongDate } from '@/utils/dates';
@@ -80,6 +81,7 @@ export default function GuestTripScreen() {
                   <Text style={styles.dayCost}>About {formatMoney(day.estimated_cost, currency)}</Text>
                 ) : null}
               </View>
+              {day.weather ? <WeatherLine weather={day.weather} /> : null}
               {day.activities.map((activity, index) => (
                 <Enter key={activity.id} index={dayIndex + index}>
                   <View style={styles.row}>

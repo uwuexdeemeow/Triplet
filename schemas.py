@@ -231,13 +231,40 @@ class ActivityResponse(BaseModel):
         "from_attributes": True
     }
 
+class ScheduleWarning(BaseModel):
+    # closed: the place is shut that day; outside_hours: open that day, but not at this time;
+    # tight_travel: not enough time to get here from the plan before
+    kind: Literal["closed", "outside_hours", "tight_travel"]
+    message: str
+
+class TravelLeg(BaseModel):
+    """Rough travel from the plan before, from the straight-line distance."""
+    minutes: int
+    mode: Literal["walk", "transit"]
+    km: float
+
 class ItineraryActivity(ActivityResponse):
     conflicts_with: list[int] = []
+    warnings: list[ScheduleWarning] = []
+    travel_from_previous: TravelLeg | None = None
+
+class DayWeather(BaseModel):
+    summary: str
+    high: float | None = None
+    low: float | None = None
+    rain_chance: int | None = None
 
 class ItineraryDay(BaseModel):
     date: date
     activities: list[ItineraryActivity]
     estimated_cost: float
+    # Only for days within the next two weeks, where a plan has a map pin
+    weather: DayWeather | None = None
+
+class SlotSuggestion(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    reason: str
 
 class ItineraryResponse(BaseModel):
     trip_id: int
