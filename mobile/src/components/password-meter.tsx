@@ -1,7 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { checkPassword } from '@/auth/password-strength';
-import { colors, fonts } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts } from '@/theme/tokens';
 
 type PasswordMeterProps = {
   password: string;
@@ -12,13 +13,15 @@ type PasswordMeterProps = {
 
 /** Four bars that fill as the password gets harder to guess, with a tip while it's too weak. */
 export function PasswordMeter({ password, name, email }: PasswordMeterProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   if (!password) return null;
 
   const tooShort = password.length < 8;
   const strength = checkPassword(password, name, email);
   // Bars filled: at least one once typing starts, all four at "Very strong"
   const filled = tooShort ? 1 : Math.max(1, strength.score);
-  const color = !tooShort && strength.strongEnough ? colors.teal : colors.coral;
+  const color = !tooShort && strength.strongEnough ? colors.accent : colors.danger;
 
   return (
     <View
@@ -31,7 +34,7 @@ export function PasswordMeter({ password, name, email }: PasswordMeterProps) {
           <View key={bar} style={[styles.bar, bar <= filled && { backgroundColor: color }]} />
         ))}
       </View>
-      <Text style={[styles.label, { color: !tooShort && strength.strongEnough ? colors.tealDark : colors.coralText }]}>
+      <Text style={[styles.label, { color: !tooShort && strength.strongEnough ? colors.accentStrong : colors.dangerText }]}>
         {tooShort ? `Too short · ${8 - password.length} more ${8 - password.length === 1 ? 'character' : 'characters'}` : strength.label}
       </Text>
       {!tooShort && strength.tip ? <Text style={styles.tip}>{strength.tip}</Text> : null}
@@ -39,7 +42,7 @@ export function PasswordMeter({ password, name, email }: PasswordMeterProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: 6,
   },
@@ -63,4 +66,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.muted,
   },
-});
+}));

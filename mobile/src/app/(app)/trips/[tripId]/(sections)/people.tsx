@@ -2,14 +2,15 @@ import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useMe, useMembers, useTripInvitations, type Invitation, type Member } from '@/api/trips';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { Muted } from '@/components/text';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 
 type Role = 'owner' | 'member' | 'viewer';
 
@@ -24,6 +25,8 @@ function roleLabel(role: string): string {
 }
 
 export default function PeopleScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const me = useMe();
@@ -41,7 +44,7 @@ export default function PeopleScreen() {
     invitations.refetch();
   };
 
-  if (members.isPending || me.isPending) return <ActivityIndicator color={colors.teal} style={styles.loading} />;
+  if (members.isPending || me.isPending) return <ActivityIndicator color={colors.accent} style={styles.loading} />;
 
   if (members.isError || me.isError) {
     return (
@@ -56,7 +59,7 @@ export default function PeopleScreen() {
     <ScrollView
       contentContainerStyle={styles.list}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={members.isRefetching} onRefresh={refresh} tintColor={colors.teal} />}>
+      refreshControl={<RefreshControl refreshing={members.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
       {isOwner ? <InviteForm tripId={id} /> : null}
 
       <View style={styles.section}>
@@ -102,6 +105,8 @@ export default function PeopleScreen() {
 }
 
 function InviteForm({ tripId }: { tripId: number }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +171,7 @@ function InviteForm({ tripId }: { tripId: number }) {
 }
 
 function Avatar({ name, faded = false }: { name: string; faded?: boolean }) {
+  const styles = useStyles();
   return (
     <View style={[styles.avatar, faded && styles.avatarFaded]}>
       <Text style={[styles.avatarText, faded && styles.avatarTextFaded]}>{name.trim().charAt(0).toUpperCase() || '?'}</Text>
@@ -192,6 +198,8 @@ function MemberRow({
   onToggle: () => void;
   first: boolean;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -265,7 +273,7 @@ function MemberRow({
                     <Text style={styles.roleDescription}>{description}</Text>
                   </View>
                   {changeRole.isPending && changeRole.variables === role ? (
-                    <ActivityIndicator size="small" color={colors.teal} />
+                    <ActivityIndicator size="small" color={colors.accent} />
                   ) : null}
                 </Pressable>
               );
@@ -310,6 +318,7 @@ function PendingRow({
   canCancel: boolean;
   first: boolean;
 }) {
+  const styles = useStyles();
   const queryClient = useQueryClient();
   const cancel = useMutation({
     mutationFn: () => api(`/trips/${tripId}/invitations/${invitation.id}`, { method: 'DELETE' }),
@@ -347,6 +356,7 @@ function PendingRow({
 }
 
 function LeaveTrip({ tripId, myId, isLastOwner }: { tripId: number; myId: number; isLastOwner: boolean }) {
+  const styles = useStyles();
   const queryClient = useQueryClient();
   const [confirm, setConfirm] = useState(false);
 
@@ -389,7 +399,7 @@ function LeaveTrip({ tripId, myId, isLastOwner }: { tripId: number; myId: number
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   list: {
     paddingHorizontal: 20,
     paddingTop: spacing.xs,
@@ -422,13 +432,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.inputBorder,
     borderRadius: radii.input,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     fontFamily: fonts.body,
     fontSize: 16,
     color: colors.ink,
   },
   inputError: {
-    borderColor: colors.coral,
+    borderColor: colors.danger,
   },
   inviteButton: {
     minHeight: 48,
@@ -437,7 +447,7 @@ const styles = StyleSheet.create({
   error: {
     fontFamily: fonts.medium,
     fontSize: 13.5,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   section: {
     gap: spacing.sm,
@@ -450,10 +460,8 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   row: {
@@ -488,7 +496,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -498,7 +506,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: fonts.bold,
     fontSize: 16,
-    color: colors.tealDark,
+    color: colors.accentStrong,
   },
   avatarTextFaded: {
     color: colors.muted,
@@ -510,7 +518,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chip,
   },
   rolePillOwner: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
   },
   rolePillText: {
     fontFamily: fonts.semibold,
@@ -518,7 +526,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   rolePillTextOwner: {
-    color: colors.tealDark,
+    color: colors.accentStrong,
   },
   manage: {
     gap: spacing.md,
@@ -538,8 +546,8 @@ const styles = StyleSheet.create({
     borderRadius: radii.input,
   },
   roleOptionSelected: {
-    borderColor: colors.teal,
-    backgroundColor: colors.tealSoft,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   roleLabel: {
     fontFamily: fonts.bold,
@@ -561,13 +569,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioSelected: {
-    borderColor: colors.teal,
+    borderColor: colors.accent,
   },
   radioDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.accent,
   },
   disabled: {
     opacity: 0.45,
@@ -589,19 +597,19 @@ const styles = StyleSheet.create({
   dangerText: {
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   confirm: {
     gap: spacing.md,
     padding: spacing.lg,
-    borderRadius: 16,
-    backgroundColor: colors.coralSoft,
+    borderRadius: 12,
+    backgroundColor: colors.dangerSoft,
   },
   confirmText: {
     fontFamily: fonts.semibold,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   confirmButtons: {
     flexDirection: 'row',
@@ -613,16 +621,16 @@ const styles = StyleSheet.create({
   dangerButton: {
     minHeight: 52,
     borderRadius: radii.button,
-    backgroundColor: colors.coral,
+    backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dangerLabel: {
     fontFamily: fonts.bold,
     fontSize: 17,
-    color: colors.white,
+    color: colors.onDanger,
   },
   pressed: {
     opacity: 0.75,
   },
-});
+}));

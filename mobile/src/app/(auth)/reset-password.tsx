@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import { resetPasswordSchema, type ResetPasswordValues } from '@/auth/validation';
@@ -10,10 +10,12 @@ import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, spacing } from '@/theme/tokens';
+import { makeStyles } from '@/theme/theme';
+import { fonts, spacing } from '@/theme/tokens';
 
 // Opened from the email link: triplet://reset-password?token=... (or /reset-password on the web)
 export default function ResetPasswordScreen() {
+  const styles = useStyles();
   const { token } = useLocalSearchParams<{ token?: string }>();
   const [done, setDone] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -118,7 +120,7 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: 28,
     paddingTop: spacing.xl,
@@ -137,6 +139,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontFamily: fonts.bold,
     fontSize: 16,
-    color: colors.teal,
+    color: colors.accent,
   },
-});
+}));

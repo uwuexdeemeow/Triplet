@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useState } from 'react';
 import { z } from 'zod';
@@ -22,7 +22,8 @@ import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 import { CATEGORY_META, EXPENSE_CATEGORIES } from '@/utils/budget';
 import { activityClock, dayOfMonth, eachDay, todayString, weekdayShort } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
@@ -47,6 +48,8 @@ type Values = z.infer<typeof schema>;
 
 // Adds an expense, or edits one when opened with an expenseId
 export default function ExpenseScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId, expenseId } = useLocalSearchParams<{ tripId: string; expenseId?: string }>();
   const id = Number(tripId);
   const trip = useTrip(id);
@@ -63,7 +66,7 @@ export default function ExpenseScreen() {
         {missing ? (
           <FormMessage message="This expense couldn’t be found. It may have been deleted." />
         ) : loading || !trip.data ? (
-          <ActivityIndicator color={colors.teal} style={styles.loading} />
+          <ActivityIndicator color={colors.accent} style={styles.loading} />
         ) : (
           // Mounted once the data is here, so the fields start with the right values
           <ExpenseForm trip={trip.data} expense={expense} />
@@ -74,6 +77,8 @@ export default function ExpenseScreen() {
 }
 
 function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefined }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const me = useMe();
   const members = useMembers(trip.id);
@@ -205,7 +210,7 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
                     accessibilityState={{ checked: selected }}
                     onPress={() => field.onChange(category)}
                     style={[styles.chip, selected && styles.chipSelected]}>
-                    <Feather name={meta.icon} size={15} color={selected ? colors.white : colors.muted} />
+                    <Feather name={meta.icon} size={15} color={selected ? colors.onAccent : colors.muted} />
                     <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{meta.label}</Text>
                   </Pressable>
                 );
@@ -357,7 +362,7 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: 20,
   },
@@ -390,13 +395,11 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: 14,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.card,
+    backgroundColor: colors.chip,
   },
   chipSelected: {
-    backgroundColor: colors.teal,
-    borderColor: colors.teal,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
     flexShrink: 1,
@@ -410,7 +413,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   chipTextSelected: {
-    color: colors.white,
+    color: colors.onAccent,
   },
   days: {
     gap: spacing.sm,
@@ -419,9 +422,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.card,
+    backgroundColor: colors.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -429,8 +430,8 @@ const styles = StyleSheet.create({
     width: 64,
   },
   dayChipSelected: {
-    backgroundColor: colors.teal,
-    borderColor: colors.teal,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   dayName: {
     fontFamily: fonts.semibold,
@@ -438,7 +439,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   dayNameSelected: {
-    color: colors.tealSoft,
+    color: colors.accentSoft,
   },
   dayNumber: {
     fontFamily: fonts.bold,
@@ -451,19 +452,19 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   dayNumberSelected: {
-    color: colors.white,
+    color: colors.onAccent,
   },
   confirm: {
     gap: spacing.md,
     padding: spacing.lg,
-    borderRadius: 16,
-    backgroundColor: colors.coralSoft,
+    borderRadius: 12,
+    backgroundColor: colors.dangerSoft,
   },
   confirmText: {
     fontFamily: fonts.semibold,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   confirmButtons: {
     flexDirection: 'row',
@@ -475,14 +476,14 @@ const styles = StyleSheet.create({
   deleteButton: {
     minHeight: 52,
     borderRadius: radii.button,
-    backgroundColor: colors.coral,
+    backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
   },
   deleteLabel: {
     fontFamily: fonts.bold,
     fontSize: 17,
-    color: colors.white,
+    color: colors.onDanger,
   },
   deleteLink: {
     minHeight: 44,
@@ -492,6 +493,6 @@ const styles = StyleSheet.create({
   deleteLinkLabel: {
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
-});
+}));

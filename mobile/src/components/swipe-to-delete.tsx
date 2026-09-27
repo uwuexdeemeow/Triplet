@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import { useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import { colors, fonts, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, spacing } from '@/theme/tokens';
 
 export type SwipeToDeleteProps = {
   children: ReactNode;
@@ -17,6 +18,8 @@ export type SwipeToDeleteProps = {
 
 /** Swipe the card right to reveal a Delete button. On the web, see swipe-to-delete.web.tsx. */
 export function SwipeToDelete({ children, label, onDelete, radius = 18 }: SwipeToDeleteProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const swipeable = useRef<SwipeableMethods>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -46,10 +49,10 @@ export function SwipeToDelete({ children, label, onDelete, radius = 18 }: SwipeT
           onPress={remove}
           style={({ pressed }) => [styles.action, { borderRadius: radius }, pressed && styles.pressed]}>
           {deleting ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.onDanger} />
           ) : (
             <>
-              <Feather name="trash-2" size={20} color={colors.white} />
+              <Feather name="trash-2" size={20} color={colors.onDanger} />
               <Text style={styles.label}>Delete</Text>
             </>
           )}
@@ -67,11 +70,11 @@ export function SwipeToDelete({ children, label, onDelete, radius = 18 }: SwipeT
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   action: {
     width: 96,
     marginRight: spacing.sm,
-    backgroundColor: colors.coral,
+    backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
@@ -79,9 +82,9 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.bold,
     fontSize: 14,
-    color: colors.white,
+    color: colors.onDanger,
   },
   pressed: {
     opacity: 0.75,
   },
-});
+}));

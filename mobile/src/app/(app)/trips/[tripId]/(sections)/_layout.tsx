@@ -1,12 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import { router, Slot, useLocalSearchParams, usePathname } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useMembers, useTrip } from '@/api/trips';
 import { FormMessage } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
-import { colors, fonts, radii, spacing, touchTarget } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, spacing, touchTarget } from '@/theme/tokens';
 import { formatDateRange } from '@/utils/dates';
 
 const SECTIONS = [
@@ -18,6 +19,8 @@ const SECTIONS = [
 ] as const;
 
 export default function TripSectionsLayout() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const pathname = usePathname();
@@ -77,7 +80,7 @@ export default function TripSectionsLayout() {
       </View>
 
       {trip.isPending ? (
-        <ActivityIndicator color={colors.teal} style={styles.loading} />
+        <ActivityIndicator color={colors.accent} style={styles.loading} />
       ) : trip.isError ? (
         <View style={styles.error}>
           <FormMessage message={trip.error.message} />
@@ -89,10 +92,10 @@ export default function TripSectionsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   header: {
     paddingHorizontal: 20,
@@ -103,30 +106,31 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     alignSelf: 'center',
   },
+  // Plain text tabs with a thin underline under the current one
   tabs: {
     flexDirection: 'row',
-    gap: 4,
-    padding: 4,
-    backgroundColor: colors.chip,
-    borderRadius: 14,
+    gap: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
   },
   tab: {
-    flex: 1,
     minHeight: 40,
-    borderRadius: radii.input - 2,
-    alignItems: 'center',
     justifyContent: 'center',
+    // Sits over the row's bottom line
+    marginBottom: -1,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
   tabSelected: {
-    backgroundColor: colors.card,
+    borderBottomColor: colors.accent,
   },
   tabLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
+    fontFamily: fonts.medium,
+    fontSize: 14.5,
     color: colors.muted,
   },
   tabLabelSelected: {
-    fontFamily: fonts.bold,
+    fontFamily: fonts.semibold,
     color: colors.ink,
   },
   loading: {
@@ -146,4 +150,4 @@ const styles = StyleSheet.create({
   error: {
     padding: 20,
   },
-});
+}));

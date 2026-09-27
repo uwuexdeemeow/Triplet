@@ -2,12 +2,13 @@ import { Feather } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { api, type Schemas } from '@/api/client';
 import { MiniMap } from '@/components/place-map';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, radii, spacing, touchTarget } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing, touchTarget } from '@/theme/tokens';
 import { setPickedLocation, usePickedLocation } from '@/utils/picked-location';
 
 type Suggestion = Schemas['PlaceSearchResult'];
@@ -48,6 +49,8 @@ export function LocationField({
   onPinChange,
   title,
 }: LocationFieldProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const awaitingPick = useRef(false);
@@ -133,7 +136,7 @@ export function LocationField({
               accessibilityLabel={[suggestion.name, suggestion.address].filter(Boolean).join(', ')}
               onPress={() => choose(suggestion)}
               style={({ pressed }) => [styles.suggestion, index > 0 && styles.suggestionDivider, pressed && styles.pressed]}>
-              <Feather name="map-pin" size={16} color={colors.teal} style={styles.suggestionIcon} />
+              <Feather name="map-pin" size={16} color={colors.accent} style={styles.suggestionIcon} />
               <View style={styles.suggestionText}>
                 <Text style={styles.suggestionName} numberOfLines={1}>
                   {suggestion.name}
@@ -147,7 +150,7 @@ export function LocationField({
             </Pressable>
           ))}
           {suggestions.isFetching && list.length === 0 ? (
-            <ActivityIndicator color={colors.teal} style={styles.suggestionsLoading} />
+            <ActivityIndicator color={colors.accent} style={styles.suggestionsLoading} />
           ) : null}
           <Text style={styles.credit}>Suggestions © OpenStreetMap contributors</Text>
         </View>
@@ -181,7 +184,7 @@ export function LocationField({
           accessibilityHint="Opens a map to drop a pin"
           onPress={openPicker}
           style={({ pressed }) => [styles.mapEmpty, pressed && styles.pressed]}>
-          <Feather name="map" size={22} color={colors.teal} />
+          <Feather name="map" size={22} color={colors.accent} />
           <View style={styles.suggestionText}>
             <Text style={styles.mapEmptyTitle}>Choose on the map</Text>
             <Text style={styles.suggestionAddress}>Pick a suggestion above, or drop a pin yourself</Text>
@@ -193,15 +196,13 @@ export function LocationField({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: spacing.sm,
   },
   suggestions: {
-    borderWidth: 1,
-    borderColor: colors.line,
     borderRadius: radii.input,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
   },
   suggestion: {
@@ -243,7 +244,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 11,
     color: colors.muted,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   mapBlock: {
     gap: spacing.sm,
@@ -258,7 +259,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: radii.pill,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
   },
   mapBadgeText: {
     fontFamily: fonts.semibold,
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
   removePinLabel: {
     fontFamily: fonts.bold,
     fontSize: 14,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   mapEmpty: {
     flexDirection: 'row',
@@ -295,14 +296,14 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.inputBorder,
     borderRadius: radii.input,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
   },
   mapEmptyTitle: {
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.tealDark,
+    color: colors.accentStrong,
   },
   pressed: {
     opacity: 0.75,
   },
-});
+}));

@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api, type Schemas } from '@/api/client';
@@ -19,7 +19,8 @@ import { Button } from '@/components/button';
 import { MapSearch } from '@/components/map-search';
 import { TripMap, type Coordinates, type MapPlace, type TripMapHandle } from '@/components/place-map';
 import { FormMessage } from '@/components/screen';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { activityClock, formatShortDate } from '@/utils/dates';
 import { needsCheck, placeDetail } from '@/utils/places';
 
@@ -52,6 +53,8 @@ function hasPin<T extends { latitude?: number | null; longitude?: number | null 
 }
 
 export default function TripMapScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const insets = useSafeAreaInsets();
@@ -123,7 +126,7 @@ export default function TripMapScreen() {
   const areaResult = area.data?.find(hasPin);
   const fallbackCenter = areaResult ? { latitude: areaResult.latitude!, longitude: areaResult.longitude! } : null;
 
-  if (places.isPending || itinerary.isPending) return <ActivityIndicator color={colors.teal} style={styles.loading} />;
+  if (places.isPending || itinerary.isPending) return <ActivityIndicator color={colors.accent} style={styles.loading} />;
 
   if (places.isError || itinerary.isError) {
     return (
@@ -201,7 +204,7 @@ export default function TripMapScreen() {
                   }}
                   style={[styles.filter, active && styles.filterActive]}>
                   {key !== 'all' ? (
-                    <View style={[styles.dot, { backgroundColor: key === 'planned' ? colors.teal : colors.coral }]} />
+                    <View style={[styles.dot, { backgroundColor: key === 'planned' ? colors.accent : colors.second }]} />
                   ) : null}
                   <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
                     {label} · {counts[key]}
@@ -219,7 +222,7 @@ export default function TripMapScreen() {
         {dropped ? (
           <DroppedPin tripId={tripId} dropped={dropped} canEdit={canEdit} onCancel={() => setDropped(null)} />
         ) : selected?.kind === 'activity' ? (
-          <SelectedActivity tripId={tripId} activity={selected.activity} day={selected.day} />
+          <SelectedActivity tripId={tripId} activity={selected.activity} day={selected.day} canEdit={canEdit} />
         ) : selected?.kind === 'place' ? (
           <SelectedPlace tripId={tripId} place={selected.place} />
         ) : (
@@ -257,6 +260,8 @@ function Idle({
   unpinned: TripPlace[];
   note: string | null;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const how = Platform.OS === 'web' ? 'Right-click' : 'Long-press';
 
   return (
@@ -274,7 +279,7 @@ function Idle({
             accessibilityLabel="Add activity"
             onPress={() => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId } })}
             style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
-            <Feather name="plus" size={18} color={colors.white} />
+            <Feather name="plus" size={18} color={colors.onAccent} />
             <Text style={styles.addLabel}>Add</Text>
           </Pressable>
         ) : null}
@@ -295,7 +300,7 @@ function Idle({
                   router.push({ pathname: '/trips/[tripId]/pick-location', params: { tripId, placeId: String(place.id) } })
                 }
                 style={({ pressed }) => [styles.unpinnedChip, pressed && styles.pressed]}>
-                <Feather name="map-pin" size={14} color={colors.coralText} />
+                <Feather name="map-pin" size={14} color={colors.secondText} />
                 <Text style={styles.unpinnedLabel} numberOfLines={1}>
                   {place.name}
                 </Text>
@@ -320,6 +325,8 @@ function DroppedPin({
   canEdit: boolean;
   onCancel: () => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const known = coordinates.known;
   const lookup = useQuery({
     // Rounded, so a tiny nudge of the same spot reuses the answer
@@ -354,7 +361,7 @@ function DroppedPin({
       <View style={styles.selectedText}>
         <Text style={styles.kicker}>{known ? 'Search result' : 'Dropped pin'}</Text>
         {!known && lookup.isPending ? (
-          <ActivityIndicator color={colors.teal} style={styles.lookupLoading} />
+          <ActivityIndicator color={colors.accent} style={styles.lookupLoading} />
         ) : (
           <>
             <Text style={styles.selectedName} numberOfLines={2}>
@@ -378,7 +385,18 @@ function DroppedPin({
   );
 }
 
-function SelectedActivity({ tripId, activity, day }: { tripId: string; activity: ItineraryActivity; day: string }) {
+function SelectedActivity({
+  tripId,
+  activity,
+  day,
+  canEdit,
+}: {
+  tripId: string;
+  activity: ItineraryActivity;
+  day: string;
+  canEdit: boolean;
+}) {
+  const styles = useStyles();
   return (
     <View style={styles.selected}>
       <View style={styles.selectedText}>
@@ -386,7 +404,7 @@ function SelectedActivity({ tripId, activity, day }: { tripId: string; activity:
         <Text style={styles.selectedName} numberOfLines={2}>
           {activity.title}
         </Text>
-        <Text style={[styles.detail, styles.detailTeal]}>
+        <Text style={[styles.detail, styles.detailAccent]}>
           {formatShortDate(day)} · {activityClock(activity.start_time)}–{activityClock(activity.end_time)}
         </Text>
         {activity.location ? (
@@ -395,16 +413,29 @@ function SelectedActivity({ tripId, activity, day }: { tripId: string; activity:
           </Text>
         ) : null}
       </View>
-      <Button
-        label="See it in the plan"
-        variant="secondary"
-        onPress={() => router.replace({ pathname: '/trips/[tripId]', params: { tripId, day } })}
-      />
+      <View style={styles.actions}>
+        <Button
+          label="See it in the plan"
+          variant="secondary"
+          style={styles.actionWide}
+          onPress={() => router.replace({ pathname: '/trips/[tripId]', params: { tripId, day } })}
+        />
+        {canEdit ? (
+          <Button
+            label="Edit"
+            style={styles.action}
+            onPress={() =>
+              router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, activityId: String(activity.id) } })
+            }
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
 
 function SelectedPlace({ tripId, place }: { tripId: string; place: TripPlace }) {
+  const styles = useStyles();
   const detail = placeDetail(place, undefined);
   const params = { tripId, placeId: String(place.id) };
   const planned = isPlanned(place);
@@ -419,7 +450,7 @@ function SelectedPlace({ tripId, place }: { tripId: string; place: TripPlace }) 
         {detail.text ? (
           <Text
             numberOfLines={1}
-            style={[styles.detail, detail.tone === 'teal' && styles.detailTeal, detail.tone === 'coral' && styles.detailCoral]}>
+            style={[styles.detail, detail.tone === 'accent' && styles.detailAccent, detail.tone === 'attention' && styles.detailAttention]}>
             {detail.text}
           </Text>
         ) : null}
@@ -457,7 +488,7 @@ function SelectedPlace({ tripId, place }: { tripId: string; place: TripPlace }) 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   screen: {
     flex: 1,
     overflow: 'hidden',
@@ -498,9 +529,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: 14,
     borderRadius: radii.pill,
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.line,
+    backgroundColor: colors.chip,
   },
   filterActive: {
     backgroundColor: colors.ink,
@@ -513,7 +542,7 @@ const styles = StyleSheet.create({
   },
   filterLabelActive: {
     fontFamily: fonts.bold,
-    color: colors.white,
+    color: colors.onAccent,
   },
   dot: {
     width: 9,
@@ -527,7 +556,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 20,
     paddingTop: 18,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
@@ -561,12 +590,12 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 16,
     borderRadius: radii.pill,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.accent,
   },
   addLabel: {
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.white,
+    color: colors.onAccent,
   },
   sheetTitle: {
     fontFamily: fonts.bold,
@@ -590,6 +619,7 @@ const styles = StyleSheet.create({
   },
   selectedName: {
     fontFamily: fonts.displaySemi,
+    letterSpacing: headingTracking,
     fontSize: 22,
     color: colors.ink,
   },
@@ -602,11 +632,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted,
   },
-  detailTeal: {
-    color: colors.teal,
+  detailAccent: {
+    color: colors.accent,
   },
-  detailCoral: {
-    color: colors.coralText,
+  detailAttention: {
+    color: colors.secondText,
   },
   address: {
     fontFamily: fonts.body,
@@ -637,15 +667,15 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: 12,
     borderRadius: radii.pill,
-    backgroundColor: colors.coralSoft,
+    backgroundColor: colors.secondSoft,
   },
   unpinnedLabel: {
     flexShrink: 1,
     fontFamily: fonts.semibold,
     fontSize: 14,
-    color: colors.coralText,
+    color: colors.secondText,
   },
   pressed: {
     opacity: 0.75,
   },
-});
+}));

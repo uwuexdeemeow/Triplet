@@ -1,7 +1,8 @@
 import RNDateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 
-import { colors, fonts, radii } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii } from '@/theme/tokens';
 import { formatShortDate, parseDate, toDateString } from '@/utils/dates';
 
 type FieldProps = {
@@ -25,6 +26,8 @@ function dateToTime(date: Date): string {
 }
 
 function PickerField({ label, value, onChange, error, minimumDate, mode }: FieldProps & { mode: 'date' | 'time' }) {
+  const styles = useStyles();
+  const { colors, scheme } = useTheme();
   const current = mode === 'date' ? parseDate(value) : timeToDate(value);
   const handleValue = (date: Date) => onChange(mode === 'date' ? toDateString(date) : dateToTime(date));
   const minimum = minimumDate ? parseDate(minimumDate) : undefined;
@@ -39,8 +42,8 @@ function PickerField({ label, value, onChange, error, minimumDate, mode }: Field
           mode={mode}
           display="compact"
           minimumDate={minimum}
-          themeVariant="light"
-          accentColor={colors.teal}
+          themeVariant={scheme}
+          accentColor={colors.accent}
           onValueChange={(_, date) => handleValue(date)}
           style={styles.iosPicker}
         />
@@ -76,7 +79,7 @@ export function TimeField(props: Omit<FieldProps, 'minimumDate'>) {
   return <PickerField {...props} mode="time" />;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   field: {
     gap: 6,
     flex: 1,
@@ -92,11 +95,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.inputBorder,
     borderRadius: radii.input,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
   },
   inputError: {
-    borderColor: colors.coral,
+    borderColor: colors.danger,
   },
   value: {
     fontFamily: fonts.body,
@@ -109,6 +112,6 @@ const styles = StyleSheet.create({
   error: {
     fontFamily: fonts.semibold,
     fontSize: 13,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
-});
+}));

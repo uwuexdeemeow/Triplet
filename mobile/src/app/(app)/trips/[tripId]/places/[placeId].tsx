@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import { z } from 'zod';
 
 import { api, ApiError } from '@/api/client';
@@ -15,7 +15,8 @@ import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { Muted } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 import { detailsCredit, missingDetailsReason, needsCheck, WEEKDAYS } from '@/utils/places';
 
 const CATEGORIES = ['food', 'cafe', 'bar', 'nightlife', 'attraction', 'nature', 'shopping', 'activity', 'accommodation', 'other'] as const;
@@ -38,6 +39,8 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 export default function ReviewPlaceScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId, placeId } = useLocalSearchParams<{ tripId: string; placeId: string }>();
   const places = usePlaces(Number(tripId));
   const place = places.data?.find((item) => item.id === Number(placeId));
@@ -47,7 +50,7 @@ export default function ReviewPlaceScreen() {
       <Screen>
         <ScreenHeader title="Review place" />
         {places.isPending ? (
-          <ActivityIndicator color={colors.teal} style={styles.loading} />
+          <ActivityIndicator color={colors.accent} style={styles.loading} />
         ) : (
           <FormMessage message="This place couldn’t be found. It may have been removed." />
         )}
@@ -60,6 +63,8 @@ export default function ReviewPlaceScreen() {
 }
 
 function ReviewForm({ tripId, place }: { tripId: number; place: TripPlace }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const links = useLinks(tripId);
   const link = links.data?.find((item) => item.id === place.link_id);
@@ -314,7 +319,7 @@ function ReviewForm({ tripId, place }: { tripId: number; place: TripPlace }) {
                           accessibilityLabel={`Closed on ${WEEKDAYS[index]}`}
                           value={field.value.closed}
                           onValueChange={(closed) => field.onChange({ ...field.value, closed })}
-                          trackColor={{ true: colors.teal, false: colors.inputBorder }}
+                          trackColor={{ true: colors.accent, false: colors.inputBorder }}
                         />
                         <Text style={styles.closedLabel}>Closed</Text>
                       </View>
@@ -405,7 +410,7 @@ function ReviewForm({ tripId, place }: { tripId: number; place: TripPlace }) {
           </Pressable>
         )}
 
-        {formState.isSubmitting ? <ActivityIndicator color={colors.teal} /> : null}
+        {formState.isSubmitting ? <ActivityIndicator color={colors.accent} /> : null}
       </View>
     </Screen>
   );
@@ -421,7 +426,7 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: 18,
   },
@@ -436,16 +441,14 @@ const styles = StyleSheet.create({
   headerSaveLabel: {
     fontFamily: fonts.bold,
     fontSize: 16,
-    color: colors.teal,
+    color: colors.accent,
   },
   source: {
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
   },
   sourceText: {
     flex: 1,
@@ -478,14 +481,12 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 14,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.card,
+    backgroundColor: colors.chip,
     justifyContent: 'center',
   },
   chipSelected: {
-    backgroundColor: colors.teal,
-    borderColor: colors.teal,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
     fontFamily: fonts.semibold,
@@ -494,15 +495,13 @@ const styles = StyleSheet.create({
   },
   chipTextSelected: {
     fontFamily: fonts.bold,
-    color: colors.white,
+    color: colors.onAccent,
   },
   card: {
     padding: spacing.lg,
     gap: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -522,7 +521,7 @@ const styles = StyleSheet.create({
   textButtonLabel: {
     fontFamily: fonts.bold,
     fontSize: 14,
-    color: colors.teal,
+    color: colors.accent,
   },
   hoursList: {
     gap: spacing.sm,
@@ -545,7 +544,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   hoursClosed: {
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   postHours: {
     flexDirection: 'row',
@@ -553,25 +552,25 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: 10,
     borderRadius: radii.input,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
   },
   postHoursText: {
     flex: 1,
     fontFamily: fonts.body,
     fontSize: 13.5,
-    color: colors.tealDark,
+    color: colors.accentStrong,
   },
   postHoursButton: {
     minHeight: 36,
     paddingHorizontal: 10,
     borderRadius: 10,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.accent,
     justifyContent: 'center',
   },
   postHoursButtonLabel: {
     fontFamily: fonts.bold,
     fontSize: 13,
-    color: colors.white,
+    color: colors.onAccent,
   },
   editRow: {
     flexDirection: 'row',
@@ -616,14 +615,14 @@ const styles = StyleSheet.create({
   confirm: {
     gap: spacing.md,
     padding: spacing.lg,
-    borderRadius: 16,
-    backgroundColor: colors.coralSoft,
+    borderRadius: 12,
+    backgroundColor: colors.dangerSoft,
   },
   confirmText: {
     fontFamily: fonts.semibold,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   confirmButtons: {
     flexDirection: 'row',
@@ -635,14 +634,14 @@ const styles = StyleSheet.create({
   removeButton: {
     minHeight: 52,
     borderRadius: radii.button,
-    backgroundColor: colors.coral,
+    backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
   },
   removeLabel: {
     fontFamily: fonts.bold,
     fontSize: 17,
-    color: colors.white,
+    color: colors.onDanger,
   },
   removeLink: {
     minHeight: 44,
@@ -652,6 +651,6 @@ const styles = StyleSheet.create({
   removeLinkLabel: {
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
-});
+}));

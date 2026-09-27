@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useMe, useMembers, useTrip, type Trip } from '@/api/trips';
@@ -10,10 +10,13 @@ import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { Muted } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 import { parseAmount } from '@/trips/validation';
 
 export default function TripSettingsScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const trip = useTrip(id);
@@ -30,7 +33,7 @@ export default function TripSettingsScreen() {
           trip.isError ? (
             <FormMessage message={trip.error.message} />
           ) : (
-            <ActivityIndicator color={colors.teal} style={styles.loading} />
+            <ActivityIndicator color={colors.accent} style={styles.loading} />
           )
         ) : (
           <>
@@ -50,6 +53,7 @@ export default function TripSettingsScreen() {
 
 // The name and budget, which owners and members can change
 function TripDetails({ trip }: { trip: Trip }) {
+  const styles = useStyles();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(trip.title);
   const [budget, setBudget] = useState(trip.budget != null ? String(trip.budget) : '');
@@ -117,6 +121,8 @@ function TripDetails({ trip }: { trip: Trip }) {
 }
 
 function DeleteTrip({ trip }: { trip: Trip }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
@@ -174,7 +180,7 @@ function DeleteTrip({ trip }: { trip: Trip }) {
               onPress={() => remove.mutate()}
               style={({ pressed }) => [styles.deleteButton, styles.flex, !matches && styles.disabled, pressed && styles.pressed]}>
               {remove.isPending ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onDanger} />
               ) : (
                 <Text style={styles.deleteLabel}>Delete forever</Text>
               )}
@@ -190,7 +196,7 @@ function DeleteTrip({ trip }: { trip: Trip }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: spacing.xl,
   },
@@ -205,13 +211,13 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderRadius: radii.card,
     borderWidth: 1.5,
-    borderColor: colors.coral,
-    backgroundColor: colors.coralSoft,
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerSoft,
   },
   dangerTitle: {
     fontFamily: fonts.bold,
     fontSize: 16,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   dangerText: {
     fontFamily: fonts.body,
@@ -233,27 +239,27 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: radii.button,
     borderWidth: 1.5,
-    borderColor: colors.coral,
-    backgroundColor: colors.card,
+    borderColor: colors.danger,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   openLabel: {
     fontFamily: fonts.bold,
     fontSize: 16,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   deleteButton: {
     minHeight: 52,
     borderRadius: radii.button,
-    backgroundColor: colors.coral,
+    backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
   },
   deleteLabel: {
     fontFamily: fonts.bold,
     fontSize: 16,
-    color: colors.white,
+    color: colors.onDanger,
   },
   disabled: {
     opacity: 0.45,
@@ -261,4 +267,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.75,
   },
-});
+}));

@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/api/client';
@@ -9,10 +9,13 @@ import { tripKeys, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { formatDateRange, tripCountdown } from '@/utils/dates';
 
 export default function TripsScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const trips = useQuery({
     queryKey: tripKeys.all,
     queryFn: () => api<Trip[]>('/trips'),
@@ -25,7 +28,7 @@ export default function TripsScreen() {
         keyExtractor={(trip) => String(trip.id)}
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={trips.isRefetching} onRefresh={trips.refetch} tintColor={colors.teal} />
+          <RefreshControl refreshing={trips.isRefetching} onRefresh={trips.refetch} tintColor={colors.accent} />
         }
         ListHeaderComponent={
           <View style={styles.header}>
@@ -34,14 +37,14 @@ export default function TripsScreen() {
               accessibilityRole="button"
               onPress={() => router.push('/trips/new')}
               style={({ pressed }) => [styles.newTrip, pressed && styles.pressed]}>
-              <Feather name="plus" size={18} color={colors.white} />
+              <Feather name="plus" size={18} color={colors.onAccent} />
               <Text style={styles.newTripLabel}>New trip</Text>
             </Pressable>
           </View>
         }
         ListEmptyComponent={
           trips.isPending ? (
-            <ActivityIndicator color={colors.teal} style={styles.loading} />
+            <ActivityIndicator color={colors.accent} style={styles.loading} />
           ) : trips.isError ? (
             <View style={styles.state}>
               <FormMessage message={trips.error.message} />
@@ -61,6 +64,7 @@ export default function TripsScreen() {
 }
 
 function TripCard({ trip }: { trip: Trip }) {
+  const styles = useStyles();
   const countdown = trip.start_date && trip.end_date ? tripCountdown(trip.start_date, trip.end_date) : null;
 
   return (
@@ -89,10 +93,10 @@ function TripCard({ trip }: { trip: Trip }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   list: {
     paddingHorizontal: spacing.xl,
@@ -114,7 +118,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: spacing.lg,
     borderRadius: radii.button,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.accent,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -122,7 +126,7 @@ const styles = StyleSheet.create({
   newTripLabel: {
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.white,
+    color: colors.onAccent,
   },
   pressed: {
     opacity: 0.85,
@@ -141,16 +145,14 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
+    backgroundColor: colors.surface,
     borderRadius: radii.card,
     overflow: 'hidden',
   },
   cardBanner: {
     minHeight: 110,
     padding: spacing.lg,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.accent,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
@@ -159,11 +161,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     flexShrink: 1,
     fontFamily: fonts.display,
+    letterSpacing: headingTracking,
     fontSize: 28,
-    color: colors.white,
+    color: colors.onAccent,
   },
   badge: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.onAccent,
     borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -171,7 +174,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontFamily: fonts.bold,
     fontSize: 13,
-    color: colors.teal,
+    color: colors.accent,
   },
   cardBody: {
     padding: spacing.lg,
@@ -182,4 +185,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink,
   },
-});
+}));

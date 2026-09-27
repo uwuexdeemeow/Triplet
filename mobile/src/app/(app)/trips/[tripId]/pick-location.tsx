@@ -1,14 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
 import { api } from '@/api/client';
 import { tripKeys, usePlaces, useTrip } from '@/api/trips';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
-import { colors } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
 
 // Pins a saved place: the chosen spot is saved to the place straight away
 export default function PickLocationScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId, placeId } = useLocalSearchParams<{ tripId: string; placeId: string }>();
   const id = Number(tripId);
   const queryClient = useQueryClient();
@@ -38,7 +40,7 @@ export default function PickLocationScreen() {
   if (!place) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={colors.teal} />
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
@@ -57,11 +59,11 @@ export default function PickLocationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   loading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.chip,
   },
-});
+}));

@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { z } from 'zod';
 
 import { api, ApiError } from '@/api/client';
@@ -14,7 +14,8 @@ import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { Muted } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 import { parseAmount } from '@/trips/validation';
 import { addMinutes, dayOfMonth, eachDay, formatShortDate, toActivityTime, todayString, weekdayShort } from '@/utils/dates';
 import { detailsCredit, hoursOn, needsCheck } from '@/utils/places';
@@ -37,6 +38,8 @@ const schema = z
 type Values = z.infer<typeof schema>;
 
 export default function AddPlaceScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId, placeId } = useLocalSearchParams<{ tripId: string; placeId: string }>();
   const id = Number(tripId);
   const queryClient = useQueryClient();
@@ -87,7 +90,7 @@ export default function AddPlaceScreen() {
       <Screen>
         <ScreenHeader title="Add to plan" icon="close" />
         {places.isPending ? (
-          <ActivityIndicator color={colors.teal} style={styles.loading} />
+          <ActivityIndicator color={colors.accent} style={styles.loading} />
         ) : (
           <FormMessage message="This place couldn’t be found. It may have been removed." />
         )}
@@ -113,8 +116,8 @@ export default function AddPlaceScreen() {
         <View style={styles.meta}>
           <View style={styles.chips}>
             {place.category ? (
-              <View style={[styles.chip, styles.chipTeal]}>
-                <Text style={[styles.chipText, styles.chipTealText]}>{capitalize(place.category)}</Text>
+              <View style={[styles.chip, styles.chipAccent]}>
+                <Text style={[styles.chipText, styles.chipAccentText]}>{capitalize(place.category)}</Text>
               </View>
             ) : null}
             {place.city ? (
@@ -127,7 +130,7 @@ export default function AddPlaceScreen() {
         </View>
 
         <View style={styles.locationCard}>
-          <Feather name="map-pin" size={20} color={needsCheck(place) ? colors.coralText : colors.teal} />
+          <Feather name="map-pin" size={20} color={needsCheck(place) ? colors.secondText : colors.accent} />
           <View style={styles.locationText}>
             <Text style={styles.locationAddress}>{location || 'No address yet'}</Text>
             {needsCheck(place) ? (
@@ -135,7 +138,7 @@ export default function AddPlaceScreen() {
             ) : null}
             {day && hours ? (
               <View style={styles.hoursRow}>
-                <Feather name="clock" size={14} color={closed ? colors.coralText : colors.muted} />
+                <Feather name="clock" size={14} color={closed ? colors.dangerText : colors.muted} />
                 <Text style={[styles.hoursText, closed && styles.hoursClosed]}>
                   {closed ? `Closed on ${formatShortDate(day)}` : `Open ${formatShortDate(day)} · ${hours}`}
                 </Text>
@@ -253,7 +256,7 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: 18,
   },
@@ -280,20 +283,18 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.muted,
   },
-  chipTeal: {
-    backgroundColor: colors.tealSoft,
+  chipAccent: {
+    backgroundColor: colors.accentSoft,
   },
-  chipTealText: {
-    color: colors.teal,
+  chipAccentText: {
+    color: colors.accent,
   },
   locationCard: {
     flexDirection: 'row',
     gap: spacing.md,
     padding: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
   },
   locationText: {
     flex: 1,
@@ -308,7 +309,7 @@ const styles = StyleSheet.create({
   locationWarning: {
     fontFamily: fonts.semibold,
     fontSize: 13,
-    color: colors.coralText,
+    color: colors.secondText,
   },
   hoursRow: {
     flexDirection: 'row',
@@ -323,7 +324,7 @@ const styles = StyleSheet.create({
   },
   hoursClosed: {
     fontFamily: fonts.bold,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   credit: {
     fontFamily: fonts.body,
@@ -338,7 +339,7 @@ const styles = StyleSheet.create({
   editPlaceLabel: {
     fontFamily: fonts.bold,
     fontSize: 14,
-    color: colors.teal,
+    color: colors.accent,
   },
   field: {
     gap: 6,
@@ -355,15 +356,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.card,
+    backgroundColor: colors.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayChipSelected: {
-    backgroundColor: colors.teal,
-    borderColor: colors.teal,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   dayName: {
     fontFamily: fonts.semibold,
@@ -371,7 +370,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   dayNameSelected: {
-    color: colors.tealSoft,
+    color: colors.accentSoft,
   },
   dayNumber: {
     fontFamily: fonts.bold,
@@ -379,10 +378,10 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   dayNumberSelected: {
-    color: colors.white,
+    color: colors.onAccent,
   },
   dayNumberClosed: {
-    color: colors.coralText,
+    color: colors.dangerText,
     textDecorationLine: 'line-through',
   },
   row: {
@@ -390,4 +389,4 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     alignItems: 'flex-start',
   },
-});
+}));

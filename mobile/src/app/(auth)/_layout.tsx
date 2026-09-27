@@ -1,6 +1,5 @@
 import { Stack } from 'expo-router';
-
-import { colors } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 
 // Signed-out visitors land on log in
 export const unstable_settings = {
@@ -8,5 +7,6 @@ export const unstable_settings = {
 };
 
 export default function AuthLayout() {
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }} />;
+  const { colors } = useTheme();
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />;
 }

@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Text, View, type TextInput } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { useSession } from '@/auth/session';
@@ -12,9 +12,12 @@ import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, spacing } from '@/theme/tokens';
 
 export default function LoginScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { signIn } = useSession();
   const [formError, setFormError] = useState<string | null>(null);
   const passwordRef = useRef<TextInput>(null);
@@ -45,7 +48,7 @@ export default function LoginScreen() {
       <View style={styles.container}>
         <View style={styles.brand}>
           <View style={styles.logo}>
-            <Feather name="map-pin" size={28} color={colors.white} />
+            <Feather name="map-pin" size={28} color={colors.onAccent} />
           </View>
           <Heading style={styles.wordmark}>Triplet</Heading>
           <Body style={styles.tagline}>Turn the TikToks you save into a real trip.</Body>
@@ -113,7 +116,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     flex: 1,
     gap: 40,
@@ -125,8 +128,8 @@ const styles = StyleSheet.create({
   logo: {
     width: 56,
     height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.teal,
+    borderRadius: 12,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -147,7 +150,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     fontFamily: fonts.semibold,
     fontSize: 14,
-    color: colors.teal,
+    color: colors.accent,
   },
   footer: {
     marginTop: spacing.xxl,
@@ -158,6 +161,6 @@ const styles = StyleSheet.create({
   },
   link: {
     fontFamily: fonts.bold,
-    color: colors.teal,
+    color: colors.accent,
   },
-});
+}));

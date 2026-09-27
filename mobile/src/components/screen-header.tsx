@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, fonts, spacing, touchTarget } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, headingTracking, spacing, touchTarget } from '@/theme/tokens';
 
 type ScreenHeaderProps = {
   title: string;
@@ -15,6 +16,8 @@ type ScreenHeaderProps = {
 };
 
 export function ScreenHeader({ title, subtitle, icon = 'back', onBack, right }: ScreenHeaderProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const goBack = onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
 
   return (
@@ -37,7 +40,7 @@ export function ScreenHeader({ title, subtitle, icon = 'back', onBack, right }: 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -60,7 +63,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.display,
-    fontSize: 26,
+    letterSpacing: headingTracking,
+    fontSize: 22,
     color: colors.ink,
   },
   subtitle: {
@@ -68,4 +72,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted,
   },
-});
+}));

@@ -4,12 +4,15 @@ import { Feather } from '@expo/vector-icons';
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 import { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
 import { StyleSheet, View } from 'react-native';
-
-import { colors } from '@/theme/tokens';
+import { makeStyles, shadow, useTheme } from '@/theme/theme';
 
 // react-native-maps only draws native maps, so the website uses MapLibre instead.
 // OpenFreeMap serves the map free with no key; its style credits OpenStreetMap and OpenMapTiles.
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+// A dark map in dark mode, so it doesn't glare against the rest of the app
+const STYLE_URLS = {
+  light: 'https://tiles.openfreemap.org/styles/liberty',
+  dark: 'https://tiles.openfreemap.org/styles/dark',
+} as const;
 const STREET_ZOOM = 15.5;
 const AREA_ZOOM = 10.5;
 
@@ -24,6 +27,7 @@ const fill: CSSProperties = { position: 'absolute', inset: 0 };
  * on demand rather than imported at the top, which would break the static web export.
  */
 function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
+  const { scheme } = useTheme();
   const container = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<{ map: MapLibreMap; lib: MapLibre } | null>(null);
 
@@ -36,7 +40,7 @@ function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
       if (cancelled || !container.current) return;
       map = new lib.Map({
         container: container.current,
-        style: STYLE_URL,
+        style: STYLE_URLS[scheme],
         center: [center.longitude, center.latitude],
         zoom,
         interactive,
@@ -53,20 +57,32 @@ function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { container, map: state?.map ?? null, lib: state?.lib ?? null };
+  // Switching theme swaps the map's look; pins are separate and stay put
+  const map = state?.map ?? null;
+  const shownScheme = useRef(scheme);
+  useEffect(() => {
+    if (!map || shownScheme.current === scheme) return;
+    shownScheme.current = scheme;
+    map.setStyle(STYLE_URLS[scheme]);
+  }, [map, scheme]);
+
+  return { container, map, lib: state?.lib ?? null };
 }
 
 /** A small, non-interactive map with a pin, for previews. */
 export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { height?: number }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { container, map, lib } = useMapLibre({ latitude, longitude }, STREET_ZOOM - 0.5, false);
   const marker = useRef<MapLibreMarker | null>(null);
 
   useEffect(() => {
     if (!map || !lib) return;
     map.jumpTo({ center: [longitude, latitude] });
-    marker.current ??= new lib.Marker({ color: colors.teal }).setLngLat([longitude, latitude]).addTo(map);
-    marker.current.setLngLat([longitude, latitude]);
-  }, [map, lib, latitude, longitude]);
+    // A fresh marker when the theme changes, since a marker's colour is fixed once made
+    marker.current?.remove();
+    marker.current = new lib.Marker({ color: colors.accent }).setLngLat([longitude, latitude]).addTo(map);
+  }, [map, lib, latitude, longitude, colors.accent]);
 
   return (
     <View style={[styles.mini, { height }]} accessibilityLabel="Map showing the pinned location">
@@ -91,6 +107,8 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
   { initial, onCenterChange, zoomedOut = false },
   ref,
 ) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { container, map } = useMapLibre(initial, zoomedOut ? AREA_ZOOM : STREET_ZOOM, true);
   const reportCenter = useEffectEvent((center: Coordinates) => onCenterChange(center));
 
@@ -126,7 +144,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
       <div ref={container} style={fill} />
       {/* The pin stays still while the map moves under it */}
       <View pointerEvents="none" style={styles.centerPin}>
-        <Feather name="map-pin" size={40} color={colors.teal} />
+        <Feather name="map-pin" size={40} color={colors.accent} />
         <View style={styles.pinShadow} />
       </View>
     </View>
@@ -166,6 +184,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   { places, selectedId, onSelect, fallbackCenter = null, droppedPin = null, onLongPress, bottomInset = 0 },
   ref,
 ) {
+  const { colors } = useTheme();
   const first = places[0] ?? fallbackCenter ?? { latitude: 20, longitude: 0 };
   const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : fallbackCenter ? AREA_ZOOM : 1.5, true);
   const select = useEffectEvent((id: string | null) => onSelect(id));
@@ -209,16 +228,16 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     return () => {
       marker.remove();
     };
-  }, [map, lib, dropLat, dropLon]);
+  }, [map, lib, dropLat, dropLon, colors.ink]);
 
   // Redraw the pins when they, or the selection, change. The screen rebuilds `places` on every
   // render, so compare what's in it rather than the array itself.
-  const markerKey = JSON.stringify([places, selectedId]);
+  const markerKey = JSON.stringify([places, selectedId, colors.accent]);
   useEffect(() => {
     if (!map || !lib) return;
     const markers = places.map((place) => {
       const selected = place.id === selectedId;
-      const marker = new lib.Marker({ color: selected ? colors.ink : place.planned ? colors.teal : colors.coral })
+      const marker = new lib.Marker({ color: selected ? colors.ink : place.planned ? colors.accent : colors.second })
         .setLngLat([place.longitude, place.latitude])
         .addTo(map);
       const element = marker.getElement();
@@ -264,9 +283,9 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   mini: {
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.line,
@@ -284,6 +303,6 @@ const styles = StyleSheet.create({
     width: 14,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(29, 27, 24, 0.25)',
+    backgroundColor: shadow(colors, 0.25),
   },
-});
+}));

@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { api } from '@/api/client';
 import {
@@ -18,12 +18,15 @@ import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Title } from '@/components/text';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { categoryMeta, EXPENSE_CATEGORIES, CATEGORY_META, settleUp } from '@/utils/budget';
 import { formatShortDate } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
 
 export default function BudgetScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const budget = useBudget(id);
@@ -41,7 +44,7 @@ export default function BudgetScreen() {
   const myRole = members.data?.find((member) => member.user_id === me.data?.id)?.role;
   const canEdit = myRole === 'owner' || myRole === 'member';
 
-  if (budget.isPending || expenses.isPending) return <ActivityIndicator color={colors.teal} style={styles.loading} />;
+  if (budget.isPending || expenses.isPending) return <ActivityIndicator color={colors.accent} style={styles.loading} />;
 
   if (budget.isError || expenses.isError) {
     return (
@@ -69,7 +72,7 @@ export default function BudgetScreen() {
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={budget.isRefetching} onRefresh={refresh} tintColor={colors.teal} />}>
+        refreshControl={<RefreshControl refreshing={budget.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
         <SummaryCard tripId={tripId} summary={summary} stillToPay={stillToPay} canEdit={canEdit} money={money} />
 
         {summary.total_spent > 0 ? <CategoryCard summary={summary} money={money} /> : null}
@@ -116,7 +119,7 @@ export default function BudgetScreen() {
           accessibilityLabel="Add expense"
           onPress={() => router.push({ pathname: '/trips/[tripId]/expense', params: { tripId } })}
           style={({ pressed }) => [styles.fab, pressed && styles.pressed]}>
-          <Feather name="plus" size={26} color={colors.white} />
+          <Feather name="plus" size={26} color={colors.onAccent} />
         </Pressable>
       ) : null}
     </View>
@@ -146,6 +149,8 @@ function SummaryCard({
   canEdit: boolean;
   money: (amount: number) => string;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { budget, total_spent: spent } = summary;
   const over = budget != null && spent > budget;
   const forecast = spent + stillToPay;
@@ -174,7 +179,7 @@ function SummaryCard({
             accessibilityLabel={`Spent ${money(spent)} of ${money(budget)}`}
             accessibilityValue={{ min: 0, max: 100, now: Math.round(Math.min(100, (spent / (budget || 1)) * 100)) }}>
             {spentWidth > 0 ? (
-              <View style={[styles.meterFill, { width: `${spentWidth}%`, backgroundColor: over ? colors.coral : colors.teal }]} />
+              <View style={[styles.meterFill, { width: `${spentWidth}%`, backgroundColor: over ? colors.danger : colors.accent }]} />
             ) : null}
             {plannedWidth > 0 ? <View style={[styles.meterPlanned, { width: `${plannedWidth}%` }]} /> : null}
             {budgetMark != null ? <View style={[styles.budgetMark, { left: `${budgetMark}%` }]} /> : null}
@@ -182,7 +187,7 @@ function SummaryCard({
 
           {over ? (
             <View style={styles.status}>
-              <Feather name="alert-triangle" size={15} color={colors.coralText} />
+              <Feather name="alert-triangle" size={15} color={colors.dangerText} />
               <Text style={[styles.statusText, styles.statusOver]}>{money(spent - budget)} over budget</Text>
             </View>
           ) : (
@@ -217,6 +222,8 @@ function SummaryCard({
 }
 
 function CategoryCard({ summary, money }: { summary: BudgetSummary; money: (amount: number) => string }) {
+  const { scheme } = useTheme();
+  const styles = useStyles();
   const total = summary.total_spent;
   // Fixed category order, so colours and positions stay put as spending changes
   const rows = EXPENSE_CATEGORIES.map((category) => ({ category, amount: summary.by_category[category] ?? 0 })).filter(
@@ -230,7 +237,7 @@ function CategoryCard({ summary, money }: { summary: BudgetSummary; money: (amou
         {rows.map((row) => (
           <View
             key={row.category}
-            style={[styles.stackSegment, { flexGrow: row.amount, backgroundColor: CATEGORY_META[row.category].color }]}
+            style={[styles.stackSegment, { flexGrow: row.amount, backgroundColor: CATEGORY_META[row.category].color[scheme] }]}
           />
         ))}
       </View>
@@ -244,7 +251,7 @@ function CategoryCard({ summary, money }: { summary: BudgetSummary; money: (amou
               style={styles.legendRow}
               accessible
               accessibilityLabel={`${meta.label}: ${money(row.amount)}, ${percent} percent`}>
-              <View style={[styles.legendDot, { backgroundColor: meta.color }]} />
+              <View style={[styles.legendDot, { backgroundColor: meta.color[scheme] }]} />
               <Text style={styles.legendLabel}>{meta.label}</Text>
               <Text style={styles.legendPercent}>{percent}%</Text>
               <Text style={styles.legendAmount}>{money(row.amount)}</Text>
@@ -265,6 +272,8 @@ function SettleUpCard({
   myId: number | undefined;
   money: (amount: number) => string;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const transfers = settleUp(summary.balances);
   const name = (id: number, fallback: string) => (id === myId ? 'You' : fallback);
   const share = summary.balances[0]?.share ?? 0;
@@ -275,7 +284,7 @@ function SettleUpCard({
       <Text style={styles.cardNote}>Split evenly: {money(share)} each.</Text>
       {transfers.length === 0 ? (
         <View style={styles.status}>
-          <Feather name="check-circle" size={15} color={colors.teal} />
+          <Feather name="check-circle" size={15} color={colors.accent} />
           <Text style={styles.statusText}>Everyone’s even.</Text>
         </View>
       ) : (
@@ -311,6 +320,8 @@ function ExpenseRow({
   canEdit: boolean;
   money: (amount: number) => string;
 }) {
+  const styles = useStyles();
+  const { colors, scheme } = useTheme();
   const queryClient = useQueryClient();
   const meta = categoryMeta(expense.category);
   const remove = useMutation({
@@ -335,8 +346,8 @@ function ExpenseRow({
         router.push({ pathname: '/trips/[tripId]/expense', params: { tripId: String(tripId), expenseId: String(expense.id) } })
       }
       style={({ pressed }) => [styles.expense, pressed && styles.pressed]}>
-      <View style={[styles.expenseIcon, { backgroundColor: meta.color }]}>
-        <Feather name={meta.icon} size={16} color={colors.white} />
+      <View style={[styles.expenseIcon, { backgroundColor: meta.color[scheme] }]}>
+        <Feather name={meta.icon} size={16} color={colors.onAccent} />
       </View>
       <View style={styles.expenseText}>
         <Text style={styles.expenseTitle} numberOfLines={1}>
@@ -365,7 +376,7 @@ function ExpenseRow({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   screen: {
     flex: 1,
     width: '100%',
@@ -385,9 +396,7 @@ const styles = StyleSheet.create({
   card: {
     padding: spacing.lg,
     gap: spacing.sm,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
+    backgroundColor: colors.surface,
     borderRadius: radii.card,
   },
   cardLabel: {
@@ -415,6 +424,7 @@ const styles = StyleSheet.create({
   },
   heroValue: {
     fontFamily: fonts.display,
+    letterSpacing: headingTracking,
     fontSize: 34,
     color: colors.ink,
   },
@@ -425,22 +435,22 @@ const styles = StyleSheet.create({
   },
   meter: {
     flexDirection: 'row',
-    height: 12,
+    height: 6,
     marginVertical: spacing.xs,
-    borderRadius: 6,
+    borderRadius: 3,
     backgroundColor: colors.chip,
     overflow: 'hidden',
   },
   meterFill: {
     height: '100%',
-    borderRadius: 6,
+    borderRadius: 3,
   },
   meterPlanned: {
     height: '100%',
     // Lighter than spending: money the plans will still cost
     marginLeft: 2,
-    borderRadius: 6,
-    backgroundColor: colors.tealLight,
+    borderRadius: 3,
+    backgroundColor: colors.accentMuted,
   },
   budgetMark: {
     position: 'absolute',
@@ -461,7 +471,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   statusOver: {
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   noBudget: {
     flexDirection: 'row',
@@ -476,7 +486,7 @@ const styles = StyleSheet.create({
   textButtonLabel: {
     fontFamily: fonts.bold,
     fontSize: 14.5,
-    color: colors.teal,
+    color: colors.accent,
   },
   forecast: {
     flexDirection: 'row',
@@ -487,7 +497,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.tealLight,
+    backgroundColor: colors.accentMuted,
   },
   forecastText: {
     flex: 1,
@@ -497,7 +507,7 @@ const styles = StyleSheet.create({
   },
   stack: {
     flexDirection: 'row',
-    height: 14,
+    height: 8,
     gap: 2,
     marginVertical: spacing.xs,
   },
@@ -548,7 +558,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: spacing.md,
     borderRadius: radii.input,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   transferText: {
     flex: 1,
@@ -608,10 +618,8 @@ const styles = StyleSheet.create({
     minHeight: 60,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
   },
   expenseIcon: {
     width: 34,
@@ -638,7 +646,7 @@ const styles = StyleSheet.create({
   expenseError: {
     fontFamily: fonts.medium,
     fontSize: 13,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   expenseAmount: {
     fontFamily: fonts.bold,
@@ -655,12 +663,12 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 6px 16px rgba(22, 82, 79, 0.3)',
+    boxShadow: `0 6px 16px ${shadow(colors, 0.3)}`,
   },
   pressed: {
     opacity: 0.8,
   },
-});
+}));

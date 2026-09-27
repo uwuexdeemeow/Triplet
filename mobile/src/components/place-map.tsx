@@ -1,20 +1,41 @@
 import { Feather } from '@expo/vector-icons';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import MapView, { Marker, type LongPressEvent, type MapPressEvent, type Region } from 'react-native-maps';
-
-import { colors } from '@/theme/tokens';
+import MapView, { Marker, type LongPressEvent, type MapPressEvent, type MapStyleElement, type Region } from 'react-native-maps';
+import { makeStyles, shadow, useTheme } from '@/theme/theme';
 
 export type Coordinates = { latitude: number; longitude: number };
+
+// Google Maps (Android) has no dark mode of its own, so it gets this night style in the
+// app's graphite greys. Apple Maps (iOS) switches with userInterfaceStyle.
+const DARK_MAP_STYLE: MapStyleElement[] = [
+  { elementType: 'geometry', stylers: [{ color: '#1A1D21' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8E949C' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#121417' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#202328' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1C2620' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2A2E34' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#363B42' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#23272C' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#111820' }] },
+];
+
+// Props that make a map follow the app's light or dark theme
+function themedMapProps(scheme: 'light' | 'dark') {
+  return { userInterfaceStyle: scheme, customMapStyle: scheme === 'dark' ? DARK_MAP_STYLE : [] } as const;
+}
 
 // Close enough to see the streets around a restaurant
 const STREET_ZOOM = { latitudeDelta: 0.008, longitudeDelta: 0.008 };
 
 /** A small, non-interactive map with a pin, for previews. */
 export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { height?: number }) {
+  const styles = useStyles();
+  const { colors, scheme } = useTheme();
   return (
     <View style={[styles.mini, { height }]} pointerEvents="none" accessibilityLabel="Map showing the pinned location">
       <MapView
+        {...themedMapProps(scheme)}
         style={StyleSheet.absoluteFill}
         region={{ latitude, longitude, ...STREET_ZOOM }}
         scrollEnabled={false}
@@ -22,7 +43,7 @@ export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { h
         rotateEnabled={false}
         pitchEnabled={false}
         toolbarEnabled={false}>
-        <Marker coordinate={{ latitude, longitude }} pinColor={colors.teal} />
+        <Marker coordinate={{ latitude, longitude }} pinColor={colors.accent} />
       </MapView>
     </View>
   );
@@ -44,6 +65,8 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
   { initial, onCenterChange, zoomedOut = false },
   ref,
 ) {
+  const styles = useStyles();
+  const { colors, scheme } = useTheme();
   const mapRef = useRef<MapView>(null);
 
   useImperativeHandle(ref, () => ({
@@ -53,6 +76,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
   return (
     <View style={StyleSheet.absoluteFill}>
       <MapView
+        {...themedMapProps(scheme)}
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         initialRegion={{ ...initial, ...(zoomedOut ? { latitudeDelta: 0.3, longitudeDelta: 0.3 } : STREET_ZOOM) }}
@@ -65,7 +89,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
       />
       {/* The pin stays still while the map moves under it */}
       <View pointerEvents="none" style={styles.centerPin}>
-        <Feather name="map-pin" size={40} color={colors.teal} />
+        <Feather name="map-pin" size={40} color={colors.accent} />
         <View style={styles.pinShadow} />
       </View>
     </View>
@@ -108,6 +132,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   { places, selectedId, onSelect, fallbackCenter = null, droppedPin = null, onLongPress, bottomInset = 0 },
   ref,
 ) {
+  const { colors, scheme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
 
@@ -136,6 +161,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
 
   return (
     <MapView
+      {...themedMapProps(scheme)}
       ref={mapRef}
       style={StyleSheet.absoluteFill}
       onMapReady={() => setReady(true)}
@@ -153,7 +179,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
             key={`${place.id}-${selected ? 'selected' : place.planned ? 'planned' : 'saved'}`}
             coordinate={{ latitude: place.latitude, longitude: place.longitude }}
             title={place.name}
-            pinColor={selected ? colors.ink : place.planned ? colors.teal : colors.coral}
+            pinColor={selected ? colors.ink : place.planned ? colors.accent : colors.second}
             zIndex={selected ? 1 : 0}
             onPress={() => onSelect(place.id)}
           />
@@ -171,9 +197,9 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   mini: {
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.line,
@@ -191,6 +217,6 @@ const styles = StyleSheet.create({
     width: 14,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(29, 27, 24, 0.25)',
+    backgroundColor: shadow(colors, 0.25),
   },
-});
+}));

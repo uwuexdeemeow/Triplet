@@ -1,7 +1,8 @@
 import { forwardRef, useId } from 'react';
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { colors, fonts, radii } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii } from '@/theme/tokens';
 
 type TextFieldProps = TextInputProps & {
   label: string;
@@ -13,6 +14,8 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   { label, error, hint, style, ...props },
   ref,
 ) {
+  const styles = useStyles();
+  const { colors, scheme } = useTheme();
   const id = useId();
 
   return (
@@ -25,6 +28,8 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         accessibilityLabel={label}
         aria-labelledby={`${id}-label`}
         placeholderTextColor={colors.muted}
+        // iOS: a dark keyboard in dark mode
+        keyboardAppearance={scheme}
         style={[styles.input, error ? styles.inputError : null, style]}
         {...props}
       />
@@ -39,7 +44,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   field: {
     gap: 6,
   },
@@ -54,22 +59,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.inputBorder,
     borderRadius: radii.input,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     fontFamily: fonts.body,
     fontSize: 16,
     color: colors.ink,
   },
   inputError: {
-    borderColor: colors.coral,
+    borderColor: colors.danger,
   },
   error: {
     fontFamily: fonts.semibold,
     fontSize: 13,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   hint: {
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.muted,
   },
-});
+}));

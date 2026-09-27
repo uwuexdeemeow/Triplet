@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 
 type ScreenProps = {
   children: ReactNode;
@@ -11,6 +12,7 @@ type ScreenProps = {
 };
 
 export function Screen({ children, scroll = true }: ScreenProps) {
+  const styles = useStyles();
   const content = scroll ? (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {children}
@@ -29,6 +31,8 @@ export function Screen({ children, scroll = true }: ScreenProps) {
 }
 
 export function FormMessage({ message, tone = 'error' }: { message: string | null; tone?: 'error' | 'success' }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   if (!message) return null;
   const isError = tone === 'error';
 
@@ -37,15 +41,15 @@ export function FormMessage({ message, tone = 'error' }: { message: string | nul
       accessibilityRole="alert"
       accessibilityLiveRegion="assertive"
       style={[styles.message, isError ? styles.messageError : styles.messageSuccess]}>
-      <Text style={[styles.messageText, { color: isError ? colors.coralText : colors.tealDark }]}>{message}</Text>
+      <Text style={[styles.messageText, { color: isError ? colors.dangerText : colors.accentStrong }]}>{message}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   fill: {
     flex: 1,
@@ -66,14 +70,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   messageError: {
-    backgroundColor: colors.coralSoft,
+    backgroundColor: colors.dangerSoft,
   },
   messageSuccess: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
   },
   messageText: {
     fontFamily: fonts.semibold,
     fontSize: 14,
     lineHeight: 20,
   },
-});
+}));

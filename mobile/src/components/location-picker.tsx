@@ -8,7 +8,8 @@ import { api, ApiError, type Schemas } from '@/api/client';
 import { Button } from '@/components/button';
 import { PickerMap, type Coordinates, type PickerMapHandle } from '@/components/place-map';
 import { FormMessage } from '@/components/screen';
-import { colors, fonts, spacing, touchTarget } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, headingTracking, spacing, touchTarget } from '@/theme/tokens';
 
 type SearchResult = Schemas['PlaceSearchResult'];
 
@@ -58,6 +59,8 @@ export function LocationPicker({
   error = null,
   onConfirm,
 }: LocationPickerProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const mapRef = useRef<PickerMapHandle>(null);
   const [searchedStart, setSearchedStart] = useState<Start | null>(null);
   const [movedTo, setMovedTo] = useState<Coordinates | null>(null);
@@ -179,7 +182,7 @@ export function LocationPicker({
         <PickerMap ref={mapRef} initial={start.center} zoomedOut={start.zoomedOut} onCenterChange={onCenterChange} />
       ) : (
         <View style={styles.loadingMap}>
-          <ActivityIndicator color={colors.teal} />
+          <ActivityIndicator color={colors.accent} />
           <Text style={styles.loadingText}>Finding {firstQuery || 'the area'} on the map…</Text>
         </View>
       )}
@@ -200,7 +203,7 @@ export function LocationPicker({
             style={styles.searchInput}
           />
           <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={runSearch} style={styles.iconButton}>
-            {searching ? <ActivityIndicator color={colors.teal} /> : <Feather name="search" size={20} color={colors.ink} />}
+            {searching ? <ActivityIndicator color={colors.accent} /> : <Feather name="search" size={20} color={colors.ink} />}
           </Pressable>
         </View>
 
@@ -250,7 +253,7 @@ export function LocationPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   screen: {
     flex: 1,
     backgroundColor: colors.chip,
@@ -283,8 +286,8 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 48,
     height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.card,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -293,8 +296,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
     height: 48,
     paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: colors.card,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
     fontFamily: fonts.body,
     fontSize: 16,
     color: colors.ink,
@@ -302,8 +305,8 @@ const styles = StyleSheet.create({
   results: {
     marginLeft: 56,
     marginRight: 56,
-    borderRadius: 14,
-    backgroundColor: colors.card,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
   },
   resultsScroll: {
@@ -318,7 +321,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.chip,
   },
   resultPressed: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
   },
   resultName: {
     fontFamily: fonts.bold,
@@ -349,7 +352,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: spacing.lg,
     gap: 6,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
@@ -362,6 +365,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.displaySemi,
+    letterSpacing: headingTracking,
     fontSize: 22,
     color: colors.ink,
   },
@@ -371,4 +375,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted,
   },
-});
+}));

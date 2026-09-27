@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { api } from '@/api/client';
 import { forgotPasswordSchema, type ForgotPasswordValues } from '@/auth/validation';
@@ -10,9 +10,11 @@ import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, spacing } from '@/theme/tokens';
+import { makeStyles } from '@/theme/theme';
+import { fonts, spacing } from '@/theme/tokens';
 
 export default function ForgotPasswordScreen() {
+  const styles = useStyles();
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -80,7 +82,7 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: 28,
     paddingTop: spacing.xl,
@@ -99,6 +101,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.teal,
+    color: colors.accent,
   },
-});
+}));

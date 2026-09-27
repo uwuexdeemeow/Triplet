@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import { useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import type { SwipeToDeleteProps } from '@/components/swipe-to-delete';
-import { colors, fonts, spacing } from '@/theme/tokens';
+import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { fonts, spacing } from '@/theme/tokens';
 
 // Phones and tablets can't hover, so the button stays visible there.
 // The static web export renders without a window, where it counts as "can hover".
@@ -25,6 +26,8 @@ function cannotHover() {
  * before deleting, since a click is easier to make by accident than a swipe.
  */
 export function SwipeToDelete({ children, label, onDelete }: SwipeToDeleteProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -64,7 +67,7 @@ export function SwipeToDelete({ children, label, onDelete }: SwipeToDeleteProps)
               onPress={remove}
               disabled={deleting}
               style={({ hovered: over }) => [styles.confirmButton, styles.deleteButton, over && styles.deleteHover]}>
-              {deleting ? <ActivityIndicator size="small" color={colors.white} /> : <Text style={styles.deleteLabel}>Delete</Text>}
+              {deleting ? <ActivityIndicator size="small" color={colors.onDanger} /> : <Text style={styles.deleteLabel}>Delete</Text>}
             </Pressable>
           </View>
         ) : (
@@ -75,7 +78,7 @@ export function SwipeToDelete({ children, label, onDelete }: SwipeToDeleteProps)
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             style={({ hovered: over }) => [styles.trash, over && styles.trashHover, { opacity: visible ? 1 : 0 }]}>
-            <Feather name="trash-2" size={16} color={colors.coralText} />
+            <Feather name="trash-2" size={16} color={colors.dangerText} />
           </Pressable>
         )}
       </View>
@@ -83,7 +86,7 @@ export function SwipeToDelete({ children, label, onDelete }: SwipeToDeleteProps)
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   corner: {
     position: 'absolute',
     top: spacing.sm,
@@ -95,13 +98,11 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
+    backgroundColor: colors.surface,
   },
   trashHover: {
-    backgroundColor: colors.coralSoft,
-    borderColor: colors.coral,
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
   },
   confirm: {
     flexDirection: 'row',
@@ -110,11 +111,11 @@ const styles = StyleSheet.create({
     padding: 4,
     paddingLeft: 12,
     borderRadius: 12,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.coral,
+    borderColor: colors.danger,
     // A soft lift so it reads as floating over the card
-    boxShadow: '0 4px 14px rgba(29, 27, 24, 0.12)',
+    boxShadow: `0 4px 14px ${shadow(colors, 0.12)}`,
   },
   confirmText: {
     fontFamily: fonts.bold,
@@ -139,14 +140,14 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   deleteButton: {
-    backgroundColor: colors.coral,
+    backgroundColor: colors.danger,
   },
   deleteHover: {
-    backgroundColor: colors.coralText,
+    backgroundColor: colors.dangerText,
   },
   deleteLabel: {
     fontFamily: fonts.bold,
     fontSize: 13.5,
-    color: colors.white,
+    color: colors.onDanger,
   },
-});
+}));

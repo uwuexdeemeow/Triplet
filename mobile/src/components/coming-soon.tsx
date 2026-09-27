@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Body, Title } from '@/components/text';
-import { colors, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { spacing } from '@/theme/tokens';
 
 type ComingSoonProps = {
   icon: ComponentProps<typeof Feather>['name'];
@@ -13,6 +14,8 @@ type ComingSoonProps = {
 
 // Placeholder for trip sections that come in later build steps
 export function ComingSoon({ icon, title, description }: ComingSoonProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <View style={styles.container}>
       <Feather name={icon} size={32} color={colors.muted} />
@@ -22,7 +25,7 @@ export function ComingSoon({ icon, title, description }: ComingSoonProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     paddingHorizontal: 20,
     paddingTop: spacing.xxl,
@@ -34,4 +37,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 320,
   },
-});
+}));

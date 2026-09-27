@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api, ApiError } from '@/api/client';
@@ -9,10 +9,13 @@ import { tripKeys, useMyInvitations, type Invitation } from '@/api/trips';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
-import { colors, fonts, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, headingTracking, spacing } from '@/theme/tokens';
 import { formatDateRange } from '@/utils/dates';
 
 export default function InvitesScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const invitations = useMyInvitations();
 
   return (
@@ -22,12 +25,12 @@ export default function InvitesScreen() {
         keyExtractor={(invitation) => String(invitation.id)}
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={invitations.isRefetching} onRefresh={invitations.refetch} tintColor={colors.teal} />
+          <RefreshControl refreshing={invitations.isRefetching} onRefresh={invitations.refetch} tintColor={colors.accent} />
         }
         ListHeaderComponent={<Heading>Invites</Heading>}
         ListEmptyComponent={
           invitations.isPending ? (
-            <ActivityIndicator color={colors.teal} style={styles.loading} />
+            <ActivityIndicator color={colors.accent} style={styles.loading} />
           ) : invitations.isError ? (
             <View style={styles.state}>
               <FormMessage message={invitations.error.message} />
@@ -50,6 +53,8 @@ export default function InvitesScreen() {
 }
 
 function InviteCard({ invitation }: { invitation: Invitation }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
 
   const answer = useMutation({
@@ -113,10 +118,10 @@ function InviteCard({ invitation }: { invitation: Invitation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
   list: {
     paddingHorizontal: 20,
@@ -145,13 +150,12 @@ const styles = StyleSheet.create({
   card: {
     padding: spacing.lg,
     gap: spacing.xs,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
   },
   title: {
     fontFamily: fonts.displaySemi,
+    letterSpacing: headingTracking,
     fontSize: 24,
     color: colors.ink,
   },
@@ -168,4 +172,4 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-});
+}));

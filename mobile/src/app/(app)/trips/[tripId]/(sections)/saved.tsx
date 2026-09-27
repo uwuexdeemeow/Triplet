@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import {
@@ -19,10 +19,13 @@ import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Muted, Title } from '@/components/text';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
 
 export default function SavedScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const queryClient = useQueryClient();
@@ -58,11 +61,11 @@ export default function SavedScreen() {
     <ScrollView
       contentContainerStyle={styles.list}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={links.isRefetching} onRefresh={refresh} tintColor={colors.teal} />}>
+      refreshControl={<RefreshControl refreshing={links.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
       <SaveLinkForm tripId={id} onSaved={() => queryClient.invalidateQueries({ queryKey: tripKeys.links(id) })} />
 
       {links.isPending ? (
-        <ActivityIndicator color={colors.teal} style={styles.loading} />
+        <ActivityIndicator color={colors.accent} style={styles.loading} />
       ) : links.isError ? (
         <View style={styles.state}>
           <FormMessage message={links.error.message} />
@@ -99,6 +102,8 @@ export default function SavedScreen() {
 }
 
 function SaveLinkForm({ tripId, onSaved }: { tripId: number; onSaved: () => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -166,6 +171,8 @@ function LinkCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const retry = useMutation({
     mutationFn: () => api(`/trips/${tripId}/links/${link.id}/refresh`, { method: 'POST' }),
@@ -207,7 +214,7 @@ function LinkCard({
           {canExpand ? <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} /> : null}
         </View>
         {!expanded && summary ? (
-          <Text style={[styles.summary, checkCount > 0 && styles.placeDetailCoral]}>{summary}</Text>
+          <Text style={[styles.summary, checkCount > 0 && styles.placeDetailAttention]}>{summary}</Text>
         ) : null}
         {link.status === 'failed' ? (
           <View style={styles.failed}>
@@ -256,6 +263,8 @@ function LinkCard({
 }
 
 function LinkStatus({ link, placeCount }: { link: SavedLink; placeCount: number }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   if (isProcessing(link)) {
     return (
       <View style={[styles.pill, styles.pillNeutral]}>
@@ -281,6 +290,7 @@ function LinkStatus({ link, placeCount }: { link: SavedLink; placeCount: number 
 }
 
 function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: TripPlace; activityDays: Map<number, string> }) {
+  const styles = useStyles();
   const plannedDay = place.activity_ids?.map((activityId) => activityDays.get(activityId)).find(Boolean);
   const planned = (place.activity_ids?.length ?? 0) > 0;
   const detail = placeDetail(place, plannedDay);
@@ -302,8 +312,8 @@ function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: Trip
             numberOfLines={1}
             style={[
               styles.placeDetail,
-              detail.tone === 'teal' && styles.placeDetailTeal,
-              detail.tone === 'coral' && styles.placeDetailCoral,
+              detail.tone === 'accent' && styles.placeDetailAccent,
+              detail.tone === 'attention' && styles.placeDetailAttention,
             ]}>
             {detail.text}
           </Text>
@@ -331,7 +341,7 @@ function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: Trip
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   list: {
     paddingHorizontal: 20,
     paddingTop: spacing.xs,
@@ -356,13 +366,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.inputBorder,
     borderRadius: radii.input,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     fontFamily: fonts.body,
     fontSize: 16,
     color: colors.ink,
   },
   inputError: {
-    borderColor: colors.coral,
+    borderColor: colors.danger,
   },
   saveButton: {
     minHeight: 48,
@@ -372,7 +382,7 @@ const styles = StyleSheet.create({
   error: {
     fontFamily: fonts.semibold,
     fontSize: 13,
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   loading: {
     marginTop: spacing.xl,
@@ -388,10 +398,8 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   cardTop: {
@@ -439,16 +447,16 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   pillSuccess: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
   },
   pillSuccessText: {
-    color: colors.teal,
+    color: colors.accent,
   },
   pillWarning: {
-    backgroundColor: colors.coralSoft,
+    backgroundColor: colors.dangerSoft,
   },
   pillWarningText: {
-    color: colors.coralText,
+    color: colors.dangerText,
   },
   failed: {
     gap: 2,
@@ -461,7 +469,7 @@ const styles = StyleSheet.create({
   retryLabel: {
     fontFamily: fonts.bold,
     fontSize: 14,
-    color: colors.teal,
+    color: colors.accent,
   },
   places: {
     paddingHorizontal: 14,
@@ -490,32 +498,32 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.muted,
   },
-  placeDetailTeal: {
+  placeDetailAccent: {
     fontFamily: fonts.bold,
-    color: colors.teal,
+    color: colors.accent,
   },
-  placeDetailCoral: {
+  placeDetailAttention: {
     fontFamily: fonts.bold,
-    color: colors.coralText,
+    color: colors.secondText,
   },
   addButton: {
     minHeight: 36,
     paddingHorizontal: spacing.md,
     borderWidth: 1.5,
-    borderColor: colors.teal,
+    borderColor: colors.accent,
     borderRadius: 10,
     justifyContent: 'center',
   },
   addLabel: {
     fontFamily: fonts.bold,
     fontSize: 13,
-    color: colors.teal,
+    color: colors.accent,
   },
   reviewButton: {
-    borderColor: colors.coral,
+    borderColor: colors.second,
   },
   reviewLabel: {
-    color: colors.coralText,
+    color: colors.secondText,
   },
   pressed: {
     opacity: 0.75,
@@ -532,6 +540,6 @@ const styles = StyleSheet.create({
   summary: {
     fontFamily: fonts.semibold,
     fontSize: 13,
-    color: colors.teal,
+    color: colors.accent,
   },
-});
+}));

@@ -1,10 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, type Schemas } from '@/api/client';
-import { colors, fonts, spacing, touchTarget } from '@/theme/tokens';
+import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { fonts, spacing, touchTarget } from '@/theme/tokens';
 
 export type SearchResult = Schemas['PlaceSearchResult'];
 
@@ -20,6 +21,8 @@ type MapSearchProps = {
 
 /** A search box floating over the map: addresses and places, nearest to the trip first. */
 export function MapSearch({ tripId, onPick, onOpenChange }: MapSearchProps) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -88,7 +91,7 @@ export function MapSearch({ tripId, onPick, onOpenChange }: MapSearchProps) {
           }}
           style={styles.input}
         />
-        {results.isFetching && open ? <ActivityIndicator size="small" color={colors.teal} /> : null}
+        {results.isFetching && open ? <ActivityIndicator size="small" color={colors.accent} /> : null}
         {text ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={clear} style={styles.clear}>
             <Feather name="x" size={18} color={colors.muted} />
@@ -106,7 +109,7 @@ export function MapSearch({ tripId, onPick, onOpenChange }: MapSearchProps) {
                 accessibilityLabel={[result.name, result.address].filter(Boolean).join(', ')}
                 onPress={() => pick(result)}
                 style={({ pressed }) => [styles.result, index > 0 && styles.resultDivider, pressed && styles.resultPressed]}>
-                <Feather name="map-pin" size={16} color={colors.teal} />
+                <Feather name="map-pin" size={16} color={colors.accent} />
                 <View style={styles.resultText}>
                   <Text style={styles.resultName} numberOfLines={1}>
                     {result.name}
@@ -132,7 +135,7 @@ export function MapSearch({ tripId, onPick, onOpenChange }: MapSearchProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     gap: spacing.sm,
   },
@@ -143,11 +146,9 @@ const styles = StyleSheet.create({
     height: 48,
     paddingLeft: 14,
     paddingRight: 6,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    boxShadow: '0 2px 10px rgba(29, 27, 24, 0.10)',
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    boxShadow: `0 2px 10px ${shadow(colors, 0.1)}`,
   },
   input: {
     flex: 1,
@@ -164,12 +165,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   results: {
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
-    boxShadow: '0 4px 14px rgba(29, 27, 24, 0.12)',
+    boxShadow: `0 4px 14px ${shadow(colors, 0.12)}`,
   },
   resultsScroll: {
     maxHeight: 300,
@@ -187,7 +186,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.chip,
   },
   resultPressed: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.accentSoft,
   },
   resultText: {
     flex: 1,
@@ -216,6 +215,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 11,
     color: colors.muted,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.bg,
   },
-});
+}));

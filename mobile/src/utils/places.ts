@@ -52,15 +52,15 @@ export function missingDetailsReason(place: TripPlace): string | null {
   }
 }
 
-export type PlaceDetail = { text: string; tone: 'muted' | 'teal' | 'coral' };
+export type PlaceDetail = { text: string; tone: 'muted' | 'accent' | 'attention' };
 
 // One line about where a place stands: planned, still loading, needs checking, or today's hours
 export function placeDetail(place: TripPlace, plannedDay: string | undefined): PlaceDetail {
   if ((place.activity_ids?.length ?? 0) > 0) {
-    return { text: plannedDay ? `In the plan · ${formatShortDate(plannedDay)}` : 'In the plan', tone: 'teal' };
+    return { text: plannedDay ? `In the plan · ${formatShortDate(plannedDay)}` : 'In the plan', tone: 'accent' };
   }
   if (place.details_status === 'pending') return { text: 'Looking up the address…', tone: 'muted' };
-  if (needsCheck(place)) return { text: 'Check the location', tone: 'coral' };
+  if (needsCheck(place)) return { text: 'Check the location', tone: 'attention' };
   const today = hoursOn(place, todayString());
   if (today) return { text: today === 'Closed' ? 'Closed today' : `Open today · ${today}`, tone: 'muted' };
   return { text: place.address ?? place.city ?? '', tone: 'muted' };

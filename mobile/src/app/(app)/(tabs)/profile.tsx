@@ -1,6 +1,7 @@
+import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState, type ComponentProps } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useMe, type User } from '@/api/trips';
@@ -10,9 +11,13 @@ import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import type { ThemePreference } from '@/theme/preference';
+import { makeStyles, useTheme } from '@/theme/theme';
+import { fonts, radii, spacing } from '@/theme/tokens';
 
 export default function ProfileScreen() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { signOut } = useSession();
   const me = useMe();
 
@@ -29,13 +34,15 @@ export default function ProfileScreen() {
 
         <View style={styles.card}>
           {me.isPending ? (
-            <ActivityIndicator color={colors.teal} />
+            <ActivityIndicator color={colors.accent} />
           ) : me.isError ? (
             <FormMessage message={me.error.message} />
           ) : (
             <NameEditor user={me.data} />
           )}
         </View>
+
+        <AppearancePicker />
 
         <View style={styles.actions}>
           <Button label="Log out" variant="secondary" onPress={signOut} />
@@ -56,6 +63,7 @@ export default function ProfileScreen() {
 
 // Your name is what friends see on the trip's People tab
 function NameEditor({ user }: { user: User }) {
+  const styles = useStyles();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
@@ -126,14 +134,82 @@ function NameEditor({ user }: { user: User }) {
   );
 }
 
-const styles = StyleSheet.create({
+const APPEARANCES: { value: ThemePreference; label: string; icon: ComponentProps<typeof Feather>['name'] }[] = [
+  { value: 'system', label: 'Match phone', icon: 'smartphone' },
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+];
+
+// Light, dark, or whatever the phone (or browser) is set to
+function AppearancePicker() {
+  const styles = useStyles();
+  const { colors, preference, setPreference } = useTheme();
+
+  return (
+    <View style={styles.appearance}>
+      <Text style={styles.appearanceLabel}>Appearance</Text>
+      <View accessibilityRole="radiogroup" style={styles.segments}>
+        {APPEARANCES.map(({ value, label, icon }) => {
+          const selected = preference === value;
+          return (
+            <Pressable
+              key={value}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
+              onPress={() => setPreference(value)}
+              style={[styles.segment, selected && styles.segmentSelected]}>
+              <Feather name={icon} size={16} color={selected ? colors.ink : colors.muted} />
+              <Text style={[styles.segmentLabel, selected && styles.segmentLabelSelected]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const useStyles = makeStyles((colors) => ({
+  appearance: {
+    gap: spacing.sm,
+  },
+  appearanceLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  segments: {
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: colors.chip,
+  },
+  segment: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 44,
+    borderRadius: radii.input - 2,
+  },
+  segmentSelected: {
+    backgroundColor: colors.surface,
+  },
+  segmentLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.muted,
+  },
+  segmentLabelSelected: {
+    fontFamily: fonts.bold,
+    color: colors.ink,
+  },
   container: {
     gap: spacing.xl,
   },
   card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
+    backgroundColor: colors.surface,
     borderRadius: radii.card,
     padding: spacing.lg,
     gap: 4,
@@ -158,7 +234,7 @@ const styles = StyleSheet.create({
   editLabel: {
     fontFamily: fonts.bold,
     fontSize: 15,
-    color: colors.teal,
+    color: colors.accent,
   },
   editor: {
     gap: spacing.md,
@@ -174,4 +250,4 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
   },
-});
+}));

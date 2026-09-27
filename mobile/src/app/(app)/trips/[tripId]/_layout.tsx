@@ -1,10 +1,10 @@
 import { Stack } from 'expo-router';
-
-import { colors } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme';
 
 export default function TripLayout() {
+  const { colors } = useTheme();
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="(sections)" />
       <Stack.Screen name="add-activity" options={{ presentation: 'modal' }} />
       <Stack.Screen name="add-place" options={{ presentation: 'modal' }} />

@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { Pressable, StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Pressable, Text, View, type TextInput } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { suggestEmail } from '@/auth/password-strength';
@@ -13,7 +13,8 @@ import { PasswordMeter } from '@/components/password-meter';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { colors, fonts, spacing } from '@/theme/tokens';
+import { makeStyles } from '@/theme/theme';
+import { fonts, spacing } from '@/theme/tokens';
 
 // The backend keeps its signup errors vague ("Invalid credentials"), so explain them by status code
 function signupError(error: unknown): string {
@@ -26,6 +27,7 @@ function signupError(error: unknown): string {
 }
 
 export default function SignupScreen() {
+  const styles = useStyles();
   const { signUp } = useSession();
   const [formError, setFormError] = useState<string | null>(null);
   const emailRef = useRef<TextInput>(null);
@@ -149,7 +151,7 @@ export default function SignupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: {
     flex: 1,
     gap: 32,
@@ -173,7 +175,7 @@ const styles = StyleSheet.create({
   },
   link: {
     fontFamily: fonts.bold,
-    color: colors.teal,
+    color: colors.accent,
   },
   suggestion: {
     marginTop: -10,
@@ -187,7 +189,7 @@ const styles = StyleSheet.create({
   },
   suggestionEmail: {
     fontFamily: fonts.bold,
-    color: colors.teal,
+    color: colors.accent,
     textDecorationLine: 'underline',
   },
-});
+}));

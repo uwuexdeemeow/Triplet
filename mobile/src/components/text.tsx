@@ -1,32 +1,39 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import { Text, type TextProps } from 'react-native';
 
-import { colors, fonts } from '@/theme/tokens';
+import { makeStyles } from '@/theme/theme';
+import { fonts, headingTracking } from '@/theme/tokens';
 
 export function Heading({ style, ...props }: TextProps) {
+  const styles = useStyles();
   return <Text accessibilityRole="header" style={[styles.heading, style]} {...props} />;
 }
 
 export function Title({ style, ...props }: TextProps) {
+  const styles = useStyles();
   return <Text accessibilityRole="header" style={[styles.title, style]} {...props} />;
 }
 
 export function Body({ style, ...props }: TextProps) {
+  const styles = useStyles();
   return <Text style={[styles.body, style]} {...props} />;
 }
 
 export function Muted({ style, ...props }: TextProps) {
+  const styles = useStyles();
   return <Text style={[styles.muted, style]} {...props} />;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   heading: {
     fontFamily: fonts.display,
-    fontSize: 34,
-    lineHeight: 40,
+    letterSpacing: headingTracking,
+    fontSize: 30,
+    lineHeight: 36,
     color: colors.ink,
   },
   title: {
     fontFamily: fonts.displaySemi,
+    letterSpacing: headingTracking,
     fontSize: 20,
     lineHeight: 26,
     color: colors.ink,
@@ -43,4 +50,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.muted,
   },
-});
+}));
