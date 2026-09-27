@@ -11,6 +11,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { Muted } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { parseAmount } from '@/trips/validation';
 
 export default function TripSettingsScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -37,7 +38,7 @@ export default function TripSettingsScreen() {
             {role === 'viewer' ? (
               <Muted>Viewers can’t change the trip. Ask the trip owner to make you a member.</Muted>
             ) : (
-              <RenameTrip trip={trip.data} />
+              <TripDetails trip={trip.data} />
             )}
             {role === 'owner' ? <DeleteTrip trip={trip.data} /> : null}
           </>
@@ -47,42 +48,44 @@ export default function TripSettingsScreen() {
   );
 }
 
-function RenameTrip({ trip }: { trip: Trip }) {
+// The name and budget, which owners and members can change
+function TripDetails({ trip }: { trip: Trip }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(trip.title);
-  const [error, setError] = useState<string | null>(null);
+  const [budget, setBudget] = useState(trip.budget != null ? String(trip.budget) : '');
+  const [errors, setErrors] = useState<{ title?: string; budget?: string; form?: string }>({});
   const [saved, setSaved] = useState(false);
 
-  const rename = useMutation({
-    mutationFn: (value: string) => api<Trip>(`/trips/${trip.id}`, { method: 'PATCH', body: { title: value } }),
+  const save = useMutation({
+    mutationFn: (body: { title: string; budget: number | null }) =>
+      api<Trip>(`/trips/${trip.id}`, { method: 'PATCH', body }),
     onSuccess: (updated) => {
       queryClient.setQueryData(tripKeys.trip(trip.id), updated);
-      // The trips list shows the name too
+      // The trips list shows the name, and the Budget tab the budget
       queryClient.invalidateQueries({ queryKey: tripKeys.all, exact: true });
+      queryClient.invalidateQueries({ queryKey: tripKeys.budget(trip.id) });
       setSaved(true);
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setErrors({ form: err.message }),
   });
 
   const submit = () => {
     const value = title.trim();
+    const amount = parseAmount(budget);
+    const next: typeof errors = {};
+    if (!value) next.title = 'Give the trip a name';
+    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) next.budget = 'Enter an amount, like 150000';
+    setErrors(next);
     setSaved(false);
-    if (!value) {
-      setError('Give the trip a name');
-      return;
-    }
-    if (value.length > 255) {
-      setError('Use at most 255 characters');
-      return;
-    }
-    setError(null);
-    rename.mutate(value);
+    if (next.title || next.budget) return;
+    save.mutate({ title: value, budget: amount });
   };
 
-  const unchanged = title.trim() === trip.title;
+  const unchanged = title.trim() === trip.title && parseAmount(budget) === (trip.budget ?? null);
 
   return (
     <View style={styles.section}>
+      <FormMessage message={errors.form ?? null} />
       <TextField
         label="Trip name"
         value={title}
@@ -90,13 +93,25 @@ function RenameTrip({ trip }: { trip: Trip }) {
           setTitle(value);
           setSaved(false);
         }}
-        onSubmitEditing={submit}
         returnKeyType="done"
         maxLength={255}
-        error={error ?? undefined}
+        error={errors.title}
       />
-      {saved ? <FormMessage tone="success" message="Saved. Everyone on the trip sees the new name." /> : null}
-      <Button label="Save name" loading={rename.isPending} disabled={unchanged} onPress={submit} />
+      <TextField
+        label={`Budget (${trip.currency}, optional)`}
+        hint="The Budget tab tracks spending against this. Leave it empty for no budget."
+        placeholder="e.g. 150000"
+        keyboardType="decimal-pad"
+        value={budget}
+        onChangeText={(value) => {
+          setBudget(value);
+          setSaved(false);
+        }}
+        onSubmitEditing={submit}
+        error={errors.budget}
+      />
+      {saved ? <FormMessage tone="success" message="Saved. Everyone on the trip sees the change." /> : null}
+      <Button label="Save changes" loading={save.isPending} disabled={unchanged} onPress={submit} />
     </View>
   );
 }

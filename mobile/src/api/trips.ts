@@ -10,6 +10,8 @@ export type SavedLink = Schemas['SavedLinkResponse'];
 export type TripPlace = Schemas['TripPlaceResponse'];
 export type Invitation = Schemas['InvitationResponse'];
 export type User = Schemas['UserResponse'];
+export type Expense = Schemas['ExpenseResponse'];
+export type BudgetSummary = Schemas['BudgetSummary'];
 
 // One place for query keys, so screens invalidate the same caches they read
 export const tripKeys = {
@@ -20,6 +22,8 @@ export const tripKeys = {
   links: (tripId: number) => ['trips', tripId, 'links'] as const,
   places: (tripId: number) => ['trips', tripId, 'places'] as const,
   invitations: (tripId: number) => ['trips', tripId, 'invitations'] as const,
+  expenses: (tripId: number) => ['trips', tripId, 'expenses'] as const,
+  budget: (tripId: number) => ['trips', tripId, 'budget'] as const,
   // Invitations sent to the signed-in user, across all trips
   myInvitations: ['invitations'] as const,
   me: ['me'] as const,
@@ -92,5 +96,20 @@ export function useMyInvitations() {
   return useQuery({
     queryKey: tripKeys.myInvitations,
     queryFn: () => api<Invitation[]>('/invitations'),
+  });
+}
+
+export function useExpenses(tripId: number) {
+  return useQuery({
+    queryKey: tripKeys.expenses(tripId),
+    queryFn: () => api<Expense[]>(`/trips/${tripId}/expenses`, { query: { limit: 100 } }),
+  });
+}
+
+// Totals, spending by category and who has paid what
+export function useBudget(tripId: number) {
+  return useQuery({
+    queryKey: tripKeys.budget(tripId),
+    queryFn: () => api<BudgetSummary>(`/trips/${tripId}/budget`),
   });
 }

@@ -47,7 +47,7 @@ export default function TripSectionsLayout() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Trip settings"
-                accessibilityHint="Rename or delete the trip"
+                accessibilityHint="Rename the trip, set its budget or delete it"
                 onPress={() => router.push({ pathname: '/trips/[tripId]/settings', params: { tripId } })}
                 style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
                 <Feather name="settings" size={20} color={colors.ink} />

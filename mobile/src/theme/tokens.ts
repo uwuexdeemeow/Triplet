@@ -11,6 +11,8 @@ export const colors = {
   teal: '#1F6F6B',
   tealDark: '#16524F',
   tealSoft: '#DCEBE8',
+  // Money the plans will still cost, next to teal spending in the budget meter
+  tealLight: '#8FC3BF',
   coral: '#B8472F',
   coralText: '#9C3A25',
   coralSoft: '#F6E0D8',
