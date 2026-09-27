@@ -1,8 +1,10 @@
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
-from models import User, Trip, TripMembership
-from schemas import TripCreate, TripResponse, TripUpdate
+from models import Activity, Expense, SavedLink, User, Trip, TripMembership
+from schemas import TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
 from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
@@ -40,7 +42,10 @@ def create_trip(
 
     return trip
 
-@router.get("", response_model=list[TripResponse])
+# How many people to send for the avatars on each trip card
+MEMBER_PREVIEW = 4
+
+@router.get("", response_model=list[TripSummaryResponse])
 def get_trips(
     db: Session = Depends(connect_db),
     current_user: User = Depends(get_current_user),
@@ -56,7 +61,50 @@ def get_trips(
         .all()
     )
 
-    return trips
+    return summarise(db, trips)
+
+def summarise(db: Session, trips: list[Trip]) -> list[TripSummaryResponse]:
+    """Counts for each trip card, in one query per kind rather than per trip."""
+    ids = [trip.id for trip in trips]
+    if not ids:
+        return []
+
+    def counts(column, *filters):
+        return dict(db.query(column, func.count()).filter(column.in_(ids), *filters).group_by(column).all())
+
+    plans = counts(Activity.trip_id)
+    saved = counts(SavedLink.trip_id)
+    member_counts = counts(TripMembership.trip_id)
+    spent = dict(
+        db.query(Expense.trip_id, func.sum(Expense.amount))
+        .filter(Expense.trip_id.in_(ids))
+        .group_by(Expense.trip_id)
+        .all()
+    )
+
+    previews = defaultdict(list)
+    rows = (
+        db.query(TripMembership.trip_id, User.id, User.name)
+        .join(User, User.id == TripMembership.user_id)
+        .filter(TripMembership.trip_id.in_(ids))
+        .order_by(TripMembership.trip_id, TripMembership.id)
+        .all()
+    )
+    for trip_id, user_id, name in rows:
+        if len(previews[trip_id]) < MEMBER_PREVIEW:
+            previews[trip_id].append(TripMemberPreview(user_id=user_id, name=name))
+
+    return [
+        TripSummaryResponse(
+            **TripResponse.model_validate(trip).model_dump(),
+            plan_count=plans.get(trip.id, 0),
+            saved_count=saved.get(trip.id, 0),
+            spent=float(spent.get(trip.id) or 0),
+            member_count=member_counts.get(trip.id, 0),
+            members=previews[trip.id],
+        )
+        for trip in trips
+    ]
 
 @router.get("/{trip_id}", response_model=TripResponse)
 def get_trip(

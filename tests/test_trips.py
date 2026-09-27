@@ -70,3 +70,29 @@ def test_only_owner_can_delete_trip(client, alice, bob, trip, add_member):
     assert client.delete(f"/trips/{trip['id']}", headers=bob["headers"]).status_code == 403
     assert client.delete(f"/trips/{trip['id']}", headers=alice["headers"]).status_code == 204
     assert client.get(f"/trips/{trip['id']}", headers=alice["headers"]).status_code == 404
+
+def test_trips_list_says_whats_in_each_trip(client, db, alice, bob, trip, add_member):
+    from models import SavedLink
+
+    add_member(bob)
+    client.post(f"/trips/{trip['id']}/activities", headers=alice["headers"], json={
+        "title": "Lunch", "location": "Shibuya",
+        "start_time": "2026-10-02T12:00:00Z", "end_time": "2026-10-02T13:00:00Z",
+    })
+    client.post(f"/trips/{trip['id']}/expenses", headers=alice["headers"], json={"title": "Ramen", "amount": 1500})
+    client.post(f"/trips/{trip['id']}/expenses", headers=bob["headers"], json={"title": "Train", "amount": 480})
+    db.add(SavedLink(trip_id=trip["id"], url="https://www.tiktok.com/@a/video/1", platform="tiktok", status="done"))
+    db.commit()
+
+    summary = client.get("/trips", headers=alice["headers"]).json()[0]
+
+    assert summary["plan_count"] == 1
+    assert summary["saved_count"] == 1
+    assert summary["spent"] == 1980
+    assert summary["member_count"] == 2
+    assert [m["user_id"] for m in summary["members"]] == [alice["id"], bob["id"]]
+
+def test_empty_trip_summary_is_zero(client, alice, trip):
+    summary = client.get("/trips", headers=alice["headers"]).json()[0]
+
+    assert (summary["plan_count"], summary["saved_count"], summary["spent"], summary["member_count"]) == (0, 0, 0, 1)

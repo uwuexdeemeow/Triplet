@@ -1253,6 +1253,13 @@ export interface components {
              */
             currency: string;
         };
+        /** TripMemberPreview */
+        TripMemberPreview: {
+            /** User Id */
+            user_id: number;
+            /** Name */
+            name: string;
+        };
         /** TripPlaceResponse */
         TripPlaceResponse: {
             /** Id */
@@ -1317,6 +1324,53 @@ export interface components {
             budget?: number | null;
             /** Currency */
             currency: string;
+        };
+        /**
+         * TripSummaryResponse
+         * @description A trip in the trips list, with enough to show what's in it.
+         */
+        TripSummaryResponse: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Description */
+            description?: string | null;
+            /** Destination */
+            destination: string;
+            /** Start Date */
+            start_date?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Budget */
+            budget?: number | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Plan Count
+             * @default 0
+             */
+            plan_count: number;
+            /**
+             * Saved Count
+             * @default 0
+             */
+            saved_count: number;
+            /**
+             * Spent
+             * @default 0
+             */
+            spent: number;
+            /**
+             * Member Count
+             * @default 0
+             */
+            member_count: number;
+            /**
+             * Members
+             * @default []
+             */
+            members: components["schemas"]["TripMemberPreview"][];
         };
         /** TripUpdate */
         TripUpdate: {
@@ -1749,7 +1803,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TripResponse"][];
+                    "application/json": components["schemas"]["TripSummaryResponse"][];
                 };
             };
             /** @description Validation Error */

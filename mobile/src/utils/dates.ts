@@ -68,16 +68,6 @@ export function formatDateRange(start: string, end: string): string {
   return `${fromText} – ${toText}`;
 }
 
-// "In 5 days", "Tomorrow", "Happening now" or null once the trip is over
-export function tripCountdown(start: string, end: string, today = new Date()): string | null {
-  const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const days = Math.round((parseDate(start).getTime() - midnight.getTime()) / 86_400_000);
-
-  if (days > 1) return `In ${days} days`;
-  if (days === 1) return 'Tomorrow';
-  if (parseDate(end).getTime() >= midnight.getTime()) return 'Happening now';
-  return null;
-}
 
 /*
  * Activity times are the local time at the destination: "12:00 at Ichiran" means noon in
@@ -102,4 +92,26 @@ export function addMinutes(time: string, minutes: number): string {
   const [hours, mins] = time.split(':').map(Number);
   const total = Math.min(hours * 60 + mins + minutes, 23 * 60 + 59);
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+export type TripPhase =
+  | { phase: 'upcoming'; daysToGo: number }
+  | { phase: 'now'; day: number; length: number }
+  | { phase: 'past'; daysAgo: number };
+
+// Where a trip stands today: how long until it starts, which day of it this is, or how long ago it ended
+export function tripPhase(start: string, end: string, today = new Date()): TripPhase {
+  const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const from = parseDate(start).getTime();
+  const to = parseDate(end).getTime();
+  const days = (a: number, b: number) => Math.round((a - b) / 86_400_000);
+
+  if (midnight < from) return { phase: 'upcoming', daysToGo: days(from, midnight) };
+  if (midnight <= to) return { phase: 'now', day: days(midnight, from) + 1, length: days(to, from) + 1 };
+  return { phase: 'past', daysAgo: days(midnight, to) };
+}
+
+// "Oct" for a calendar tile
+export function monthShort(value: string): string {
+  return MONTHS[parseDate(value).getMonth()].slice(0, 3);
 }

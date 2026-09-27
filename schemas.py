@@ -106,6 +106,19 @@ class TripResponse(BaseModel):
         "from_attributes": True
     }
 
+class TripMemberPreview(BaseModel):
+    user_id: int
+    name: str
+
+class TripSummaryResponse(TripResponse):
+    """A trip in the trips list, with enough to show what's in it."""
+    plan_count: int = 0
+    saved_count: int = 0
+    spent: float = 0
+    member_count: int = 0
+    # The first few people, for avatars
+    members: list[TripMemberPreview] = []
+
 class TripUpdate(BaseModel):
     title: str | None = None
     description: str | None = None

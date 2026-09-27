@@ -516,7 +516,7 @@
         "schema": {
          "type": "array",
          "items": {
-          "$ref": "#/components/schemas/TripResponse"
+          "$ref": "#/components/schemas/TripSummaryResponse"
          },
          "title": "Response Get Trips Trips Get"
         }
@@ -4960,6 +4960,24 @@
     ],
     "title": "TripCreate"
    },
+   "TripMemberPreview": {
+    "properties": {
+     "user_id": {
+      "type": "integer",
+      "title": "User Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "name"
+    ],
+    "title": "TripMemberPreview"
+   },
    "TripPlaceResponse": {
     "properties": {
      "id": {
@@ -5225,6 +5243,109 @@
      "currency"
     ],
     "title": "TripResponse"
+   },
+   "TripSummaryResponse": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "destination": {
+      "type": "string",
+      "title": "Destination"
+     },
+     "start_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start Date"
+     },
+     "end_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End Date"
+     },
+     "budget": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Budget"
+     },
+     "currency": {
+      "type": "string",
+      "title": "Currency"
+     },
+     "plan_count": {
+      "type": "integer",
+      "title": "Plan Count",
+      "default": 0
+     },
+     "saved_count": {
+      "type": "integer",
+      "title": "Saved Count",
+      "default": 0
+     },
+     "spent": {
+      "type": "number",
+      "title": "Spent",
+      "default": 0
+     },
+     "member_count": {
+      "type": "integer",
+      "title": "Member Count",
+      "default": 0
+     },
+     "members": {
+      "items": {
+       "$ref": "#/components/schemas/TripMemberPreview"
+      },
+      "type": "array",
+      "title": "Members",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "title",
+     "destination",
+     "currency"
+    ],
+    "title": "TripSummaryResponse",
+    "description": "A trip in the trips list, with enough to show what's in it."
    },
    "TripUpdate": {
     "properties": {

@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type Schemas } from '@/api/client';
 
 export type Trip = Schemas['TripResponse'];
+// A trip in the trips list, with counts of what's in it
+export type TripSummary = Schemas['TripSummaryResponse'];
 export type Member = Schemas['MemberResponse'];
 export type Itinerary = Schemas['ItineraryResponse'];
 export type ItineraryActivity = Schemas['ItineraryActivity'];
@@ -34,6 +36,13 @@ const POLL_MS = 3000;
 
 export function isProcessing(link: SavedLink): boolean {
   return link.status === 'pending' || link.status === 'processing';
+}
+
+export function useTrips() {
+  return useQuery({
+    queryKey: tripKeys.all,
+    queryFn: () => api<TripSummary[]>('/trips'),
+  });
 }
 
 export function useTrip(tripId: number) {
