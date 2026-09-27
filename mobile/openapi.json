@@ -4660,6 +4660,17 @@
       "title": "Conflicts With",
       "default": []
      },
+     "source_platform": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Platform"
+     },
      "warnings": {
       "items": {
        "$ref": "#/components/schemas/ScheduleWarning"

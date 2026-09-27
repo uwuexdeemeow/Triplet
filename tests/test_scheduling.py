@@ -141,6 +141,21 @@ def test_itinerary_estimates_travel_and_flags_tight_gaps(client, alice, trip):
     assert [w["kind"] for w in second["warnings"]] == ["tight_travel"]
     assert "only 10 min" in second["warnings"][0]["message"]
 
+def test_itinerary_says_where_a_plan_came_from(client, alice, trip, db):
+    link = SavedLink(trip_id=trip["id"], url="https://www.youtube.com/shorts/abc", platform="youtube")
+    db.add(link)
+    db.commit()
+    response = client.post(f"/trips/{trip['id']}/activities", headers=alice["headers"], json={
+        "title": "Ramen", "location": "Ueno", "source_link_id": link.id,
+        "start_time": "2026-10-01T12:00:00Z", "end_time": "2026-10-01T13:00:00Z",
+    })
+    assert response.status_code == 201, response.text
+    plan(client, alice, trip, "Walk", "15:00", "16:00")
+
+    activities = itinerary_day(client, alice, trip)["activities"]
+
+    assert [a["source_platform"] for a in activities] == ["youtube", None]
+
 def test_itinerary_skips_travel_without_pins(client, alice, trip):
     plan(client, alice, trip, "Somewhere", "10:00", "11:00")
     plan(client, alice, trip, "Senso-ji", "11:10", "12:00", lat=35.7148, lon=139.7967)

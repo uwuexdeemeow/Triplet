@@ -7,7 +7,7 @@ from database import connect_db
 from models import User, UserAvatar
 from schemas import UserResponse, UserPublic, UserUpdate
 from security import hash_password
-from validators import password_strength
+from validators import password_strength, clean_name, NAME_ERROR
 from dependencies import get_current_user, Pagination
 from routers.auth import revoke_refresh_tokens
 
@@ -46,13 +46,14 @@ def update_profile(
         current_user.email = update_data["email"]
 
     if update_data.get("name") is not None:
-        if not update_data["name"].isalnum():
+        name = clean_name(update_data["name"])
+        if name is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Invalid credentials"
+                detail=NAME_ERROR
             )
 
-        current_user.name = update_data["name"]
+        current_user.name = name
 
     if "avatar_url" in update_data:
         avatar_url = update_data["avatar_url"]

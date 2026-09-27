@@ -1,3 +1,5 @@
+import pytest
+
 def test_update_name_and_avatar(client, alice):
     response = client.patch("/users/me", headers=alice["headers"], json={
         "name": "alicia",
@@ -19,6 +21,33 @@ def test_rejects_invalid_avatar_url(client, alice):
     response = client.patch("/users/me", headers=alice["headers"], json={"avatar_url": "not a url"})
 
     assert response.status_code == 422
+
+@pytest.mark.parametrize("name, saved", [
+    ("Alex Smith", "Alex Smith"),
+    ("  Mary-Jane   O'Neil ", "Mary-Jane O'Neil"),
+    ("J. R. Tolkien", "J. R. Tolkien"),
+    ("佐藤 花子", "佐藤 花子"),
+])
+def test_names_can_have_spaces_and_punctuation(client, alice, name, saved):
+    response = client.patch("/users/me", headers=alice["headers"], json={"name": name})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == saved
+
+@pytest.mark.parametrize("name", ["<script>", "---", "   ", "alex@home"])
+def test_rejects_names_without_letters_or_with_symbols(client, alice, name):
+    response = client.patch("/users/me", headers=alice["headers"], json={"name": name})
+
+    assert response.status_code == 422
+    assert response.json()["detail"].startswith("Names can use letters")
+
+def test_signup_accepts_a_full_name(client):
+    response = client.post("/auth/signup", json={
+        "name": " Alex  Smith ", "email": "alex@example.com", "password": "Tr0ub4dor&3-horse-battery"
+    })
+
+    assert response.status_code == 201, response.text
+    assert response.json()["name"] == "Alex Smith"
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -85,11 +114,6 @@ def test_null_required_fields_are_ignored(client, alice):
 
     assert response.status_code == 200
     assert response.json()["name"] == "alice"
-
-def test_rejects_non_alphanumeric_name(client, alice):
-    response = client.patch("/users/me", headers=alice["headers"], json={"name": "alice smith"})
-
-    assert response.status_code == 422
 
 def test_search_by_name_prefix(client, alice, bob, make_user):
     make_user("bobby")

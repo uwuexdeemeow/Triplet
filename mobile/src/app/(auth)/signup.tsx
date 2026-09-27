@@ -68,10 +68,10 @@ export default function SignupScreen() {
             render={({ field, fieldState }) => (
               <TextField
                 label="Name"
-                hint="Letters and numbers only"
-                autoComplete="username"
-                textContentType="username"
-                autoCapitalize="none"
+                hint="Your name as friends know it"
+                autoComplete="name"
+                textContentType="name"
+                autoCapitalize="words"
                 returnKeyType="next"
                 value={field.value}
                 onChangeText={field.onChange}

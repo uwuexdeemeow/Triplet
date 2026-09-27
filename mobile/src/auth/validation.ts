@@ -17,13 +17,18 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Enter your password'),
 });
 
-// Python's str.isalnum(): letters and numbers in any language, no spaces
+// Matches the server's clean_name: letters and numbers in any language, plus spaces, - ' ’ and .
 export const nameSchema = z
   .string()
-  .trim()
-  .min(1, 'Enter a name')
-  .max(255, 'Use at most 255 characters')
-  .regex(/^[\p{L}\p{N}]+$/u, 'Use letters and numbers only, no spaces');
+  .transform((value) => value.trim().replace(/\s+/g, ' '))
+  .pipe(
+    z
+      .string()
+      .min(1, 'Enter a name')
+      .max(255, 'Use at most 255 characters')
+      .regex(/^[\p{L}\p{N} .'’-]+$/u, 'Use letters, numbers, spaces, hyphens, apostrophes and full stops')
+      .regex(/[\p{L}\p{N}]/u, 'Include at least one letter or number'),
+  );
 
 export const signupSchema = z
   .object({

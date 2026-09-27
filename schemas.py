@@ -245,6 +245,8 @@ class TravelLeg(BaseModel):
 
 class ItineraryActivity(ActivityResponse):
     conflicts_with: list[int] = []
+    # Where the plan's saved post came from, e.g. "tiktok", "youtube", "instagram"
+    source_platform: str | None = None
     warnings: list[ScheduleWarning] = []
     travel_from_previous: TravelLeg | None = None
 

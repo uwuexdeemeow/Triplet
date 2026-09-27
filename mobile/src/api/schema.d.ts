@@ -1178,6 +1178,8 @@ export interface components {
              * @default []
              */
             conflicts_with: number[];
+            /** Source Platform */
+            source_platform?: string | null;
             /**
              * Warnings
              * @default []

@@ -202,10 +202,15 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
         for place in db.query(ExtractedPlace).filter(ExtractedPlace.id.in_(place_ids)).all()
     } if place_ids else {}
 
+    link_ids = {activity.source_link_id for activity in activities if activity.source_link_id is not None}
+    platforms = dict(
+        db.query(SavedLink.id, SavedLink.platform).filter(SavedLink.id.in_(link_ids)).all()
+    ) if link_ids else {}
+
     for activity in activities:
-        days[activity.start_time.date()].append(
-            ItineraryActivity.model_validate(activity)
-        )
+        item = ItineraryActivity.model_validate(activity)
+        item.source_platform = platforms.get(activity.source_link_id)
+        days[activity.start_time.date()].append(item)
 
     for day_activities in days.values():
         # Activities are sorted by start time, so only later ones can overlap an earlier one

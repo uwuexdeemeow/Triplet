@@ -6,7 +6,7 @@ from database import connect_db
 from models import User, RefreshToken, PasswordResetToken
 from schemas import UserCreate, UserLogin, UserResponse, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse
 from security import hash_password, verify_password, create_access_token, generate_token, hash_token
-from validators import password_strength, as_utc
+from validators import password_strength, as_utc, clean_name, NAME_ERROR
 from dependencies import get_current_user
 from mailer import send_email
 
@@ -49,11 +49,13 @@ def signup(
             status_code=status.HTTP_409_CONFLICT,
             detail="Invalid credentials"
         )
-    if not user.name.isalnum():
+    name = clean_name(user.name)
+    if name is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Invalid credentials"
+            detail=NAME_ERROR
         )
+    user.name = name
     email_prefix = user.email.split('@')[0]  # Extract the part before '@' for additional checks
     user_inputs = [user.name.lower(), email_prefix.lower()]
     result = password_strength(user.password.lower(), user_inputs)

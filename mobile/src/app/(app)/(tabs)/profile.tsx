@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
-import { api, ApiError } from '@/api/client';
+import { api } from '@/api/client';
 import { tripKeys, useMe, type User } from '@/api/trips';
 import { useSession } from '@/auth/session';
 import { nameSchema } from '@/auth/validation';
@@ -132,7 +132,7 @@ function NameEditor({ user }: { user: User }) {
       setEditing(false);
     },
     onError: (err) =>
-      setError(err instanceof ApiError && err.status === 422 ? 'Use letters and numbers only, no spaces' : err.message),
+      setError(err.message),
   });
 
   const submit = () => {
@@ -171,9 +171,9 @@ function NameEditor({ user }: { user: User }) {
     <View style={styles.editor}>
       <TextField
         label="Name"
-        hint="Letters and numbers only. Friends see this on your trips."
+        hint="Friends see this on your trips."
         autoFocus
-        autoCapitalize="none"
+        autoCapitalize="words"
         returnKeyType="done"
         value={name}
         onChangeText={setName}

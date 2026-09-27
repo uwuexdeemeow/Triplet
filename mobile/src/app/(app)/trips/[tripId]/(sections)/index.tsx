@@ -28,6 +28,7 @@ import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { activityClock, dayOfMonth, eachDay, formatLongDate, todayString, weekdayShort } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
+import { platformLabel } from '@/utils/places';
 import { select, warn } from '@/utils/haptics';
 
 export default function PlanScreen() {
@@ -263,7 +264,7 @@ function ActivityRow({
           {activity.source_link_id != null ? (
             <View style={styles.badge}>
               <Feather name="link" size={12} color={colors.muted} />
-              <Text style={styles.badgeText}>From TikTok</Text>
+              <Text style={styles.badgeText}>From {platformLabel(activity.source_platform)}</Text>
             </View>
           ) : null}
           {conflicts.map((otherId) => (

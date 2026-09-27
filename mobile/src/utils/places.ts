@@ -8,6 +8,11 @@ const PLATFORMS: Record<string, string> = {
   google_maps: 'Google Maps',
 };
 
+// For plans, which only know their post's platform: "tiktok" -> "TikTok", anything else -> "a saved post"
+export function platformLabel(platform: string | null | undefined): string {
+  return (platform && PLATFORMS[platform]) || 'a saved post';
+}
+
 export function platformName(link: SavedLink): string {
   if (PLATFORMS[link.platform]) return PLATFORMS[link.platform];
   try {
