@@ -7,10 +7,11 @@ import { api } from '@/api/client';
 import { tripKeys, useMe, type User } from '@/api/trips';
 import { useSession } from '@/auth/session';
 import { nameSchema } from '@/auth/validation';
+import { AccountSettings } from '@/components/account-settings';
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
-import { Body, Heading, Muted, Title } from '@/components/text';
+import { Heading, Muted, Title } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import type { ThemePreference } from '@/theme/preference';
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -47,6 +48,8 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {me.data ? <AccountSettings user={me.data} /> : null}
+
         <AppearancePicker />
 
         <View style={styles.actions}>
@@ -59,8 +62,6 @@ export default function ProfileScreen() {
           />
           <FormMessage message={signOutEverywhere.error?.message ?? null} />
         </View>
-
-        <Body style={styles.note}>Changing your email comes later.</Body>
       </View>
     </Screen>
   );
@@ -327,9 +328,5 @@ const useStyles = makeStyles((colors) => ({
   },
   flex: {
     flex: 1,
-  },
-  note: {
-    color: colors.muted,
-    fontSize: 14,
   },
 }));

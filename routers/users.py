@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
-from models import TripMembership, User, UserAvatar
+from models import Trip, TripMembership, User, UserAvatar
 from schemas import AccountDelete, UserResponse, UserPublic, UserUpdate
 from security import hash_password, verify_password
 from validators import password_strength, clean_name, NAME_ERROR
@@ -114,6 +114,20 @@ def delete_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="That password isn't right"
         )
+
+    # Trips aren't owned by a user row, so tidy them up here: a trip only this person was on
+    # goes with them, and a trip they owned alone passes to whoever has been on it longest
+    for membership in db.query(TripMembership).filter(TripMembership.user_id == current_user.id).all():
+        others = (
+            db.query(TripMembership)
+            .filter(TripMembership.trip_id == membership.trip_id, TripMembership.user_id != current_user.id)
+            .order_by(TripMembership.id)
+            .all()
+        )
+        if not others:
+            db.delete(db.get(Trip, membership.trip_id))
+        elif membership.role == "owner" and not any(other.role == "owner" for other in others):
+            others[0].role = "owner"
 
     db.delete(current_user)
     db.commit()

@@ -17,6 +17,8 @@ export type SavedLink = Schemas['SavedLinkResponse'];
 export type TripPlace = Schemas['TripPlaceResponse'];
 export type Invitation = Schemas['InvitationResponse'];
 export type User = Schemas['UserResponse'];
+// Someone else, as search shows them: no email
+export type UserPublic = Schemas['UserPublic'];
 export type Expense = Schemas['ExpenseResponse'];
 export type BudgetSummary = Schemas['BudgetSummary'];
 export type BudgetEstimate = Schemas['BudgetEstimate'];

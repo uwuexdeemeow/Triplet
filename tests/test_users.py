@@ -189,6 +189,36 @@ def test_deleting_account_needs_password(client, alice):
     assert client.request("DELETE", "/users/me", headers=alice["headers"], json={"password": PASSWORD}).status_code == 204
     assert client.get("/users/me", headers=alice["headers"]).status_code == 401
 
+def delete_account(client, user):
+    response = client.request("DELETE", "/users/me", headers=user["headers"], json={"password": PASSWORD})
+    assert response.status_code == 204, response.text
+
+def test_deleting_account_removes_trips_only_they_were_on(client, alice, trip, db):
+    from models import Trip
+
+    delete_account(client, alice)
+
+    assert db.get(Trip, trip["id"]) is None
+
+def test_deleting_the_only_owner_hands_the_trip_on(client, alice, bob, eve, trip, add_member):
+    add_member(bob)
+    add_member(eve, role="viewer")
+
+    delete_account(client, alice)
+
+    members = client.get(f"/trips/{trip['id']}/members", headers=bob["headers"]).json()
+    # Bob joined first, so he now owns it and can still invite people and change the trip
+    assert {m["name"]: m["role"] for m in members} == {"bob": "owner", "eve": "viewer"}
+
+def test_deleting_one_of_two_owners_changes_no_roles(client, alice, bob, eve, trip, add_member):
+    add_member(bob, role="owner")
+    add_member(eve)
+
+    delete_account(client, alice)
+
+    members = client.get(f"/trips/{trip['id']}/members", headers=bob["headers"]).json()
+    assert {m["name"]: m["role"] for m in members} == {"bob": "owner", "eve": "member"}
+
 def test_new_email_takes_effect_once_confirmed(client, alice, outbox):
     headers = alice["headers"]
     client.patch("/users/me", headers=headers, json={"email": "new@example.com", "current_password": PASSWORD})

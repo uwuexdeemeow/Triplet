@@ -1,11 +1,19 @@
 import { Feather } from '@expo/vector-icons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
-import { tripKeys, useMe, useMembers, useTripInvitations, type Invitation, type Member } from '@/api/trips';
+import {
+  tripKeys,
+  useMe,
+  useMembers,
+  useTripInvitations,
+  type Invitation,
+  type Member,
+  type UserPublic,
+} from '@/api/trips';
 import { Avatar as PersonAvatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
@@ -112,12 +120,29 @@ function InviteForm({ tripId }: { tripId: number }) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const members = useMembers(tripId);
+
+  // Typing a name suggests people you've travelled with before; typing an email invites anyone
+  const query = email.trim();
+  const byName = query.length >= 2 && !query.includes('@');
+  const suggestions = useQuery({
+    queryKey: ['users', 'search', query],
+    queryFn: () => api<UserPublic[]>('/users/search', { query: { q: query, limit: 5 } }),
+    enabled: byName,
+    placeholderData: keepPreviousData,
+  });
+  const onTrip = new Set(members.data?.map((member) => member.user_id));
+  const people = byName ? (suggestions.data ?? []).filter((person) => !onTrip.has(person.id)) : [];
 
   const invite = useMutation({
-    mutationFn: (value: string) => api(`/trips/${tripId}/invitations`, { method: 'POST', body: { email: value } }),
-    onSuccess: (_, value) => {
+    mutationFn: (target: { email: string } | { user_id: number; name: string }) =>
+      api(`/trips/${tripId}/invitations`, {
+        method: 'POST',
+        body: 'email' in target ? { email: target.email } : { user_id: target.user_id },
+      }),
+    onSuccess: (_, target) => {
       setEmail('');
-      setSentTo(value);
+      setSentTo('email' in target ? target.email : target.name);
       queryClient.invalidateQueries({ queryKey: tripKeys.invitations(tripId) });
     },
     onError: (err) =>
@@ -136,11 +161,19 @@ function InviteForm({ tripId }: { tripId: number }) {
     const value = email.trim().toLowerCase();
     setError(null);
     setSentTo(null);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      setError('Enter their email address, like sam@example.com');
+    if (!value.includes('@') && people.length === 1) {
+      invite.mutate({ user_id: people[0].id, name: people[0].name });
       return;
     }
-    invite.mutate(value);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setError(
+        byName
+          ? 'Pick someone from the list, or enter their email address.'
+          : 'Enter their email address, like sam@example.com',
+      );
+      return;
+    }
+    invite.mutate({ email: value });
   };
 
   return (
@@ -148,13 +181,13 @@ function InviteForm({ tripId }: { tripId: number }) {
       <Text style={styles.formLabel}>Invite a friend</Text>
       <View style={styles.formRow}>
         <TextInput
-          accessibilityLabel="Friend’s email address"
-          placeholder="Their Triplet email"
+          accessibilityLabel="Friend’s name or email address"
+          accessibilityHint="Names find people you've been on a trip with"
+          placeholder="Name or email"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
           autoCorrect={false}
           autoComplete="email"
-          keyboardType="email-address"
           returnKeyType="send"
           value={email}
           onChangeText={setEmail}
@@ -163,6 +196,31 @@ function InviteForm({ tripId }: { tripId: number }) {
         />
         <Button label="Invite" loading={invite.isPending} onPress={submit} style={styles.inviteButton} />
       </View>
+      {people.length > 0 ? (
+        <View style={styles.suggestions} accessibilityRole="list">
+          {people.map((person) => (
+            <Pressable
+              key={person.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Invite ${person.name}`}
+              disabled={invite.isPending}
+              onPress={() => {
+                setError(null);
+                setSentTo(null);
+                invite.mutate({ user_id: person.id, name: person.name });
+              }}
+              style={({ pressed }) => [styles.suggestion, pressed && styles.pressed]}>
+              <PersonAvatar name={person.name} url={person.avatar_url} size={32} />
+              <Text style={styles.suggestionName} numberOfLines={1}>
+                {person.name}
+              </Text>
+              <Text style={styles.suggestionAction}>Invite</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : byName && suggestions.isFetched && !suggestions.isPlaceholderData ? (
+        <Muted>No one by that name from your other trips. Use their email instead.</Muted>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {sentTo ? (
         <FormMessage
@@ -452,6 +510,30 @@ const useStyles = makeStyles((colors) => ({
   inviteButton: {
     minHeight: 48,
     paddingHorizontal: 18,
+  },
+  suggestions: {
+    borderRadius: radii.input,
+    backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
+    overflow: 'hidden',
+  },
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: 48,
+    paddingHorizontal: 12,
+  },
+  suggestionName: {
+    flex: 1,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  suggestionAction: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.accent,
   },
   error: {
     fontFamily: fonts.medium,
