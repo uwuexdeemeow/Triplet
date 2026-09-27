@@ -4,14 +4,21 @@ import * as SecureStore from 'expo-secure-store';
 // The web build uses token-storage.web.ts instead.
 const KEY = 'triplet.refreshToken';
 
+// Phones send the refresh token in the request body; the website uses a cookie instead
+export const REFRESH_IN_COOKIE = false;
+
 export function loadRefreshToken(): Promise<string | null> {
   return SecureStore.getItemAsync(KEY);
 }
 
-export function saveRefreshToken(token: string): Promise<void> {
-  return SecureStore.setItemAsync(KEY, token);
+export async function hasSavedSession(): Promise<boolean> {
+  return (await loadRefreshToken()) !== null;
 }
 
-export function clearRefreshToken(): Promise<void> {
+export async function saveSession(refreshToken: string | null | undefined): Promise<void> {
+  if (refreshToken) await SecureStore.setItemAsync(KEY, refreshToken);
+}
+
+export function clearSession(): Promise<void> {
   return SecureStore.deleteItemAsync(KEY);
 }

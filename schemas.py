@@ -29,6 +29,8 @@ class UserResponse(BaseModel):
     name: str
     email: EmailStr
     avatar_url: str | None = None
+    # A new address waiting to be confirmed from its inbox
+    pending_email: str | None = None
 
     model_config={
         "from_attributes": True
@@ -62,7 +64,8 @@ class Token(BaseModel):
     refresh_token: str | None = None
 
 class RefreshRequest(BaseModel):
-    refresh_token: OpaqueToken
+    # Left out by the website, whose refresh token is in a cookie instead
+    refresh_token: OpaqueToken | None = None
 
 class PasswordResetRequest(BaseModel):
     email: Email
@@ -73,6 +76,12 @@ class PasswordResetConfirm(BaseModel):
 
 class MessageResponse(BaseModel):
     detail: str
+
+class VerifyEmailRequest(BaseModel):
+    token: OpaqueToken
+
+class ResendVerificationRequest(BaseModel):
+    email: Email
 
 class GuestAccessCreate(BaseModel):
     access_code: Annotated[str, StringConstraints(max_length=16)]
@@ -166,7 +175,8 @@ class InvitationCreate(BaseModel):
 class InvitationResponse(BaseModel):
     id: int
     trip_id: int
-    user_id: int
+    # Empty for an invite to an email that isn't on Triplet yet
+    user_id: int | None = None
     invited_by_id: int | None = None
     status: str
     created_at: datetime
@@ -174,7 +184,8 @@ class InvitationResponse(BaseModel):
     trip_destination: str
     trip_start_date: date | None = None
     trip_end_date: date | None = None
-    invitee_name: str
+    # Only filled in once they've joined, so invites don't reveal who has an account
+    invitee_name: str | None = None
     invitee_email: EmailStr
     invited_by_name: str | None = None
 

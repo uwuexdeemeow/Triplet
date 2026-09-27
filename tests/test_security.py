@@ -3,7 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from config import Settings, settings
-from tests.conftest import PASSWORD
+from tests.conftest import PASSWORD, link_token
 
 @pytest.fixture
 def limits_on(monkeypatch):
@@ -40,7 +40,7 @@ def test_unknown_emails_count_too(client, limits_on):
 def test_signups_are_limited_per_network(client, limits_on):
     for number in range(5):
         response = client.post("/auth/signup", json={"name": f"user{number}", "email": f"user{number}@example.com", "password": PASSWORD})
-        assert response.status_code == 201
+        assert response.status_code == 202
 
     response = client.post("/auth/signup", json={"name": "user9", "email": "user9@example.com", "password": PASSWORD})
     assert response.status_code == 429
@@ -87,15 +87,18 @@ def test_invites_are_limited(client, alice, trip, make_user, limits_on, monkeypa
 
 # ---------- Accounts ----------
 
-def test_emails_ignore_case(client, alice):
+def test_emails_ignore_case(client, alice, outbox):
     # Signed up as alice@example.com
     assert login(client, "ALICE@Example.com", PASSWORD).status_code == 200
 
-    duplicate = client.post("/auth/signup", json={"name": "alice2", "email": "Alice@EXAMPLE.com", "password": PASSWORD})
-    assert duplicate.status_code == 409
+    # A differently-cased sign-up is the same account: alice gets the "you already have one" note
+    client.post("/auth/signup", json={"name": "alice2", "email": "Alice@EXAMPLE.com", "password": PASSWORD})
+    assert outbox[-1][0] == "alice@example.com"
+    assert "already have an account" in outbox[-1][2]
 
-def test_new_accounts_are_stored_lowercase(client):
+def test_new_accounts_are_stored_lowercase(client, outbox):
     client.post("/auth/signup", json={"name": "sam", "email": "Sam@Example.COM", "password": PASSWORD})
+    client.post("/auth/verify-email", json={"token": link_token(outbox, "sam@example.com", "/verify-email")})
     token = login(client, "sam@example.com", PASSWORD).json()["access_token"]
 
     me = client.get("/users/me", headers={"Authorization": f"Bearer {token}"}).json()
@@ -140,3 +143,11 @@ def test_weak_secret_keys_are_refused(key):
 def test_only_hmac_algorithms_are_allowed():
     with pytest.raises(ValidationError):
         Settings(DB_SETTINGS="sqlite://", SECRET_KEY="k" * 40, ALGORITHM="none")
+
+def test_confirmation_emails_are_capped(client, limits_on, outbox):
+    for _ in range(5):
+        assert client.post("/auth/verify-email/resend", json={"email": "sam@example.com"}).status_code == 202
+    client.post("/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD})
+
+    # The resends used up this hour's emails for the address, so even sign-up sends nothing more
+    assert not [mail for mail in outbox if mail[0] == "sam@example.com"]

@@ -66,5 +66,5 @@ npm run api:types
 
 - `src/app/`: screens (Expo Router, one file per screen). `(auth)` is signed out, `(app)` is signed in.
 - `src/api/`: API client (adds the access token and renews it when it expires) and generated types.
-- `src/auth/`: session, token storage (Keychain/Keystore on phones, localStorage on web), form rules.
+- `src/auth/`: session, token storage (Keychain/Keystore on phones, an HttpOnly cookie set by the API on web), form rules.
 - `src/components/`: shared UI. `src/theme/tokens.ts`: colours, fonts and spacing from the design.

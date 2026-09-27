@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Pressable, Text, View, type TextInput } from 'react-native';
@@ -10,6 +10,7 @@ import { useSession } from '@/auth/session';
 import { signupSchema, type SignupValues } from '@/auth/validation';
 import { Button } from '@/components/button';
 import { PasswordMeter } from '@/components/password-meter';
+import { ResendConfirmation } from '@/components/resend-confirmation';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
@@ -19,7 +20,6 @@ import { fonts, spacing } from '@/theme/tokens';
 // The backend keeps its signup errors vague ("Invalid credentials"), so explain them by status code
 function signupError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 409) return 'An account with this email already exists. Try logging in instead.';
     if (error.status === 422) return 'That password is too easy to guess. Try a longer phrase, or mix in words that aren’t your name or email.';
     return error.message;
   }
@@ -30,6 +30,8 @@ export default function SignupScreen() {
   const styles = useStyles();
   const { signUp } = useSession();
   const [formError, setFormError] = useState<string | null>(null);
+  // Set once the account is created and waiting for its email to be confirmed
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
@@ -46,10 +48,31 @@ export default function SignupScreen() {
     setFormError(null);
     try {
       await signUp(name, email, password);
+      setSentTo(email.trim().toLowerCase());
     } catch (error) {
       setFormError(signupError(error));
     }
   });
+
+  if (sentTo) {
+    return (
+      <Screen>
+        <View style={styles.container}>
+          <View style={styles.intro}>
+            <Heading>Check your inbox</Heading>
+            <Body style={styles.muted}>
+              We sent a link to <Text style={styles.strong}>{sentTo}</Text>. Open it to confirm your email, then log
+              in. The link works for 48 hours.
+            </Body>
+          </View>
+          <View style={styles.form}>
+            <ResendConfirmation email={sentTo} label="Didn’t get it? Send a new link" />
+            <Button label="Go to log in" onPress={() => router.replace('/login')} />
+          </View>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -162,6 +185,10 @@ const useStyles = makeStyles((colors) => ({
   },
   muted: {
     color: colors.muted,
+  },
+  strong: {
+    fontFamily: fonts.bold,
+    color: colors.ink,
   },
   form: {
     gap: 18,

@@ -19,11 +19,15 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     PASSWORD_RESET_EXPIRE_MINUTES: int = 30
 
-    # Browser origins allowed to call the API, e.g. the Expo web dev server
+    # Browser origins allowed to call the API, e.g. the Expo web dev server. The website signs in
+    # with a cookie, so these must be exact origins on the same site as the API (see SECURITY.md)
     CORS_ORIGINS: list[str] = ["http://localhost:8081"]
 
     # Link sent in password reset emails, the token is appended as ?token=...
-    PASSWORD_RESET_URL: str = "http://localhost:3000/reset-password"
+    PASSWORD_RESET_URL: str = "http://localhost:8081/reset-password"
+    # The website, for links in emails: confirming an address, and joining from an invite
+    APP_URL: str = "http://localhost:8081"
+    EMAIL_VERIFY_EXPIRE_HOURS: int = 48
 
     # Leave SMTP_HOST empty in development to print emails to the console instead
     SMTP_HOST: str | None = None
@@ -64,6 +68,14 @@ class Settings(BaseSettings):
     def strong_secret_key(cls, value: str) -> str:
         if len(value) < 32 or value.lower() in KNOWN_WEAK_KEYS:
             raise ValueError("SECRET_KEY must be at least 32 random characters. Run: python secret.py")
+        return value
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def exact_origins(cls, value: list[str]) -> list[str]:
+        # Browsers send the sign-in cookie with these, so a wildcard would let any site use it
+        if any("*" in origin for origin in value):
+            raise ValueError("CORS_ORIGINS must list exact origins, like https://triplet.app, not *")
         return value
 
     @property

@@ -1,5 +1,7 @@
 import pytest
 
+from tests.conftest import PASSWORD, link_token
+
 def invite(client, trip, inviter, invitee):
     return client.post(f"/trips/{trip['id']}/invitations", headers=inviter["headers"], json={"email": invitee["email"]})
 
@@ -27,17 +29,35 @@ def test_invitation_describes_the_trip_and_people(client, alice, bob, trip):
     assert received["trip_end_date"] == "2026-10-05"
     assert received["invited_by_name"] == client.get("/users/me", headers=alice["headers"]).json()["name"]
 
-    # The owner sees who a pending invitation is for
+    # The owner sees the address they typed, but not a name until bob joins, so an invite
+    # doesn't reveal whether that email has an account
     sent = client.get(f"/trips/{trip['id']}/invitations", headers=alice["headers"]).json()[0]
     assert sent["invitee_email"] == bob["email"]
+    assert sent["invitee_name"] is None
+
+    client.post(f"/invitations/{received['id']}/accept", headers=bob["headers"])
+    sent = client.get(f"/trips/{trip['id']}/invitations", headers=alice["headers"]).json()[0]
     assert sent["invitee_name"] == client.get("/users/me", headers=bob["headers"]).json()["name"]
 
-def test_invite_by_user_id(client, alice, bob, trip):
+def test_invite_by_user_id_for_people_you_travel_with(client, alice, bob, trip, add_member):
+    # Bob is on another of alice's trips, so she can pick him without typing his email
+    other = client.post("/trips", headers=alice["headers"], json={
+        "title": "Osaka", "destination": "Osaka", "start_date": "2026-11-01", "end_date": "2026-11-03"
+    }).json()
+    response = client.post(f"/trips/{other['id']}/invitations", headers=alice["headers"], json={"email": bob["email"]})
+    client.post(f"/invitations/{response.json()['id']}/accept", headers=bob["headers"])
+
     response = client.post(f"/trips/{trip['id']}/invitations", headers=alice["headers"], json={"user_id": bob["id"]})
 
     assert response.status_code == 201
     assert response.json()["user_id"] == bob["id"]
     assert response.json()["invited_by_id"] == alice["id"]
+
+def test_invite_by_user_id_needs_a_shared_trip(client, alice, bob, trip):
+    # Otherwise user ids could be used to reach anyone on Triplet
+    response = client.post(f"/trips/{trip['id']}/invitations", headers=alice["headers"], json={"user_id": bob["id"]})
+
+    assert response.status_code == 404
 
 @pytest.mark.parametrize("body", [{}, {"email": "bob@example.com", "user_id": 1}])
 def test_invite_needs_exactly_one_of_email_or_user_id(client, alice, trip, body):
@@ -58,10 +78,45 @@ def test_cannot_invite_existing_member(client, alice, bob, trip, add_member):
 
     assert invite(client, trip, alice, bob).status_code == 409
 
-def test_cannot_invite_unknown_user(client, alice, trip):
-    response = client.post(f"/trips/{trip['id']}/invitations", headers=alice["headers"], json={"email": "nobody@example.com"})
+def test_invite_someone_not_on_triplet_yet(client, alice, bob, trip, make_user, outbox):
+    url = f"/trips/{trip['id']}/invitations"
+    existing = client.post(url, headers=alice["headers"], json={"email": bob["email"]})
+    newcomer = client.post(url, headers=alice["headers"], json={"email": "sam@example.com"})
 
-    assert response.status_code == 404
+    # Both look the same to the owner, so inviting doesn't reveal who has an account
+    assert existing.status_code == newcomer.status_code == 201
+    assert existing.json()["invitee_name"] is newcomer.json()["invitee_name"] is None
+    assert newcomer.json()["invitee_email"] == "sam@example.com"
+
+    # Both get an email; the newcomer's asks them to sign up
+    invite_mail = [mail for mail in outbox if mail[0] == "sam@example.com"][-1]
+    assert "invited you to Tokyo" in invite_mail[1]
+    assert "/signup" in invite_mail[2]
+
+    # Once sam signs up and confirms, the invite is waiting
+    sam = make_user("sam")
+    received = client.get("/invitations", headers=sam["headers"]).json()
+    assert [i["trip_title"] for i in received] == ["Tokyo"]
+
+    assert client.post(f"/invitations/{received[0]['id']}/accept", headers=sam["headers"]).status_code == 200
+    members = client.get(f"/trips/{trip['id']}/members", headers=alice["headers"]).json()
+    assert sam["id"] in [m["user_id"] for m in members]
+
+def test_unconfirmed_accounts_get_the_invite_after_confirming(client, alice, trip, outbox):
+    client.post("/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD})
+    client.post(f"/trips/{trip['id']}/invitations", headers=alice["headers"], json={"email": "sam@example.com"})
+
+    client.post("/auth/verify-email", json={"token": link_token(outbox, "sam@example.com", "/verify-email")})
+    token = client.post("/auth/login", json={"email": "sam@example.com", "password": PASSWORD}).json()["access_token"]
+
+    received = client.get("/invitations", headers={"Authorization": f"Bearer {token}"}).json()
+    assert [i["trip_title"] for i in received] == ["Tokyo"]
+
+def test_cannot_invite_the_same_email_twice(client, alice, trip):
+    url = f"/trips/{trip['id']}/invitations"
+    client.post(url, headers=alice["headers"], json={"email": "sam@example.com"})
+
+    assert client.post(url, headers=alice["headers"], json={"email": "SAM@example.com"}).status_code == 409
 
 def test_only_owner_can_invite(client, bob, eve, trip, add_member):
     add_member(bob)

@@ -1,4 +1,5 @@
 import os
+import re
 
 # Must be set before the app is imported so tests never touch the real database from .env
 os.environ["DB_SETTINGS"] = "sqlite://"
@@ -15,6 +16,26 @@ from database import Base, connect_db
 from main import app
 
 PASSWORD = "Tr0ub4dor&3-horse-battery"
+
+@pytest.fixture(autouse=True)
+def outbox(monkeypatch):
+    """Emails the app would have sent, as (to, subject, body), newest last."""
+    sent = []
+
+    def capture(to, subject, body):
+        sent.append((to, subject, body))
+
+    for place in ("routers.auth.send_email", "routers.members.send_email", "verification.send_email"):
+        monkeypatch.setattr(place, capture)
+    return sent
+
+def link_token(outbox, to: str, path: str) -> str:
+    """The token from the newest email to `to` with a link to `path`, e.g. "/verify-email"."""
+    for recipient, _, body in reversed(outbox):
+        match = re.search(re.escape(path) + r"\?token=([\w-]+)", body)
+        if recipient == to and match:
+            return match.group(1)
+    raise AssertionError(f"No {path} link was emailed to {to}")
 
 @pytest.fixture(autouse=True)
 def no_external_calls(monkeypatch):
@@ -71,12 +92,16 @@ def client(monkeypatch, session_factory):
     app.dependency_overrides.clear()
 
 @pytest.fixture
-def make_user(client):
+def make_user(client, outbox):
     def _make_user(name: str) -> dict:
         email = f"{name}@example.com"
 
         response = client.post("/auth/signup", json={"name": name, "email": email, "password": PASSWORD})
-        assert response.status_code == 201, response.text
+        assert response.status_code == 202, response.text
+
+        # Open the confirmation link from the email, like a person would
+        response = client.post("/auth/verify-email", json={"token": link_token(outbox, email, "/verify-email")})
+        assert response.status_code == 200, response.text
 
         response = client.post("/auth/login", json={"email": email, "password": PASSWORD})
         assert response.status_code == 200, response.text

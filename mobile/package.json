@@ -10,6 +10,7 @@
     "@maplibre/maplibre-react-native": "^11.4.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "@tanstack/react-query": "^5.104.0",
+    "decode-uri-component": "file:./shims/decode-uri-component",
     "expo": "~57.0.25",
     "expo-blur": "~57.0.3",
     "expo-constants": "~57.0.19",
@@ -61,5 +62,11 @@
     "api:types": "npx --yes openapi-typescript@7 ./openapi.json -o ./src/api/schema.d.ts",
     "postinstall": "node scripts/copy-maplibre-worker.js"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "decode-uri-component": "$decode-uri-component",
+    "xcode": {
+      "uuid": "^11.1.1"
+    }
+  }
 }

@@ -33,6 +33,8 @@ type RequestOptions = {
   query?: Record<string, string | number | undefined>;
   // Public endpoints like log in skip the Authorization header
   auth?: boolean;
+  // Website only: send and receive the refresh token as an HttpOnly cookie
+  refreshCookie?: boolean;
 };
 
 async function send(path: string, options: RequestOptions, token: string | null) {
@@ -45,11 +47,14 @@ async function send(path: string, options: RequestOptions, token: string | null)
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.refreshCookie) headers['X-Refresh-Cookie'] = '1';
 
   return fetch(`${API_URL}${path}${query ? `?${query}` : ''}`, {
     method: options.method ?? 'GET',
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    // Other requests leave cookies out; the refresh cookie is only for /auth anyway
+    credentials: options.refreshCookie ? 'include' : 'same-origin',
   });
 }
 

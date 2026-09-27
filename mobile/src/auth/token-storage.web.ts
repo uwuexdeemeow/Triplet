@@ -1,6 +1,9 @@
-// SecureStore doesn't exist on the web, so the web build keeps the refresh token in
-// localStorage. That's weaker than the phone's keychain, which is fine for development.
-const KEY = 'triplet.refreshToken';
+// On the website the refresh token is in an HttpOnly cookie the API sets, which page scripts
+// can't read, so a script injected into the page can't steal it. All this file keeps is a note
+// that there is a session, so a signed-out visitor doesn't wait on a refresh that can't work.
+const KEY = 'triplet.signedIn';
+
+export const REFRESH_IN_COOKIE = true;
 
 function storage(): Storage | null {
   try {
@@ -10,14 +13,22 @@ function storage(): Storage | null {
   }
 }
 
+// The cookie is sent by the browser, never read here
 export async function loadRefreshToken(): Promise<string | null> {
-  return storage()?.getItem(KEY) ?? null;
+  return null;
 }
 
-export async function saveRefreshToken(token: string): Promise<void> {
-  storage()?.setItem(KEY, token);
+export async function hasSavedSession(): Promise<boolean> {
+  return storage()?.getItem(KEY) === '1';
 }
 
-export async function clearRefreshToken(): Promise<void> {
+export async function saveSession(): Promise<void> {
+  storage()?.setItem(KEY, '1');
+}
+
+export async function clearSession(): Promise<void> {
   storage()?.removeItem(KEY);
 }
+
+// Earlier versions kept the refresh token itself here, where page scripts could read it
+storage()?.removeItem('triplet.refreshToken');

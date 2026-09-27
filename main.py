@@ -38,8 +38,10 @@ async def guard_requests(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    # The website's refresh token travels in a cookie
+    allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Refresh-Cookie"],
 )
 
 app.include_router(auth.router)

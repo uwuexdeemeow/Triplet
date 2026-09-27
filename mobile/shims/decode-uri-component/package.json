@@ -1,0 +1,7 @@
+{
+  "name": "decode-uri-component",
+  "version": "0.4.99-triplet",
+  "description": "Linear-time stand-in for decode-uri-component (see index.js)",
+  "main": "index.js",
+  "license": "MIT"
+}

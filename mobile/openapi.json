@@ -24,12 +24,94 @@
      "required": true
     },
     "responses": {
-     "201": {
+     "202": {
       "description": "Successful Response",
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/UserResponse"
+         "$ref": "#/components/schemas/MessageResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/verify-email": {
+   "post": {
+    "tags": [
+     "Authentication"
+    ],
+    "summary": "Verify Email",
+    "operationId": "verify_email_auth_verify_email_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerifyEmailRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MessageResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/verify-email/resend": {
+   "post": {
+    "tags": [
+     "Authentication"
+    ],
+    "summary": "Resend Verification",
+    "operationId": "resend_verification_auth_verify_email_resend_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResendVerificationRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MessageResponse"
         }
        }
       }
@@ -99,11 +181,18 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/RefreshRequest"
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/RefreshRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Refresh Request"
        }
       }
-     },
-     "required": true
+     }
     },
     "responses": {
      "200": {
@@ -140,11 +229,18 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/RefreshRequest"
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/RefreshRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Refresh Request"
        }
       }
-     },
-     "required": true
+     }
     },
     "responses": {
      "204": {
@@ -295,9 +391,29 @@
     ],
     "summary": "Delete User",
     "operationId": "delete_user_users_me_delete",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AccountDelete"
+       }
+      }
+     },
+     "required": true
+    },
     "responses": {
      "204": {
       "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
      }
     },
     "security": [
@@ -3007,16 +3123,32 @@
  },
  "components": {
   "schemas": {
+   "AccountDelete": {
+    "properties": {
+     "password": {
+      "type": "string",
+      "maxLength": 128,
+      "title": "Password"
+     }
+    },
+    "type": "object",
+    "required": [
+     "password"
+    ],
+    "title": "AccountDelete"
+   },
    "ActivityCreate": {
     "properties": {
      "title": {
       "type": "string",
+      "maxLength": 255,
       "title": "Title"
      },
      "description": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -3026,6 +3158,7 @@
      },
      "location": {
       "type": "string",
+      "maxLength": 255,
       "title": "Location"
      },
      "start_time": {
@@ -3042,6 +3175,7 @@
       "anyOf": [
        {
         "type": "number",
+        "maximum": 99999999.0,
         "minimum": 0.0
        },
        {
@@ -3208,7 +3342,8 @@
      "title": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -3219,7 +3354,8 @@
      "description": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -3230,7 +3366,8 @@
      "location": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -3266,6 +3403,7 @@
       "anyOf": [
        {
         "type": "number",
+        "maximum": 99999999.0,
         "minimum": 0.0
        },
        {
@@ -3385,10 +3523,12 @@
     "properties": {
      "title": {
       "type": "string",
+      "maxLength": 255,
       "title": "Title"
      },
      "amount": {
       "type": "number",
+      "maximum": 99999999.0,
       "exclusiveMinimum": 0.0,
       "title": "Amount"
      },
@@ -3525,7 +3665,8 @@
      "title": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -3537,6 +3678,7 @@
       "anyOf": [
        {
         "type": "number",
+        "maximum": 99999999.0,
         "exclusiveMinimum": 0.0
        },
        {
@@ -3790,10 +3932,12 @@
     "properties": {
      "access_code": {
       "type": "string",
+      "maxLength": 16,
       "title": "Access Code"
      },
      "pin": {
       "type": "string",
+      "maxLength": 12,
       "title": "Pin"
      }
     },
@@ -3915,7 +4059,14 @@
       "title": "Trip Id"
      },
      "user_id": {
-      "type": "integer",
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "User Id"
      },
      "invited_by_id": {
@@ -3971,7 +4122,14 @@
       "title": "Trip End Date"
      },
      "invitee_name": {
-      "type": "string",
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Invitee Name"
      },
      "invitee_email": {
@@ -3995,12 +4153,10 @@
     "required": [
      "id",
      "trip_id",
-     "user_id",
      "status",
      "created_at",
      "trip_title",
      "trip_destination",
-     "invitee_name",
      "invitee_email"
     ],
     "title": "InvitationResponse"
@@ -4188,7 +4344,8 @@
      "title": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -4199,7 +4356,8 @@
      "description": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -4210,7 +4368,8 @@
      "location": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -4232,6 +4391,7 @@
       "anyOf": [
        {
         "type": "number",
+        "maximum": 99999999.0,
         "minimum": 0.0
        },
        {
@@ -4345,10 +4505,12 @@
     "properties": {
      "token": {
       "type": "string",
+      "maxLength": 256,
       "title": "Token"
      },
      "new_password": {
       "type": "string",
+      "maxLength": 128,
       "title": "New Password"
      }
     },
@@ -4519,7 +4681,8 @@
      "notes": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -4614,15 +4777,34 @@
    "RefreshRequest": {
     "properties": {
      "refresh_token": {
-      "type": "string",
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 256
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Refresh Token"
      }
     },
     "type": "object",
-    "required": [
-     "refresh_token"
-    ],
     "title": "RefreshRequest"
+   },
+   "ResendVerificationRequest": {
+    "properties": {
+     "email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email"
+     }
+    },
+    "type": "object",
+    "required": [
+     "email"
+    ],
+    "title": "ResendVerificationRequest"
    },
    "SavedLinkCreate": {
     "properties": {
@@ -4636,7 +4818,8 @@
      "place_name": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -4647,7 +4830,8 @@
      "notes": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -4836,7 +5020,8 @@
      "place_name": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -4847,7 +5032,8 @@
      "notes": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -4904,12 +5090,14 @@
     "properties": {
      "title": {
       "type": "string",
+      "maxLength": 255,
       "title": "Title"
      },
      "description": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -4919,6 +5107,7 @@
      },
      "destination": {
       "type": "string",
+      "maxLength": 255,
       "title": "Destination"
      },
      "start_date": {
@@ -4935,6 +5124,7 @@
       "anyOf": [
        {
         "type": "number",
+        "maximum": 9999999999.0,
         "minimum": 0.0
        },
        {
@@ -5352,7 +5542,8 @@
      "title": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -5363,7 +5554,8 @@
      "description": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 5000
        },
        {
         "type": "null"
@@ -5374,7 +5566,8 @@
      "destination": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -5410,6 +5603,7 @@
       "anyOf": [
        {
         "type": "number",
+        "maximum": 9999999999.0,
         "minimum": 0.0
        },
        {
@@ -5439,6 +5633,7 @@
     "properties": {
      "name": {
       "type": "string",
+      "maxLength": 255,
       "title": "Name"
      },
      "email": {
@@ -5448,6 +5643,7 @@
      },
      "password": {
       "type": "string",
+      "maxLength": 128,
       "title": "Password"
      }
     },
@@ -5468,6 +5664,7 @@
      },
      "password": {
       "type": "string",
+      "maxLength": 128,
       "title": "Password"
      }
     },
@@ -5532,6 +5729,17 @@
        }
       ],
       "title": "Avatar Url"
+     },
+     "pending_email": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pending Email"
      }
     },
     "type": "object",
@@ -5547,7 +5755,8 @@
      "name": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 255
        },
        {
         "type": "null"
@@ -5570,7 +5779,8 @@
      "password": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 128
        },
        {
         "type": "null"
@@ -5591,6 +5801,18 @@
        }
       ],
       "title": "Avatar Url"
+     },
+     "current_password": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Password"
      }
     },
     "type": "object",
@@ -5635,6 +5857,20 @@
      "type"
     ],
     "title": "ValidationError"
+   },
+   "VerifyEmailRequest": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "maxLength": 256,
+      "title": "Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token"
+    ],
+    "title": "VerifyEmailRequest"
    }
   },
   "securitySchemes": {

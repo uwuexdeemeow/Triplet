@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api, ApiError, setAuthHandlers, type Schemas } from '@/api/client';
-import { clearRefreshToken, loadRefreshToken, saveRefreshToken } from '@/auth/token-storage';
+import { clearSession, hasSavedSession, loadRefreshToken, REFRESH_IN_COOKIE, saveSession } from '@/auth/token-storage';
 
 type Status = 'loading' | 'signedIn' | 'signedOut';
 type Tokens = Schemas['Token'];
@@ -14,7 +14,8 @@ type Session = {
   signOut: () => Promise<void>;
 };
 
-// The access token only lives in memory; the refresh token is kept in secure storage
+// The access token only lives in memory; the refresh token is kept in secure storage on phones,
+// and in a cookie scripts can't read on the website
 let accessToken: string | null = null;
 let refreshInFlight: Promise<string | null> | null = null;
 
@@ -27,23 +28,24 @@ let refreshInFlight: Promise<string | null> | null = null;
 function refreshSession(): Promise<string | null> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
+      if (!(await hasSavedSession())) return null;
       const refreshToken = await loadRefreshToken();
-      if (!refreshToken) return null;
 
       try {
         const tokens = await api<Tokens>('/auth/refresh', {
           method: 'POST',
-          body: { refresh_token: refreshToken },
+          body: REFRESH_IN_COOKIE ? undefined : { refresh_token: refreshToken },
           auth: false,
+          refreshCookie: REFRESH_IN_COOKIE,
         });
         accessToken = tokens.access_token;
-        if (tokens.refresh_token) await saveRefreshToken(tokens.refresh_token);
+        await saveSession(tokens.refresh_token);
         return accessToken;
       } catch (error) {
         // Only a rejected token ends the session, being offline shouldn't log the user out
         if (error instanceof ApiError && error.status === 401) {
           accessToken = null;
-          await clearRefreshToken();
+          await clearSession();
         }
         return null;
       }
@@ -67,19 +69,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       getAccessToken: () => accessToken,
       refreshAccessToken: async () => {
         const token = await refreshSession();
-        if (!token && !(await loadRefreshToken())) setStatus('signedOut');
+        if (!token && !(await hasSavedSession())) setStatus('signedOut');
         return token;
       },
     });
 
     (async () => {
-      if (!(await loadRefreshToken())) {
+      if (!(await hasSavedSession())) {
         if (!cancelled) setStatus('signedOut');
         return;
       }
       await refreshSession();
       // Still signed in unless the backend rejected the token
-      const stillSignedIn = (await loadRefreshToken()) !== null;
+      const stillSignedIn = await hasSavedSession();
       if (!cancelled) setStatus(stillSignedIn ? 'signedIn' : 'signedOut');
     })();
 
@@ -95,33 +97,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         body: { email, password },
         auth: false,
+        refreshCookie: REFRESH_IN_COOKIE,
       });
       accessToken = tokens.access_token;
-      if (tokens.refresh_token) await saveRefreshToken(tokens.refresh_token);
+      await saveSession(tokens.refresh_token);
       queryClient.clear();
       setStatus('signedIn');
     },
     [queryClient],
   );
 
-  const signUp = useCallback(
-    async (name: string, email: string, password: string) => {
-      await api('/auth/signup', { method: 'POST', body: { name, email, password }, auth: false });
-      await signIn(email, password);
-    },
-    [signIn],
-  );
+  // Signing up doesn't sign in: the account works once the emailed link confirms the address
+  const signUp = useCallback(async (name: string, email: string, password: string) => {
+    await api('/auth/signup', { method: 'POST', body: { name, email, password }, auth: false });
+  }, []);
 
   const signOut = useCallback(async () => {
     const refreshToken = await loadRefreshToken();
     accessToken = null;
-    await clearRefreshToken();
+    await clearSession();
     queryClient.clear();
     setStatus('signedOut');
 
-    if (refreshToken) {
+    if (refreshToken || REFRESH_IN_COOKIE) {
       // Best effort: the local sign out already happened even if this fails
-      api('/auth/logout', { method: 'POST', body: { refresh_token: refreshToken }, auth: false }).catch(() => {});
+      api('/auth/logout', {
+        method: 'POST',
+        body: REFRESH_IN_COOKIE ? undefined : { refresh_token: refreshToken },
+        auth: false,
+        refreshCookie: REFRESH_IN_COOKIE,
+      }).catch(() => {});
     }
   }, [queryClient]);
 

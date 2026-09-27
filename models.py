@@ -32,6 +32,17 @@ class User(Base):
         nullable=True
     )
 
+    # Set once the user clicks the link we emailed; they can't sign in before that
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    # A new address the user asked to switch to, used once they confirm it
+    pending_email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -568,9 +579,16 @@ class TripInvitation(Base):
         primary_key=True
     )
 
-    user_id: Mapped[int] = mapped_column(
+    # Empty until someone with `email` signs up and confirms it
+    user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=True
+    )
+
+    # The address the owner typed, for invites to people who aren't on Triplet yet
+    email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
     )
 
     trip_id: Mapped[int] = mapped_column(
@@ -597,11 +615,12 @@ class TripInvitation(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "trip_id", name="uq_invitation_user_trip"),
+        UniqueConstraint("email", "trip_id", name="uq_invitation_email_trip"),
     )
 
     # The invitee isn't a member yet, so the invitation carries what they need to decide
     trip: Mapped["Trip"] = relationship(foreign_keys=[trip_id])
-    user: Mapped["User"] = relationship(foreign_keys=[user_id])
+    user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
     invited_by: Mapped["User | None"] = relationship(foreign_keys=[invited_by_id])
 
     @property
@@ -621,12 +640,13 @@ class TripInvitation(Base):
         return self.trip.end_date
 
     @property
-    def invitee_name(self) -> str:
-        return self.user.name
+    def invitee_name(self) -> str | None:
+        # Only shown once they've joined, so an invite doesn't reveal whether an email has an account
+        return self.user.name if self.user and self.status == "accepted" else None
 
     @property
     def invitee_email(self) -> str:
-        return self.user.email
+        return self.email or (self.user.email if self.user else "")
 
     @property
     def invited_by_name(self) -> str | None:
@@ -657,6 +677,48 @@ class RefreshToken(Base):
     )
 
     revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+class EmailVerificationToken(Base):
+    """A link we emailed to confirm an address, for signing up or changing email."""
+    __tablename__ = "email_verification_tokens"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # The address this link confirms: the sign-up email, or a new one being switched to
+    email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    # Only a hash is stored so a database leak doesn't leak usable links
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True
     )

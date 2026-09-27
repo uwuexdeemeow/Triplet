@@ -1,14 +1,15 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from config import settings
 from database import connect_db
 from models import User, RefreshToken, PasswordResetToken
-from schemas import UserCreate, UserLogin, UserResponse, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse
+from schemas import UserCreate, UserLogin, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse, VerifyEmailRequest, ResendVerificationRequest
 from security import hash_password, verify_password, create_access_token, generate_token, hash_token
 from validators import password_strength, as_utc
 from dependencies import get_current_user
 from mailer import send_email
+import verification
 import rate_limit
 from rate_limit import client_ip
 
@@ -29,13 +30,52 @@ RESET_WINDOW = timedelta(hours=1)
 TOKEN_IP_LIMIT = 60            # refreshes and reset-link checks
 TOKEN_WINDOW = timedelta(minutes=5)
 
+VERIFY_EMAIL_LIMIT = 3         # confirmation or "you already have an account" emails per address
+VERIFY_WINDOW = timedelta(hours=1)
+
 TOO_MANY_LOGINS = "Too many sign-in attempts. Wait a few minutes and try again."
+# The same answer whether or not the email already has an account, so sign-up can't be used to find accounts
+CHECK_EMAIL = {"detail": "Check your email to finish signing up"}
 
 # A real Argon2 hash to check against when the email has no account, so a wrong email takes
 # as long as a wrong password and response times don't reveal who has an account
 DUMMY_PASSWORD_HASH = hash_password("not-a-real-password-just-for-timing")
 
-def issue_tokens(db: Session, user: User) -> dict:
+# The website keeps its refresh token in this cookie, which page scripts can't read, so a
+# script injected into the site can't steal it. Phones keep theirs in the keychain instead.
+REFRESH_COOKIE = "triplet_refresh"
+
+def wants_cookie(request: Request) -> bool:
+    # Only the website sends this header. A custom header also makes browsers check with the API
+    # first (a CORS preflight), so other sites can't send requests that carry the cookie.
+    return request.headers.get("X-Refresh-Cookie") == "1"
+
+def set_refresh_cookie(response: Response, refresh_token: str):
+    response.set_cookie(
+        REFRESH_COOKIE,
+        refresh_token,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        # Only sent to the endpoints that need it, never with ordinary API calls
+        path="/auth",
+        httponly=True,
+        secure=settings.is_production,
+        samesite="strict",
+    )
+
+def clear_refresh_cookie(response: Response):
+    response.delete_cookie(REFRESH_COOKIE, path="/auth", httponly=True, secure=settings.is_production, samesite="strict")
+
+def presented_refresh_token(request: Request, refresh_request: RefreshRequest | None) -> str | None:
+    if refresh_request is not None and refresh_request.refresh_token:
+        return refresh_request.refresh_token
+    if wants_cookie(request):
+        token = request.cookies.get(REFRESH_COOKIE)
+        # Same length limit as a token sent in the body
+        if token and len(token) <= 256:
+            return token
+    return None
+
+def issue_tokens(db: Session, user: User, request: Request, response: Response) -> dict:
     refresh_token = generate_token()
 
     db.add(RefreshToken(
@@ -44,6 +84,10 @@ def issue_tokens(db: Session, user: User) -> dict:
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     ))
     db.commit()
+
+    if wants_cookie(request):
+        set_refresh_cookie(response, refresh_token)
+        refresh_token = None
 
     return {
         "access_token": create_access_token({"sub": str(user.id)}),
@@ -58,21 +102,17 @@ def revoke_refresh_tokens(db: Session, user_id: int):
         RefreshToken.revoked_at.is_(None)
     ).update({"revoked_at": datetime.now(timezone.utc)})
 
-@router.post("/signup", response_model=UserResponse, status_code=201)
+@router.post("/signup", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
 def signup(
     user: UserCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
     rate_limit.hit(db, f"signup-ip:{client_ip(request)}", SIGNUP_IP_LIMIT, SIGNUP_WINDOW,
                    "Too many new accounts from this network. Try again later.")
 
-    existing_user = db.query(User).filter(User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Invalid credentials"
-        )
+    # Checks that don't depend on whether the email is taken can still say what's wrong
     if not user.name.isalnum():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -87,23 +127,81 @@ def signup(
             detail="Invalid credentials"
         )
 
-    hashed_password = hash_password(user.password)
+    # A few emails an hour to one address at most, so nobody can flood an inbox
+    try:
+        rate_limit.hit(db, f"verify-email:{user.email}", VERIFY_EMAIL_LIMIT, VERIFY_WINDOW, "")
+    except HTTPException:
+        return CHECK_EMAIL
+
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user is not None:
+        if existing_user.email_verified_at is None:
+            # Signed up before but never confirmed: send a fresh link
+            verification.send_verification(db, background_tasks, existing_user, existing_user.email)
+        else:
+            # Tell the real owner rather than the person signing up
+            background_tasks.add_task(
+                send_email,
+                existing_user.email,
+                "You already have a Triplet account",
+                f"Hi {existing_user.name},\n\n"
+                "Someone (hopefully you) tried to sign up to Triplet with this email, "
+                "but you already have an account.\n\n"
+                f"Sign in: {settings.APP_URL}/login\n"
+                f"Forgot your password? {settings.APP_URL}/forgot-password\n\n"
+                "If it wasn't you, you can ignore this email."
+            )
+        return CHECK_EMAIL
+
     new_user = User(
         name=user.name,
         email=user.email,
-        password=hashed_password
+        password=hash_password(user.password)
     )
-
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    return new_user
+    verification.send_verification(db, background_tasks, new_user, new_user.email)
+    return CHECK_EMAIL
+
+@router.post("/verify-email", response_model=MessageResponse)
+def verify_email(
+    verify_request: VerifyEmailRequest,
+    request: Request,
+    db: Session = Depends(connect_db)
+):
+    rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
+                   "Too many requests. Wait a moment and try again.")
+    verification.confirm(db, verify_request.token)
+    return {"detail": "Email confirmed"}
+
+@router.post("/verify-email/resend", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
+def resend_verification(
+    resend_request: ResendVerificationRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(connect_db)
+):
+    response = {"detail": "If that email needs confirming, a new link is on its way"}
+
+    rate_limit.hit(db, f"reset-ip:{client_ip(request)}", RESET_IP_LIMIT, RESET_WINDOW,
+                   "Too many requests. Try again later.")
+    try:
+        rate_limit.hit(db, f"verify-email:{resend_request.email}", VERIFY_EMAIL_LIMIT, VERIFY_WINDOW, "")
+    except HTTPException:
+        return response
+
+    user = db.query(User).filter(User.email == resend_request.email).first()
+    if user is not None and user.email_verified_at is None:
+        verification.send_verification(db, background_tasks, user, user.email)
+    return response
 
 @router.post("/login", response_model=Token)
 def login(
     user: UserLogin,
     request: Request,
+    response: Response,
     db: Session = Depends(connect_db)
 ):
     email_key = f"login-email:{user.email}"
@@ -124,20 +222,30 @@ def login(
         )
 
     rate_limit.clear(db, email_key)
-    return issue_tokens(db, user_detail)
+
+    # Only said after the right password, so it reveals nothing to someone guessing
+    if user_detail.email_verified_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Confirm your email first: open the link we sent you, or ask for a new one"
+        )
+
+    return issue_tokens(db, user_detail, request, response)
 
 @router.post("/refresh", response_model=Token)
 def refresh(
-    refresh_request: RefreshRequest,
     request: Request,
+    response: Response,
+    refresh_request: RefreshRequest | None = None,
     db: Session = Depends(connect_db)
 ):
     rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
                    "Too many requests. Wait a moment and try again.")
 
-    stored_token = db.query(RefreshToken).filter(
-        RefreshToken.token_hash == hash_token(refresh_request.refresh_token)
-    ).first()
+    presented = presented_refresh_token(request, refresh_request)
+    stored_token = None
+    if presented is not None:
+        stored_token = db.query(RefreshToken).filter(RefreshToken.token_hash == hash_token(presented)).first()
 
     if stored_token is None:
         raise HTTPException(
@@ -176,19 +284,25 @@ def refresh(
 
     user = db.query(User).filter(User.id == stored_token.user_id).first()
 
-    return issue_tokens(db, user)
+    return issue_tokens(db, user, request, response)
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
-    refresh_request: RefreshRequest,
+    request: Request,
+    response: Response,
+    refresh_request: RefreshRequest | None = None,
     db: Session = Depends(connect_db)
 ):
     # Always succeeds so clients can safely call it with an old token
-    db.query(RefreshToken).filter(
-        RefreshToken.token_hash == hash_token(refresh_request.refresh_token),
-        RefreshToken.revoked_at.is_(None)
-    ).update({"revoked_at": datetime.now(timezone.utc)})
-    db.commit()
+    presented = presented_refresh_token(request, refresh_request)
+    if presented is not None:
+        db.query(RefreshToken).filter(
+            RefreshToken.token_hash == hash_token(presented),
+            RefreshToken.revoked_at.is_(None)
+        ).update({"revoked_at": datetime.now(timezone.utc)})
+        db.commit()
+    if wants_cookie(request):
+        clear_refresh_cookie(response)
 
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
 def logout_all(
@@ -284,6 +398,8 @@ def confirm_password_reset(
 
     user.password = hash_password(reset_confirm.new_password)
     reset_token.used_at = datetime.now(timezone.utc)
+    # Opening the emailed link proves they own the inbox, which is all confirming would do
+    verification.mark_verified(db, user)
     revoke_refresh_tokens(db, user.id)
     db.commit()
 

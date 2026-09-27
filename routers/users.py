@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
-from models import User
+from models import TripMembership, User
 from schemas import AccountDelete, UserResponse, UserPublic, UserUpdate
 from security import hash_password, verify_password
 from validators import password_strength
 from dependencies import get_current_user, Pagination
 from routers.auth import revoke_refresh_tokens
+import verification
 
 router = APIRouter(
     prefix="/users",
@@ -23,6 +24,7 @@ def get_me(
 @router.patch("/me", response_model=UserResponse)
 def update_profile(
     user_update: UserUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(connect_db)
 ):
@@ -40,20 +42,19 @@ def update_profile(
             detail="Enter your current password to change your email or password"
         )
 
-    # name, email and password are NOT NULL, so an explicit null means "leave unchanged"
-    if update_data.get("email") is not None:
-        existing_user = db.query(User).filter(
+    # name, email and password are NOT NULL, so an explicit null means "leave unchanged".
+    # A new email only takes effect once it's confirmed from its own inbox, so nobody can
+    # claim an address they don't own. If another account already uses it, the answer looks
+    # the same (no link is sent), so this can't be used to find out who has an account.
+    new_email = None
+    if changing_email:
+        taken = db.query(User).filter(
             func.lower(User.email) == update_data["email"].lower(),
             User.id != current_user.id
         ).first()
-
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email is already in use"
-            )
-
-        current_user.email = update_data["email"]
+        current_user.pending_email = update_data["email"]
+        if taken is None:
+            new_email = update_data["email"]
 
     if update_data.get("name") is not None:
         if not update_data["name"].isalnum():
@@ -91,8 +92,11 @@ def update_profile(
         revoke_refresh_tokens(db, current_user.id)
 
     db.commit()
-    db.refresh(current_user)
 
+    if new_email is not None:
+        verification.send_verification(db, background_tasks, current_user, new_email, changing=True)
+
+    db.refresh(current_user)
     return current_user
 
 @router.delete("/me", status_code=204)
@@ -120,12 +124,17 @@ def search_users(
 ):
     query = q.strip().lower()
 
-    # Emails must match exactly so the endpoint can't be used to list everyone's address
+    # Only people you already share a trip with, found by name, so this can't be used to list
+    # everyone on Triplet or to check whether an email has an account
+    my_trips = db.query(TripMembership.trip_id).filter(TripMembership.user_id == current_user.id)
+    co_travellers = db.query(TripMembership.user_id).filter(TripMembership.trip_id.in_(my_trips))
+
     users = (
         db.query(User)
         .filter(
             User.id != current_user.id,
-            (func.lower(User.name).startswith(query, autoescape=True)) | (func.lower(User.email) == query)
+            User.id.in_(co_travellers),
+            func.lower(User.name).startswith(query, autoescape=True)
         )
         .order_by(User.name, User.id)
         .limit(pagination.limit)

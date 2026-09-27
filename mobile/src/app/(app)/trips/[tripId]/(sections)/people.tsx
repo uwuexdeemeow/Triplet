@@ -121,15 +121,13 @@ function InviteForm({ tripId }: { tripId: number }) {
     },
     onError: (err) =>
       setError(
-        err instanceof ApiError && err.status === 404
-          ? 'Nobody on Triplet uses that email. Ask them to sign up, then invite them.'
-          : err instanceof ApiError && err.status === 400
-            ? 'That’s your own email.'
-            : err instanceof ApiError && err.status === 409
-              ? err.message.includes('member')
-                ? 'They’re already on this trip.'
-                : 'They’ve already been invited.'
-              : err.message,
+        err instanceof ApiError && err.status === 400
+          ? 'That’s your own email.'
+          : err instanceof ApiError && err.status === 409
+            ? err.message.includes('member')
+              ? 'They’re already on this trip.'
+              : 'They’ve already been invited.'
+            : err.message,
       ),
   });
 
@@ -165,7 +163,12 @@ function InviteForm({ tripId }: { tripId: number }) {
         <Button label="Invite" loading={invite.isPending} onPress={submit} style={styles.inviteButton} />
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {sentTo ? <FormMessage tone="success" message={`Invite sent to ${sentTo}. It shows in their Invites tab.`} /> : null}
+      {sentTo ? (
+        <FormMessage
+          tone="success"
+          message={`Invite sent to ${sentTo}. They'll get an email; if they're new to Triplet, it asks them to sign up first.`}
+        />
+      ) : null}
     </View>
   );
 }
@@ -328,17 +331,18 @@ function PendingRow({
   return (
     <View style={[styles.row, !first && styles.rowDivider]}>
       <View style={styles.rowMain}>
-        <Avatar name={invitation.invitee_name} faded />
+        {/* Names only show once someone joins, so a pending invite is just the address */}
+        <Avatar name={invitation.invitee_email} faded />
         <View style={styles.rowText}>
           <Text style={styles.rowName} numberOfLines={1}>
-            {invitation.invitee_name}
+            {invitation.invitee_email}
           </Text>
-          <Muted numberOfLines={1}>{invitation.invitee_email}</Muted>
+          <Muted numberOfLines={1}>Invited · waiting to join</Muted>
         </View>
         {canCancel ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Cancel the invite to ${invitation.invitee_name}`}
+            accessibilityLabel={`Cancel the invite to ${invitation.invitee_email}`}
             disabled={cancel.isPending}
             onPress={() => cancel.mutate()}
             style={styles.textButton}>

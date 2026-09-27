@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Email */
+        post: operations["verify_email_auth_verify_email_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verify-email/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resend Verification */
+        post: operations["resend_verification_auth_verify_email_resend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -697,6 +731,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountDelete */
+        AccountDelete: {
+            /** Password */
+            password: string;
+        };
         /** ActivityCreate */
         ActivityCreate: {
             /** Title */
@@ -940,7 +979,7 @@ export interface components {
             /** Trip Id */
             trip_id: number;
             /** User Id */
-            user_id: number;
+            user_id?: number | null;
             /** Invited By Id */
             invited_by_id?: number | null;
             /** Status */
@@ -959,7 +998,7 @@ export interface components {
             /** Trip End Date */
             trip_end_date?: string | null;
             /** Invitee Name */
-            invitee_name: string;
+            invitee_name?: string | null;
             /**
              * Invitee Email
              * Format: email
@@ -1150,7 +1189,15 @@ export interface components {
         /** RefreshRequest */
         RefreshRequest: {
             /** Refresh Token */
-            refresh_token: string;
+            refresh_token?: string | null;
+        };
+        /** ResendVerificationRequest */
+        ResendVerificationRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
         };
         /** SavedLinkCreate */
         SavedLinkCreate: {
@@ -1433,6 +1480,8 @@ export interface components {
             email: string;
             /** Avatar Url */
             avatar_url?: string | null;
+            /** Pending Email */
+            pending_email?: string | null;
         };
         /** UserUpdate */
         UserUpdate: {
@@ -1444,6 +1493,8 @@ export interface components {
             password?: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
+            /** Current Password */
+            current_password?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -1457,6 +1508,11 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VerifyEmailRequest */
+        VerifyEmailRequest: {
+            /** Token */
+            token: string;
         };
     };
     responses: never;
@@ -1481,12 +1537,78 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserResponse"];
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_auth_verify_email_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_verification_auth_verify_email_resend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1540,9 +1662,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RefreshRequest"];
+                "application/json": components["schemas"]["RefreshRequest"] | null;
             };
         };
         responses: {
@@ -1573,9 +1695,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RefreshRequest"];
+                "application/json": components["schemas"]["RefreshRequest"] | null;
             };
         };
         responses: {
@@ -1708,7 +1830,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDelete"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -1716,6 +1842,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
