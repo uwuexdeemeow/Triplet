@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.0",
     "@types/zxcvbn": "^4.4.5",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",

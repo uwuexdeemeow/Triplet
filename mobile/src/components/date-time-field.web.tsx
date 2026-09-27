@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
@@ -27,12 +28,15 @@ const WEEKDAY_HEADERS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 function usePopover() {
   const [open, setOpen] = useState(false);
   const container = useRef<View>(null);
+  const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const element = container.current as unknown as HTMLElement | null;
     const onPointerDown = (event: PointerEvent) => {
-      if (element && !element.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      // The panel lives outside the field (see FloatingPanel), so check both
+      if (element && !element.contains(target) && !panel.current?.contains(target)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -45,7 +49,59 @@ function usePopover() {
     };
   }, [open]);
 
-  return { open, setOpen, container };
+  return { open, setOpen, container, panel };
+}
+
+/**
+ * The dropdown, drawn on top of the whole page. On the web every React Native view is its own
+ * layer, so a dropdown inside the form would sit under whatever comes after the field. This
+ * one is attached to the page and placed under the field, or above it when there's no room.
+ */
+function FloatingPanel({
+  anchor,
+  panel,
+  children,
+}: {
+  anchor: React.RefObject<View | null>;
+  panel: React.RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  useLayoutEffect(() => {
+    const field = anchor.current as unknown as HTMLElement | null;
+    const element = panel.current;
+    if (!field || !element) return;
+
+    const GAP = 4;
+    const EDGE = 8;
+    const place = () => {
+      const box = field.getBoundingClientRect();
+      const height = element.offsetHeight;
+      const width = Math.max(element.offsetWidth, box.width);
+      const roomBelow = window.innerHeight - box.bottom - GAP;
+      const above = roomBelow < height && box.top - GAP >= height;
+      element.style.setProperty('min-width', `${box.width}px`);
+      element.style.setProperty('top', `${above ? box.top - GAP - height : box.bottom + GAP}px`);
+      element.style.setProperty('left', `${Math.max(EDGE, Math.min(box.left, window.innerWidth - width - EDGE))}px`);
+      element.style.setProperty('visibility', 'visible');
+    };
+
+    place();
+    // Follow the field when the page or a scrolling form moves
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [anchor, panel]);
+
+  return createPortal(
+    // Hidden until placed, so it never flashes in the wrong spot
+    <div ref={panel} style={{ position: 'fixed', top: 0, left: 0, zIndex: 1000, visibility: 'hidden' }}>
+      {children}
+    </div>,
+    document.body,
+  );
 }
 
 function Field({
@@ -54,6 +110,7 @@ function Field({
   error,
   open,
   container,
+  panelRef,
   children,
   panel,
 }: {
@@ -62,18 +119,24 @@ function Field({
   error?: string;
   open: boolean;
   container: React.RefObject<View | null>;
+  panelRef: React.RefObject<HTMLDivElement | null>;
   children: ReactNode;
   panel: ReactNode;
 }) {
   const styles = useStyles();
+  const input = useRef<View>(null);
+
   return (
-    // Raised while open, so the panel floats over the fields below
-    <View ref={container} style={[styles.field, open && styles.fieldOpen]}>
+    <View ref={container} style={styles.field}>
       <Text nativeID={labelId} style={styles.label}>
         {label}
       </Text>
-      {children}
-      {open ? <View style={styles.panel}>{panel}</View> : null}
+      <View ref={input}>{children}</View>
+      {open ? (
+        <FloatingPanel anchor={input} panel={panelRef}>
+          <View style={styles.panel}>{panel}</View>
+        </FloatingPanel>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
@@ -103,7 +166,7 @@ export function DateField({ label, value, onChange, error, minimumDate }: FieldP
   const styles = useStyles();
   const { colors } = useTheme();
   const labelId = useId();
-  const { open, setOpen, container } = usePopover();
+  const { open, setOpen, container, panel: panelRef } = usePopover();
   const selected = value ? parseDate(value) : new Date();
   const [shown, setShown] = useState({ year: selected.getFullYear(), month: selected.getMonth() });
   const today = todayString();
@@ -131,6 +194,7 @@ export function DateField({ label, value, onChange, error, minimumDate }: FieldP
       error={error}
       open={open}
       container={container}
+      panelRef={panelRef}
       panel={
         <View style={styles.calendar}>
           <View style={styles.calendarHeader}>
@@ -240,7 +304,7 @@ export function TimeField({ label, value, onChange, error }: Omit<FieldProps, 'm
   const styles = useStyles();
   const { colors } = useTheme();
   const labelId = useId();
-  const { open, setOpen, container } = usePopover();
+  const { open, setOpen, container, panel: panelRef } = usePopover();
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
   const list = useRef<ScrollView>(null);
@@ -274,6 +338,7 @@ export function TimeField({ label, value, onChange, error }: Omit<FieldProps, 'm
       error={shownError}
       open={open}
       container={container}
+      panelRef={panelRef}
       panel={
         <ScrollView ref={list} style={styles.slots} keyboardShouldPersistTaps="handled">
           {SLOTS.map((slot) => {
@@ -333,9 +398,6 @@ const useStyles = makeStyles((colors) => ({
     flex: 1,
     gap: 6,
   },
-  fieldOpen: {
-    zIndex: 20,
-  },
   label: {
     fontFamily: fonts.semibold,
     fontSize: 14,
@@ -378,13 +440,10 @@ const useStyles = makeStyles((colors) => ({
     justifyContent: 'center',
   },
   panel: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    marginTop: 4,
-    minWidth: '100%',
     padding: spacing.sm,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
     backgroundColor: colors.surface,
     boxShadow: `0 10px 30px ${shadow(colors, 0.16)}`,
   },
