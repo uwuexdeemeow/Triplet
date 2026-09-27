@@ -2945,6 +2945,116 @@
     }
    }
   },
+  "/trips/{trip_id}/plan-draft": {
+   "post": {
+    "tags": [
+     "Plan draft"
+    ],
+    "summary": "Draft Plan",
+    "description": "Suggest where every saved place could go, merging places several people saved.\nNothing changes until the draft is applied.",
+    "operationId": "draft_plan_trips__trip_id__plan_draft_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanDraftResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/plan-draft/apply": {
+   "post": {
+    "tags": [
+     "Plan draft"
+    ],
+    "summary": "Apply Draft",
+    "description": "Add the draft items the user kept to the plan, all at once.",
+    "operationId": "apply_draft_trips__trip_id__plan_draft_apply_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlanDraftApply"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ActivityResponse"
+         },
+         "title": "Response Apply Draft Trips  Trip Id  Plan Draft Apply Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/guest/access": {
    "post": {
     "tags": [
@@ -4929,6 +5039,152 @@
     },
     "type": "object",
     "title": "PlaceUpdate"
+   },
+   "PlanDraftApply": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PlanDraftApplyItem"
+      },
+      "type": "array",
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Items"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "PlanDraftApply"
+   },
+   "PlanDraftApplyItem": {
+    "properties": {
+     "place_id": {
+      "type": "integer",
+      "title": "Place Id"
+     },
+     "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+     },
+     "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "start_time",
+     "end_time"
+    ],
+    "title": "PlanDraftApplyItem"
+   },
+   "PlanDraftItem": {
+    "properties": {
+     "place_id": {
+      "type": "integer",
+      "title": "Place Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+     },
+     "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+     },
+     "saved_by": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Saved By"
+     },
+     "merged_place_ids": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Merged Place Ids"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "name",
+     "start_time",
+     "end_time",
+     "saved_by",
+     "merged_place_ids",
+     "reason"
+    ],
+    "title": "PlanDraftItem"
+   },
+   "PlanDraftResponse": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PlanDraftItem"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "skipped": {
+      "items": {
+       "$ref": "#/components/schemas/PlanDraftSkipped"
+      },
+      "type": "array",
+      "title": "Skipped"
+     },
+     "merged_count": {
+      "type": "integer",
+      "title": "Merged Count"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "skipped",
+     "merged_count"
+    ],
+    "title": "PlanDraftResponse"
+   },
+   "PlanDraftSkipped": {
+    "properties": {
+     "place_id": {
+      "type": "integer",
+      "title": "Place Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "name",
+     "reason"
+    ],
+    "title": "PlanDraftSkipped"
    },
    "RefreshRequest": {
     "properties": {

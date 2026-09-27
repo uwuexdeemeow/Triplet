@@ -644,6 +644,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/plan-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft Plan
+         * @description Suggest where every saved place could go, merging places several people saved.
+         *     Nothing changes until the draft is applied.
+         */
+        post: operations["draft_plan_trips__trip_id__plan_draft_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/plan-draft/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Draft
+         * @description Add the draft items the user kept to the plan, all at once.
+         */
+        post: operations["apply_draft_trips__trip_id__plan_draft_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guest/access": {
         parameters: {
             query?: never;
@@ -1226,6 +1267,67 @@ export interface components {
             phone?: string | null;
             /** Google Place Id */
             google_place_id?: string | null;
+        };
+        /** PlanDraftApply */
+        PlanDraftApply: {
+            /** Items */
+            items: components["schemas"]["PlanDraftApplyItem"][];
+        };
+        /** PlanDraftApplyItem */
+        PlanDraftApplyItem: {
+            /** Place Id */
+            place_id: number;
+            /**
+             * Start Time
+             * Format: date-time
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: date-time
+             */
+            end_time: string;
+        };
+        /** PlanDraftItem */
+        PlanDraftItem: {
+            /** Place Id */
+            place_id: number;
+            /** Name */
+            name: string;
+            /**
+             * Start Time
+             * Format: date-time
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: date-time
+             */
+            end_time: string;
+            /** Saved By */
+            saved_by: string[];
+            /** Merged Place Ids */
+            merged_place_ids: number[];
+            /** Reason */
+            reason: string;
+        };
+        /** PlanDraftResponse */
+        PlanDraftResponse: {
+            /** Items */
+            items: components["schemas"]["PlanDraftItem"][];
+            /** Skipped */
+            skipped: components["schemas"]["PlanDraftSkipped"][];
+            /** Merged Count */
+            merged_count: number;
+        };
+        /** PlanDraftSkipped */
+        PlanDraftSkipped: {
+            /** Place Id */
+            place_id: number;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -3327,6 +3429,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_plan_trips__trip_id__plan_draft_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDraftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_draft_trips__trip_id__plan_draft_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanDraftApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityResponse"][];
                 };
             };
             /** @description Validation Error */
