@@ -1,10 +1,15 @@
 from collections import defaultdict
+from datetime import timedelta
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import budget_estimate
+import exchange_rates
+import scheduling
 from database import connect_db
-from models import User, Trip, TripMembership, Activity, Expense
-from schemas import ExpenseCreate, ExpenseUpdate, ExpenseResponse, BudgetSummary, MemberBalance
+from models import User, Trip, TripMembership, Activity, Expense, ExtractedPlace
+from routers.activities import build_itinerary
+from schemas import ExpenseCreate, ExpenseUpdate, ExpenseResponse, BudgetSummary, MemberBalance, BudgetEstimate, BudgetEstimateDay
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
@@ -218,4 +223,116 @@ def get_budget(
         planned_activity_cost=float(planned_activity_cost),
         by_category={category: float(amount) for category, amount in by_category.items()},
         balances=balances
+    )
+
+@router.get("/budget/estimate", response_model=BudgetEstimate)
+def get_budget_estimate(
+    trip_id: int,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    currency = trip.currency
+    people = max(1, db.query(TripMembership).filter(TripMembership.trip_id == trip_id).count())
+    rates = exchange_rates.usd_rates()
+    notes = ["Rough figures for the whole group, from typical prices. Hotels and flights aren’t included."]
+
+    def from_usd(amount: float) -> float | None:
+        return exchange_rates.convert(amount, "USD", currency, rates)
+
+    typical_prices = from_usd(1) is not None
+    if not typical_prices:
+        notes.append(f"Typical prices aren’t available in {currency} right now, so only costs you’ve entered are counted.")
+
+    activities = (
+        db.query(Activity)
+        .filter(Activity.trip_id == trip_id)
+        .order_by(Activity.start_time, Activity.id)
+        .all()
+    )
+    itinerary = build_itinerary(db, trip_id, activities, include_weather=False)
+    place_ids = {a.place_id for a in activities if a.place_id is not None}
+    places = {p.id: p for p in db.query(ExtractedPlace).filter(ExtractedPlace.id.in_(place_ids)).all()} if place_ids else {}
+
+    paid = defaultdict(Decimal)
+    for expense in db.query(Expense).filter(Expense.trip_id == trip_id, Expense.activity_id.isnot(None)).all():
+        paid[expense.activity_id] += expense.amount
+
+    def plan_cost(activity) -> float | None:
+        # What was paid beats what was typed, which beats our guess
+        if activity.id in paid:
+            return float(paid[activity.id])
+        if activity.estimated_cost is not None:
+            return float(activity.estimated_cost)
+        place = places.get(activity.place_id)
+        if place is None:
+            return None
+        price = budget_estimate.parse_price(place.price_range, currency)
+        if price is not None and price[0] == "amount":
+            converted = exchange_rates.convert(price[1], price[2], currency, rates)
+            if converted is not None:
+                return converted * people
+        typical = budget_estimate.CATEGORY_USD.get(place.category or "other")
+        if typical is None or not typical_prices:
+            return None
+        level = price[1] if price is not None and price[0] == "level" else 1.0
+        return from_usd(typical * level) * people
+
+    planned_by_day = {day.date: day.activities for day in itinerary.days}
+    days = []
+    unpriced = 0
+    trip_days = (trip.end_date - trip.start_date).days + 1 if trip.start_date and trip.end_date else 0
+    for offset in range(trip_days):
+        day = trip.start_date + timedelta(days=offset)
+        day_activities = planned_by_day.get(day, [])
+
+        plans = 0.0
+        for activity in day_activities:
+            cost = plan_cost(activity)
+            if cost is None:
+                unpriced += 1
+            else:
+                plans += cost
+
+        meals = transport = 0.0
+        if typical_prices:
+            covered = budget_estimate.meals_covered([
+                (places[a.place_id].category if a.place_id in places else None, scheduling.minutes_of(a.start_time))
+                for a in day_activities
+            ])
+            meals = sum(
+                from_usd(usd) * people for meal, usd in budget_estimate.MEAL_USD.items() if meal not in covered
+            )
+            rides = sum(
+                1 for a in day_activities if a.travel_from_previous and a.travel_from_previous.mode == "transit"
+            )
+            transport = from_usd(budget_estimate.TRANSIT_RIDE_USD) * people * rides
+
+        days.append(BudgetEstimateDay(
+            date=day,
+            plans=round(plans, 2),
+            meals=round(meals, 2),
+            transport=round(transport, 2),
+            total=round(plans + meals + transport, 2)
+        ))
+
+    if unpriced:
+        notes.append(
+            f"{unpriced} {'plan has' if unpriced == 1 else 'plans have'} no cost yet. Add one to make the estimate closer."
+        )
+
+    total = sum(day.total for day in days)
+    budget = float(trip.budget) if trip.budget is not None else None
+    return BudgetEstimate(
+        currency=currency,
+        people=people,
+        days=days,
+        plans_total=round(sum(day.plans for day in days), 2),
+        meals_total=round(sum(day.meals for day in days), 2),
+        transport_total=round(sum(day.transport for day in days), 2),
+        total=round(total, 2),
+        budget=budget,
+        over_budget_by=round(total - budget, 2) if budget is not None else None,
+        unpriced_plans=unpriced,
+        notes=notes
     )

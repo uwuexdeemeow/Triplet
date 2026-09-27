@@ -464,6 +464,29 @@ class MemberBalance(BaseModel):
     share: float
     balance: float
 
+class BudgetEstimateDay(BaseModel):
+    date: date
+    plans: float
+    meals: float
+    transport: float
+    total: float
+
+class BudgetEstimate(BaseModel):
+    """Roughly what the whole trip will cost the group, day by day."""
+    currency: str
+    people: int
+    days: list[BudgetEstimateDay]
+    plans_total: float
+    meals_total: float
+    transport_total: float
+    total: float
+    budget: float | None = None
+    # Positive when the estimate is over the budget
+    over_budget_by: float | None = None
+    # Plans with no cost and no way to guess one
+    unpriced_plans: int
+    notes: list[str]
+
 class BudgetSummary(BaseModel):
     trip_id: int
     currency: str

@@ -2945,6 +2945,53 @@
     }
    }
   },
+  "/trips/{trip_id}/budget/estimate": {
+   "get": {
+    "tags": [
+     "Budget"
+    ],
+    "summary": "Get Budget Estimate",
+    "operationId": "get_budget_estimate_trips__trip_id__budget_estimate_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BudgetEstimate"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/plan-draft": {
    "post": {
     "tags": [
@@ -3658,6 +3705,122 @@
      "file"
     ],
     "title": "Body_upload_avatar_users_me_avatar_put"
+   },
+   "BudgetEstimate": {
+    "properties": {
+     "currency": {
+      "type": "string",
+      "title": "Currency"
+     },
+     "people": {
+      "type": "integer",
+      "title": "People"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/BudgetEstimateDay"
+      },
+      "type": "array",
+      "title": "Days"
+     },
+     "plans_total": {
+      "type": "number",
+      "title": "Plans Total"
+     },
+     "meals_total": {
+      "type": "number",
+      "title": "Meals Total"
+     },
+     "transport_total": {
+      "type": "number",
+      "title": "Transport Total"
+     },
+     "total": {
+      "type": "number",
+      "title": "Total"
+     },
+     "budget": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Budget"
+     },
+     "over_budget_by": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Over Budget By"
+     },
+     "unpriced_plans": {
+      "type": "integer",
+      "title": "Unpriced Plans"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Notes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "currency",
+     "people",
+     "days",
+     "plans_total",
+     "meals_total",
+     "transport_total",
+     "total",
+     "unpriced_plans",
+     "notes"
+    ],
+    "title": "BudgetEstimate",
+    "description": "Roughly what the whole trip will cost the group, day by day."
+   },
+   "BudgetEstimateDay": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date"
+     },
+     "plans": {
+      "type": "number",
+      "title": "Plans"
+     },
+     "meals": {
+      "type": "number",
+      "title": "Meals"
+     },
+     "transport": {
+      "type": "number",
+      "title": "Transport"
+     },
+     "total": {
+      "type": "number",
+      "title": "Total"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "plans",
+     "meals",
+     "transport",
+     "total"
+    ],
+    "title": "BudgetEstimateDay"
    },
    "BudgetSummary": {
     "properties": {

@@ -192,7 +192,7 @@ def hours_warning(activity: ActivityResponse, place: ExtractedPlace | None) -> S
         return None
     return ScheduleWarning(kind="outside_hours", message=f"Open {scheduling.format_ranges(ranges)} that day")
 
-def build_itinerary(db: Session, trip_id: int, activities: list[Activity]) -> ItineraryResponse:
+def build_itinerary(db: Session, trip_id: int, activities: list[Activity], include_weather: bool = True) -> ItineraryResponse:
     days = defaultdict(list)
     conflict_count = 0
 
@@ -245,7 +245,7 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity]) -> It
          if (point := coordinates(activity, places.get(activity.place_id))) is not None),
         None
     )
-    forecasts = weather.forecast(*trip_point, list(days)) if trip_point else {}
+    forecasts = weather.forecast(*trip_point, list(days)) if trip_point and include_weather else {}
 
     return ItineraryResponse(
         trip_id=trip_id,

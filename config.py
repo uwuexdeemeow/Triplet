@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     # Daily forecasts on the plan, from Open-Meteo (free, no key)
     WEATHER_ENABLED: bool = True
+    # Budget estimates convert their typical prices with Frankfurter's rates (free, no key)
+    EXCHANGE_RATES_ENABLED: bool = True
 
     # Where place addresses, pins and opening hours come from:
     # "auto" uses Google when GOOGLE_PLACES_API_KEY is set, otherwise OpenStreetMap.

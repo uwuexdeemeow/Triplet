@@ -644,6 +644,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/budget/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Budget Estimate */
+        get: operations["get_budget_estimate_trips__trip_id__budget_estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/plan-draft": {
         parameters: {
             query?: never;
@@ -878,6 +895,50 @@ export interface components {
         Body_upload_avatar_users_me_avatar_put: {
             /** File */
             file: string;
+        };
+        /**
+         * BudgetEstimate
+         * @description Roughly what the whole trip will cost the group, day by day.
+         */
+        BudgetEstimate: {
+            /** Currency */
+            currency: string;
+            /** People */
+            people: number;
+            /** Days */
+            days: components["schemas"]["BudgetEstimateDay"][];
+            /** Plans Total */
+            plans_total: number;
+            /** Meals Total */
+            meals_total: number;
+            /** Transport Total */
+            transport_total: number;
+            /** Total */
+            total: number;
+            /** Budget */
+            budget?: number | null;
+            /** Over Budget By */
+            over_budget_by?: number | null;
+            /** Unpriced Plans */
+            unpriced_plans: number;
+            /** Notes */
+            notes: string[];
+        };
+        /** BudgetEstimateDay */
+        BudgetEstimateDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Plans */
+            plans: number;
+            /** Meals */
+            meals: number;
+            /** Transport */
+            transport: number;
+            /** Total */
+            total: number;
         };
         /** BudgetSummary */
         BudgetSummary: {
@@ -3429,6 +3490,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_budget_estimate_trips__trip_id__budget_estimate_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetEstimate"];
                 };
             };
             /** @description Validation Error */

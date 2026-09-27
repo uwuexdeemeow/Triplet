@@ -19,6 +19,7 @@ export type Invitation = Schemas['InvitationResponse'];
 export type User = Schemas['UserResponse'];
 export type Expense = Schemas['ExpenseResponse'];
 export type BudgetSummary = Schemas['BudgetSummary'];
+export type BudgetEstimate = Schemas['BudgetEstimate'];
 
 // One place for query keys, so screens invalidate the same caches they read
 export const tripKeys = {
@@ -117,6 +118,14 @@ export function useExpenses(tripId: number) {
   return useQuery({
     queryKey: tripKeys.expenses(tripId),
     queryFn: () => api<Expense[]>(`/trips/${tripId}/expenses`, { query: { limit: 100 } }),
+  });
+}
+
+// Rough cost of the whole trip, day by day. Under the budget key, so anything that refreshes the budget refreshes this.
+export function useBudgetEstimate(tripId: number) {
+  return useQuery({
+    queryKey: [...tripKeys.budget(tripId), 'estimate'],
+    queryFn: () => api<BudgetEstimate>(`/trips/${tripId}/budget/estimate`),
   });
 }
 
