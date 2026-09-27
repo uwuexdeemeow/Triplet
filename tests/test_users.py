@@ -1,5 +1,7 @@
 import pytest
 
+from tests.conftest import PASSWORD
+
 def test_update_name_and_avatar(client, alice):
     response = client.patch("/users/me", headers=alice["headers"], json={
         "name": "alicia",
@@ -76,7 +78,8 @@ def test_avatar_must_be_an_image(client, alice):
     assert response.status_code == 422
 
 def test_avatar_size_is_capped(client, alice):
-    big = PNG + b"\x00" * (2 * 1024 * 1024)
+    # Over the photo limit but under the API's 1 MB request limit, so the photo check answers
+    big = PNG + b"\x00" * (950 * 1024)
     response = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("big.png", big, "image/png")})
 
     assert response.status_code == 413
@@ -99,7 +102,7 @@ def test_members_include_avatars(client, alice, trip):
     assert trips[0]["members"][0]["avatar_url"] == members[0]["avatar_url"]
 
 def test_cannot_take_another_users_email(client, alice, bob):
-    response = client.patch("/users/me", headers=alice["headers"], json={"email": "BOB@example.com"})
+    response = client.patch("/users/me", headers=alice["headers"], json={"email": "BOB@example.com", "current_password": PASSWORD})
 
     assert response.status_code == 409
     assert client.get("/users/me", headers=alice["headers"]).json()["email"] == alice["email"]
@@ -143,3 +146,26 @@ def test_search_treats_wildcards_literally(client, alice, bob):
 
 def test_search_needs_at_least_two_characters(client, alice):
     assert client.get("/users/search", headers=alice["headers"], params={"q": "b"}).status_code == 422
+
+def test_changing_email_needs_current_password(client, alice):
+    url, headers = "/users/me", alice["headers"]
+
+    assert client.patch(url, headers=headers, json={"email": "new@example.com"}).status_code == 403
+    assert client.patch(url, headers=headers, json={"email": "new@example.com", "current_password": "wrong"}).status_code == 403
+    assert client.get(url, headers=headers).json()["email"] == alice["email"]
+
+    response = client.patch(url, headers=headers, json={"email": "new@example.com", "current_password": PASSWORD})
+    assert response.status_code == 200
+    assert response.json()["email"] == "new@example.com"
+
+def test_changing_password_needs_current_password(client, alice):
+    response = client.patch("/users/me", headers=alice["headers"], json={"password": "a brand new long passphrase 42"})
+
+    assert response.status_code == 403
+
+def test_deleting_account_needs_password(client, alice):
+    assert client.request("DELETE", "/users/me", headers=alice["headers"], json={"password": "wrong"}).status_code == 403
+    assert client.get("/users/me", headers=alice["headers"]).status_code == 200
+
+    assert client.request("DELETE", "/users/me", headers=alice["headers"], json={"password": PASSWORD}).status_code == 204
+    assert client.get("/users/me", headers=alice["headers"]).status_code == 401

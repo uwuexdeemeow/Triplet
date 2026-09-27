@@ -810,6 +810,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountDelete */
+        AccountDelete: {
+            /** Password */
+            password: string;
+        };
         /** ActivityCreate */
         ActivityCreate: {
             /** Title */
@@ -1731,6 +1736,8 @@ export interface components {
             password?: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
+            /** Current Password */
+            current_password?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -1995,7 +2002,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDelete"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -2003,6 +2014,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

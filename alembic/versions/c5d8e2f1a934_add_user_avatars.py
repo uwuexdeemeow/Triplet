@@ -1,7 +1,7 @@
 """add user avatars
 
 Revision ID: c5d8e2f1a934
-Revises: a7c3e91f2d10
+Revises: b5e2d8f41c07
 Create Date: 2026-09-27 21:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'c5d8e2f1a934'
-down_revision: Union[str, Sequence[str], None] = 'a7c3e91f2d10'
+down_revision: Union[str, Sequence[str], None] = 'b5e2d8f41c07'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

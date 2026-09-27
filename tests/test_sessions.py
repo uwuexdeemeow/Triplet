@@ -70,7 +70,7 @@ def test_logout_all(client, alice):
 def test_password_change_signs_out_other_devices(client, alice):
     other_device = login(client, alice["email"]).json()["refresh_token"]
 
-    response = client.patch("/users/me", headers=alice["headers"], json={"password": NEW_PASSWORD})
+    response = client.patch("/users/me", headers=alice["headers"], json={"password": NEW_PASSWORD, "current_password": PASSWORD})
 
     assert response.status_code == 200
     assert client.post("/auth/refresh", json={"refresh_token": other_device}).status_code == 401

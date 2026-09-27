@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from config import settings
 from database import connect_db
@@ -9,11 +9,31 @@ from security import hash_password, verify_password, create_access_token, genera
 from validators import password_strength, as_utc, clean_name, NAME_ERROR
 from dependencies import get_current_user
 from mailer import send_email
+import rate_limit
+from rate_limit import client_ip
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
 )
+
+# How much guessing each endpoint tolerates before answering 429 Too Many Requests
+LOGIN_EMAIL_LIMIT = 5          # failed sign-ins per email...
+LOGIN_IP_LIMIT = 30            # ...and per network address
+LOGIN_WINDOW = timedelta(minutes=15)
+SIGNUP_IP_LIMIT = 5
+SIGNUP_WINDOW = timedelta(hours=1)
+RESET_EMAIL_LIMIT = 3          # reset emails to one address
+RESET_IP_LIMIT = 10
+RESET_WINDOW = timedelta(hours=1)
+TOKEN_IP_LIMIT = 60            # refreshes and reset-link checks
+TOKEN_WINDOW = timedelta(minutes=5)
+
+TOO_MANY_LOGINS = "Too many sign-in attempts. Wait a few minutes and try again."
+
+# A real Argon2 hash to check against when the email has no account, so a wrong email takes
+# as long as a wrong password and response times don't reveal who has an account
+DUMMY_PASSWORD_HASH = hash_password("not-a-real-password-just-for-timing")
 
 def issue_tokens(db: Session, user: User) -> dict:
     refresh_token = generate_token()
@@ -41,8 +61,12 @@ def revoke_refresh_tokens(db: Session, user_id: int):
 @router.post("/signup", response_model=UserResponse, status_code=201)
 def signup(
     user: UserCreate,
+    request: Request,
     db: Session = Depends(connect_db)
-):  
+):
+    rate_limit.hit(db, f"signup-ip:{client_ip(request)}", SIGNUP_IP_LIMIT, SIGNUP_WINDOW,
+                   "Too many new accounts from this network. Try again later.")
+
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(
@@ -81,26 +105,38 @@ def signup(
 @router.post("/login", response_model=Token)
 def login(
     user: UserLogin,
+    request: Request,
     db: Session = Depends(connect_db)
 ):
+    email_key = f"login-email:{user.email}"
+    ip_key = f"login-ip:{client_ip(request)}"
+    rate_limit.check(db, email_key, LOGIN_EMAIL_LIMIT, LOGIN_WINDOW, TOO_MANY_LOGINS)
+    rate_limit.check(db, ip_key, LOGIN_IP_LIMIT, LOGIN_WINDOW, TOO_MANY_LOGINS)
+
     user_detail = db.query(User).filter(User.email == user.email).first()
-    if not user_detail:
+    # Always check a password, even for unknown emails, so both fail equally slowly
+    password_ok = verify_password(user_detail.password if user_detail else DUMMY_PASSWORD_HASH, user.password)
+
+    if user_detail is None or not password_ok:
+        rate_limit.record(db, email_key, LOGIN_WINDOW)
+        rate_limit.record(db, ip_key, LOGIN_WINDOW)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Incorrect credentials"
+            detail="Incorrect credentials"
         )
-    if not verify_password(user_detail.password, user.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Incorrect credentials"
-        )
+
+    rate_limit.clear(db, email_key)
     return issue_tokens(db, user_detail)
 
 @router.post("/refresh", response_model=Token)
 def refresh(
     refresh_request: RefreshRequest,
+    request: Request,
     db: Session = Depends(connect_db)
 ):
+    rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
+                   "Too many requests. Wait a moment and try again.")
+
     stored_token = db.query(RefreshToken).filter(
         RefreshToken.token_hash == hash_token(refresh_request.refresh_token)
     ).first()
@@ -167,11 +203,23 @@ def logout_all(
 @router.post("/password-reset/request", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
 def request_password_reset(
     reset_request: PasswordResetRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
     # Same response whether or not the email exists, so it can't be used to find accounts
     response = {"detail": "If that email is registered, a reset link has been sent"}
+
+    rate_limit.hit(db, f"reset-ip:{client_ip(request)}", RESET_IP_LIMIT, RESET_WINDOW,
+                   "Too many reset requests. Try again later.")
+
+    # Don't let anyone flood an inbox: past a few emails an hour, quietly send nothing more.
+    # Counted for every address, registered or not, so this reveals nothing either.
+    email_key = f"reset-email:{reset_request.email}"
+    try:
+        rate_limit.hit(db, email_key, RESET_EMAIL_LIMIT, RESET_WINDOW, "")
+    except HTTPException:
+        return response
 
     user = db.query(User).filter(User.email == reset_request.email).first()
     if user is None:
@@ -206,8 +254,12 @@ def request_password_reset(
 @router.post("/password-reset/confirm", response_model=MessageResponse)
 def confirm_password_reset(
     reset_confirm: PasswordResetConfirm,
+    request: Request,
     db: Session = Depends(connect_db)
 ):
+    rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
+                   "Too many requests. Wait a moment and try again.")
+
     reset_token = db.query(PasswordResetToken).filter(
         PasswordResetToken.token_hash == hash_token(reset_confirm.token)
     ).first()

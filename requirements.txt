@@ -7,7 +7,7 @@ pydantic
 pydantic-settings
 python-dotenv
 email-validator
-python-jose[cryptography]
+PyJWT>=2.10
 argon2-cffi
 python-multipart
 zxcvbn

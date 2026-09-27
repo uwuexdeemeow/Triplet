@@ -1,7 +1,7 @@
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from config import settings
 from database import connect_db
@@ -9,6 +9,8 @@ from models import Trip, TripMembership, TripGuestAccess, Activity
 from schemas import GuestAccessCreate, GuestAccessSetup, GuestAccessResponse, Token, TripResponse, ActivityResponse, ItineraryResponse
 from security import create_access_token, verify_password, hash_password
 from dependencies import get_current_guest, get_trip_membership, require_role
+import rate_limit
+from rate_limit import client_ip
 from routers.activities import build_itinerary
 from validators import as_utc
 
@@ -24,6 +26,11 @@ setup_router = APIRouter(
 )
 
 ACCESS_CODE_ALPHABET = string.ascii_uppercase + string.digits
+
+GUEST_CODE_LIMIT = 5      # wrong PINs per trip code...
+GUEST_IP_LIMIT = 20       # ...and per network address
+GUEST_WINDOW = timedelta(minutes=15)
+TOO_MANY_GUESSES = "Too many wrong codes. Wait a few minutes and try again."
 ACCESS_CODE_LENGTH = 8
 
 def generate_access_code(db: Session) -> str:
@@ -38,23 +45,29 @@ def generate_access_code(db: Session) -> str:
 @router.post("/access", response_model=Token)
 def guest_access(
     guest_access_create: GuestAccessCreate,
+    request: Request,
     db: Session = Depends(connect_db)
 ):
     # Codes are shown in capitals, but people often type them in lower case
     access_code = guest_access_create.access_code.strip().upper()
+
+    # A 4-digit PIN has only 10,000 options, so only a few wrong guesses per code are allowed
+    code_key = f"guest-code:{access_code}"
+    ip_key = f"guest-ip:{client_ip(request)}"
+    rate_limit.check(db, code_key, GUEST_CODE_LIMIT, GUEST_WINDOW, TOO_MANY_GUESSES)
+    rate_limit.check(db, ip_key, GUEST_IP_LIMIT, GUEST_WINDOW, TOO_MANY_GUESSES)
+
     guest_access = db.query(TripGuestAccess).filter(
         TripGuestAccess.access_code == access_code
     ).first()
-    if guest_access is None:
+    if guest_access is None or not verify_password(guest_access.pin_hash, guest_access_create.pin):
+        rate_limit.record(db, code_key, GUEST_WINDOW)
+        rate_limit.record(db, ip_key, GUEST_WINDOW)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
-    if not verify_password(guest_access.pin_hash, guest_access_create.pin):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
+    rate_limit.clear(db, code_key)
     if guest_access.expires_at is not None and as_utc(guest_access.expires_at) <= datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

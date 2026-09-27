@@ -6,7 +6,10 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 engine = create_engine(
     settings.DB_SETTINGS,
-    echo=True
+    # Off unless asked for: the log would otherwise include emails and token hashes
+    echo=settings.SQL_ECHO,
+    # Drop dead connections instead of failing a request (hosted databases close idle ones)
+    pool_pre_ping=True
 )
 
 SessionLocal = sessionmaker(

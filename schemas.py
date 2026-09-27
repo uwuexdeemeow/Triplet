@@ -1,18 +1,28 @@
-from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, HttpUrl, StringConstraints, field_validator, model_validator
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
+
+# Emails are stored and compared lowercased, so Sam@Example.com and sam@example.com are one account
+Email = Annotated[EmailStr, AfterValidator(str.lower)]
+# Limits that match the database columns, so long input gets a clear 422 instead of a server error
+ShortText = Annotated[str, StringConstraints(max_length=255)]
+LongText = Annotated[str, StringConstraints(max_length=5000)]
+Password = Annotated[str, StringConstraints(max_length=128)]
+OpaqueToken = Annotated[str, StringConstraints(max_length=256)]
+# Money columns hold up to 99,999,999.99 (plans and expenses) or 9,999,999,999.99 (budgets)
+Amount = Annotated[float, Field(ge=0, le=99_999_999)]
 
 TripRole = Literal["owner", "member", "viewer"]
 ExpenseCategory = Literal["accommodation", "transport", "food", "activities", "shopping", "other"]
 
 class UserCreate(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
+    name: ShortText
+    email: Email
+    password: Password
 
 class UserLogin(BaseModel):
-    email: EmailStr
-    password:str
+    email: Email
+    password: Password
 
 class UserResponse(BaseModel):
     id: int
@@ -35,10 +45,15 @@ class UserPublic(BaseModel):
     }
 
 class UserUpdate(BaseModel):
-    name: str | None = None
-    email: EmailStr | None = None
-    password: str | None = None
+    name: ShortText | None = None
+    email: Email | None = None
+    password: Password | None = None
     avatar_url: HttpUrl | None = None
+    # Needed to change the email or password, so a stolen session can't take over the account
+    current_password: str | None = Field(default=None, max_length=128)
+
+class AccountDelete(BaseModel):
+    password: str = Field(max_length=128)
 
 class Token(BaseModel):
     access_token: str
@@ -47,21 +62,21 @@ class Token(BaseModel):
     refresh_token: str | None = None
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: OpaqueToken
 
 class PasswordResetRequest(BaseModel):
-    email: EmailStr
+    email: Email
 
 class PasswordResetConfirm(BaseModel):
-    token: str
-    new_password: str
+    token: OpaqueToken
+    new_password: Password
 
 class MessageResponse(BaseModel):
     detail: str
 
 class GuestAccessCreate(BaseModel):
-    access_code: str
-    pin: str
+    access_code: Annotated[str, StringConstraints(max_length=16)]
+    pin: Annotated[str, StringConstraints(max_length=12)]
 
 class GuestAccessSetup(BaseModel):
     pin: str = Field(min_length=4, max_length=12, pattern=r"^\d+$")
@@ -77,12 +92,12 @@ class GuestAccessResponse(BaseModel):
     }
 
 class TripCreate(BaseModel):
-    title: str
-    description: str | None = None
-    destination: str
+    title: ShortText
+    description: LongText | None = None
+    destination: ShortText
     start_date: date
     end_date: date
-    budget: float | None = Field(default=None, ge=0)
+    budget: float | None = Field(default=None, ge=0, le=9_999_999_999)
     currency: str = Field(default="USD", min_length=3, max_length=3)
 
     @model_validator(mode="after")
@@ -121,12 +136,12 @@ class TripSummaryResponse(TripResponse):
     members: list[TripMemberPreview] = []
 
 class TripUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    destination: str | None = None
+    title: ShortText | None = None
+    description: LongText | None = None
+    destination: ShortText | None = None
     start_date: date | None = None
     end_date: date | None = None
-    budget: float | None = Field(default=None, ge=0)
+    budget: float | None = Field(default=None, ge=0, le=9_999_999_999)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
 
 class MemberResponse(BaseModel):
@@ -140,7 +155,7 @@ class MemberRoleUpdate(BaseModel):
     role: TripRole
 
 class InvitationCreate(BaseModel):
-    email: EmailStr | None = None
+    email: Email | None = None
     user_id: int | None = None
 
     @model_validator(mode="after")
@@ -179,12 +194,12 @@ def validate_coordinates(model):
     return model
 
 class ActivityCreate(BaseModel):
-    title: str
-    description: str | None = None
-    location: str
+    title: ShortText
+    description: LongText | None = None
+    location: ShortText
     start_time: datetime
     end_time: datetime
-    estimated_cost: float | None = Field(default=None, ge=0)
+    estimated_cost: Amount | None = None
     source_link_id: int | None = None
     latitude: float | None = Latitude
     longitude: float | None = Longitude
@@ -197,12 +212,12 @@ class ActivityCreate(BaseModel):
         return validate_coordinates(self)
 
 class ActivityUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    location: str | None = None
+    title: ShortText | None = None
+    description: LongText | None = None
+    location: ShortText | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    estimated_cost: float | None = Field(default=None, ge=0)
+    estimated_cost: Amount | None = None
     source_link_id: int | None = None
     latitude: float | None = Latitude
     longitude: float | None = Longitude
@@ -310,12 +325,12 @@ class ItineraryResponse(BaseModel):
 
 class SavedLinkCreate(BaseModel):
     url: HttpUrl
-    place_name: str | None = None
-    notes: str | None = None
+    place_name: ShortText | None = None
+    notes: LongText | None = None
 
 class SavedLinkUpdate(BaseModel):
-    place_name: str | None = None
-    notes: str | None = None
+    place_name: ShortText | None = None
+    notes: LongText | None = None
     # Renames the post; empty or null goes back to the post's own title
     custom_title: str | None = Field(default=None, max_length=255)
 
@@ -363,7 +378,7 @@ class PlaceUpdate(BaseModel):
     city: str | None = Field(default=None, max_length=255)
     country: str | None = Field(default=None, max_length=255)
     price_range: str | None = Field(default=None, max_length=50)
-    notes: str | None = None
+    notes: LongText | None = None
     latitude: float | None = Latitude
     longitude: float | None = Longitude
     # Seven entries, Monday first, e.g. "11:00 – 15:00" or "Closed"
@@ -414,12 +429,12 @@ class SavedLinkResponse(BaseModel):
 class LinkToActivity(BaseModel):
     # Fill in the title and location from one of the places found in the video
     place_id: int | None = None
-    title: str | None = None
-    description: str | None = None
-    location: str | None = None
+    title: ShortText | None = None
+    description: LongText | None = None
+    location: ShortText | None = None
     start_time: datetime
     end_time: datetime
-    estimated_cost: float | None = Field(default=None, ge=0)
+    estimated_cost: Amount | None = None
 
     @model_validator(mode="after")
     def validate_times(self):
@@ -429,16 +444,16 @@ class LinkToActivity(BaseModel):
         return self
 
 class ExpenseCreate(BaseModel):
-    title: str
-    amount: float = Field(gt=0)
+    title: ShortText
+    amount: float = Field(gt=0, le=99_999_999)
     category: ExpenseCategory = "other"
     spent_on: date | None = None
     activity_id: int | None = None
     paid_by_id: int | None = None
 
 class ExpenseUpdate(BaseModel):
-    title: str | None = None
-    amount: float | None = Field(default=None, gt=0)
+    title: ShortText | None = None
+    amount: float | None = Field(default=None, gt=0, le=99_999_999)
     category: ExpenseCategory | None = None
     spent_on: date | None = None
     activity_id: int | None = None

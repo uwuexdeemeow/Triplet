@@ -5,8 +5,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
 from models import User, UserAvatar
-from schemas import UserResponse, UserPublic, UserUpdate
-from security import hash_password
+from schemas import AccountDelete, UserResponse, UserPublic, UserUpdate
+from security import hash_password, verify_password
 from validators import password_strength, clean_name, NAME_ERROR
 from dependencies import get_current_user, Pagination
 from routers.auth import revoke_refresh_tokens
@@ -29,6 +29,18 @@ def update_profile(
     db: Session = Depends(connect_db)
 ):
     update_data = user_update.model_dump(exclude_unset=True)
+    update_data.pop("current_password", None)
+
+    # Taking over an account needs the current password, not just a signed-in session
+    changing_email = update_data.get("email") is not None and update_data["email"].lower() != current_user.email.lower()
+    changing_password = update_data.get("password") is not None
+    if (changing_email or changing_password) and not (
+        user_update.current_password and verify_password(current_user.password, user_update.current_password)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Enter your current password to change your email or password"
+        )
 
     # name, email and password are NOT NULL, so an explicit null means "leave unchanged"
     if update_data.get("email") is not None:
@@ -88,13 +100,22 @@ def update_profile(
 
 @router.delete("/me", status_code=204)
 def delete_user(
+    confirmation: AccountDelete,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(connect_db)
 ):
+    # Deleting everything can't be undone, so ask for the password first
+    if not verify_password(current_user.password, confirmation.password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="That password isn't right"
+        )
+
     db.delete(current_user)
     db.commit()
 
-AVATAR_MAX_BYTES = 2 * 1024 * 1024
+# Under the API's 1 MB request limit; the app sends about 100 KB
+AVATAR_MAX_BYTES = 900 * 1024
 
 def avatar_content_type(data: bytes) -> str | None:
     # Only formats every phone and browser can show
@@ -116,7 +137,7 @@ async def upload_avatar(
     if len(data) > AVATAR_MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="That photo is too big. Pick one under 2 MB."
+            detail="That photo is too big. Pick one under 900 KB."
         )
 
     content_type = avatar_content_type(data)

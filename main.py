@@ -8,8 +8,31 @@ from routers import auth, users, trips, guest, members, invitations, activities,
 app = FastAPI(
     title="Triplet API",
     description="Trip planning aplication API",
-    version="1.0.0"
+    version="1.0.0",
+    # The interactive docs map out every endpoint; keep them to development
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
 )
+
+# Nothing the app sends is anywhere near this; bigger bodies are refused before they're read
+MAX_BODY_BYTES = 1_000_000
+
+@app.middleware("http")
+async def guard_requests(request: Request, call_next):
+    length = request.headers.get("content-length")
+    if length is not None and (not length.isdigit() or int(length) > MAX_BODY_BYTES):
+        return JSONResponse(status_code=status.HTTP_413_CONTENT_TOO_LARGE, content={"detail": "Request is too large"})
+
+    response = await call_next(request)
+    # The API only returns JSON: don't let browsers guess types, frame it, or cache private data
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Cache-Control", "no-store")
+    if settings.is_production:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 # Lets the web version of the app call the API from the browser. Phone apps don't need this.
 app.add_middleware(
