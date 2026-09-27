@@ -147,6 +147,14 @@ export default function AddPlaceScreen() {
               </View>
             ) : null}
             {credit ? <Text style={styles.credit}>{credit}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                router.push({ pathname: '/trips/[tripId]/places/[placeId]', params: { tripId, placeId: String(place.id) } })
+              }
+              style={styles.editPlace}>
+              <Text style={styles.editPlaceLabel}>{needsCheck(place) ? 'Check the location' : 'Edit place'}</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -321,6 +329,16 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 11.5,
     color: colors.muted,
+  },
+  editPlace: {
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  editPlaceLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.teal,
   },
   field: {
     gap: 6,

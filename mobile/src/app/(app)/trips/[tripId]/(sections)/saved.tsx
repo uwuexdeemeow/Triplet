@@ -235,9 +235,17 @@ function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: Trip
     detail = { text: place.address ?? place.city ?? '', tone: 'muted' };
   }
 
+  const params = { tripId: String(tripId), placeId: String(place.id) };
+  const check = !planned && needsCheck(place);
+
   return (
     <View style={styles.placeRow}>
-      <View style={styles.placeText}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Review ${place.name}`}
+        accessibilityHint="Opens the place so you can check or edit it"
+        onPress={() => router.push({ pathname: '/trips/[tripId]/places/[placeId]', params })}
+        style={({ pressed }) => [styles.placeText, pressed && styles.pressed]}>
         <Text style={styles.placeName}>{place.name}</Text>
         {detail.text ? (
           <Text
@@ -250,14 +258,21 @@ function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: Trip
             {detail.text}
           </Text>
         ) : null}
-      </View>
-      {!planned ? (
+      </Pressable>
+      {check ? (
+        // Fix the location first, the Review screen can then add it to the plan
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Review ${place.name}`}
+          onPress={() => router.push({ pathname: '/trips/[tripId]/places/[placeId]', params })}
+          style={({ pressed }) => [styles.addButton, styles.reviewButton, pressed && styles.pressed]}>
+          <Text style={[styles.addLabel, styles.reviewLabel]}>Review</Text>
+        </Pressable>
+      ) : !planned ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Add ${place.name} to the plan`}
-          onPress={() =>
-            router.push({ pathname: '/trips/[tripId]/add-place', params: { tripId: String(tripId), placeId: String(place.id) } })
-          }
+          onPress={() => router.push({ pathname: '/trips/[tripId]/add-place', params })}
           style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
           <Text style={styles.addLabel}>Add to plan</Text>
         </Pressable>
@@ -445,6 +460,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 13,
     color: colors.teal,
+  },
+  reviewButton: {
+    borderColor: colors.coral,
+  },
+  reviewLabel: {
+    color: colors.coralText,
   },
   pressed: {
     opacity: 0.75,
