@@ -109,6 +109,7 @@ class TripResponse(BaseModel):
 class TripMemberPreview(BaseModel):
     user_id: int
     name: str
+    avatar_url: str | None = None
 
 class TripSummaryResponse(TripResponse):
     """A trip in the trips list, with enough to show what's in it."""
@@ -133,6 +134,7 @@ class MemberResponse(BaseModel):
     name: str
     email: EmailStr
     role: str
+    avatar_url: str | None = None
 
 class MemberRoleUpdate(BaseModel):
     role: TripRole

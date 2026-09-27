@@ -7,6 +7,7 @@ import { api, ApiError } from '@/api/client';
 import { tripKeys, useMe, type User } from '@/api/trips';
 import { useSession } from '@/auth/session';
 import { nameSchema } from '@/auth/validation';
+import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
@@ -14,6 +15,7 @@ import { TextField } from '@/components/text-field';
 import type { ThemePreference } from '@/theme/preference';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
+import { pickAndUploadProfilePhoto } from '@/utils/profile-photo';
 
 export default function ProfileScreen() {
   const styles = useStyles();
@@ -38,7 +40,10 @@ export default function ProfileScreen() {
           ) : me.isError ? (
             <FormMessage message={me.error.message} />
           ) : (
-            <NameEditor user={me.data} />
+            <>
+              <PhotoEditor user={me.data} />
+              <NameEditor user={me.data} />
+            </>
           )}
         </View>
 
@@ -55,9 +60,58 @@ export default function ProfileScreen() {
           <FormMessage message={signOutEverywhere.error?.message ?? null} />
         </View>
 
-        <Body style={styles.note}>Changing your email and photo comes later.</Body>
+        <Body style={styles.note}>Changing your email comes later.</Body>
       </View>
     </Screen>
+  );
+}
+
+// Your photo shows next to your name on trips, instead of your initial
+function PhotoEditor({ user }: { user: User }) {
+  const styles = useStyles();
+  const queryClient = useQueryClient();
+
+  const updated = (next: User | null) => {
+    if (!next) return;
+    queryClient.setQueryData(tripKeys.me, next);
+    // Trip cards and People tabs show everyone's photos
+    queryClient.invalidateQueries({ queryKey: tripKeys.all });
+  };
+
+  const change = useMutation({ mutationFn: pickAndUploadProfilePhoto, onSuccess: updated });
+  const remove = useMutation({
+    mutationFn: () => api<User>('/users/me/avatar', { method: 'DELETE' }),
+    onSuccess: updated,
+  });
+  const busy = change.isPending || remove.isPending;
+
+  return (
+    <View style={styles.photo}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={user.avatar_url ? 'Change your photo' : 'Add a photo'}
+        disabled={busy}
+        onPress={() => change.mutate()}
+        style={({ pressed }) => pressed && styles.pressed}>
+        <Avatar name={user.name} url={user.avatar_url} size={72} />
+        {busy ? (
+          <View style={styles.photoBusy}>
+            <ActivityIndicator color="#fff" />
+          </View>
+        ) : null}
+      </Pressable>
+      <View style={styles.photoActions}>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => change.mutate()} style={styles.editButton}>
+          <Text style={styles.editLabel}>{user.avatar_url ? 'Change photo' : 'Add a photo'}</Text>
+        </Pressable>
+        {user.avatar_url ? (
+          <Pressable accessibilityRole="button" disabled={busy} onPress={() => remove.mutate()} style={styles.editButton}>
+            <Text style={styles.removeLabel}>Remove</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <FormMessage message={(change.error ?? remove.error)?.message ?? null} />
+    </View>
   );
 }
 
@@ -239,6 +293,33 @@ const useStyles = makeStyles((colors) => ({
   },
   editor: {
     gap: spacing.md,
+  },
+  photo: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  photoBusy: {
+    position: 'absolute',
+    inset: 0,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginLeft: -spacing.sm,
+  },
+  removeLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.dangerText,
+  },
+  pressed: {
+    opacity: 0.75,
   },
   editorButtons: {
     flexDirection: 'row',

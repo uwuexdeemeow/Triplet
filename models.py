@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Date, Float, JSON, String, Integer, DateTime, false, func, Text, ForeignKey, UniqueConstraint, Numeric
+from sqlalchemy import Boolean, Date, Float, JSON, String, Integer, DateTime, false, func, Text, ForeignKey, UniqueConstraint, Numeric, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import date, datetime
 from decimal import Decimal
@@ -671,6 +671,31 @@ class PasswordResetToken(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+# Profile photos live in their own table so loading a user doesn't load the image
+class UserAvatar(Base):
+    __tablename__ = "user_avatars"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    content_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False
+    )
+
+    data: Mapped[bytes] = mapped_column(
+        LargeBinary,
+        nullable=False
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now()

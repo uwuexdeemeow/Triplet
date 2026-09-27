@@ -20,6 +20,55 @@ def test_rejects_invalid_avatar_url(client, alice):
 
     assert response.status_code == 422
 
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+def test_upload_and_serve_avatar(client, alice):
+    response = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("me.png", PNG, "image/png")})
+
+    assert response.status_code == 200, response.text
+    avatar_url = response.json()["avatar_url"]
+    assert avatar_url.startswith(f"/users/{response.json()['id']}/avatar?v=")
+
+    # Anyone can load it, since image views don't send a token
+    photo = client.get(avatar_url)
+    assert photo.status_code == 200
+    assert photo.headers["content-type"] == "image/png"
+    assert photo.content == PNG
+
+def test_new_avatar_changes_its_url(client, alice):
+    first = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("a.png", PNG, "image/png")})
+    second = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("b.png", PNG + b"x", "image/png")})
+
+    assert first.json()["avatar_url"] != second.json()["avatar_url"]
+
+def test_avatar_must_be_an_image(client, alice):
+    response = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("a.txt", b"hello", "text/plain")})
+
+    assert response.status_code == 422
+
+def test_avatar_size_is_capped(client, alice):
+    big = PNG + b"\x00" * (2 * 1024 * 1024)
+    response = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("big.png", big, "image/png")})
+
+    assert response.status_code == 413
+
+def test_remove_avatar(client, alice):
+    uploaded = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("me.png", PNG, "image/png")})
+
+    response = client.delete("/users/me/avatar", headers=alice["headers"])
+
+    assert response.json()["avatar_url"] is None
+    assert client.get(uploaded.json()["avatar_url"]).status_code == 404
+
+def test_members_include_avatars(client, alice, trip):
+    client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("me.png", PNG, "image/png")})
+
+    members = client.get(f"/trips/{trip['id']}/members", headers=alice["headers"]).json()
+    trips = client.get("/trips", headers=alice["headers"]).json()
+
+    assert members[0]["avatar_url"].startswith("/users/")
+    assert trips[0]["members"][0]["avatar_url"] == members[0]["avatar_url"]
+
 def test_cannot_take_another_users_email(client, alice, bob):
     response = client.patch("/users/me", headers=alice["headers"], json={"email": "BOB@example.com"})
 

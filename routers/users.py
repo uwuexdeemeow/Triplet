@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import hashlib
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
-from models import User
+from models import User, UserAvatar
 from schemas import UserResponse, UserPublic, UserUpdate
 from security import hash_password
 from validators import password_strength
@@ -90,6 +92,89 @@ def delete_user(
 ):
     db.delete(current_user)
     db.commit()
+
+AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+def avatar_content_type(data: bytes) -> str | None:
+    # Only formats every phone and browser can show
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+@router.put("/me/avatar", response_model=UserResponse)
+async def upload_avatar(
+    file: UploadFile,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(connect_db)
+):
+    data = await file.read(AVATAR_MAX_BYTES + 1)
+    if len(data) > AVATAR_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="That photo is too big. Pick one under 2 MB."
+        )
+
+    content_type = avatar_content_type(data)
+    if content_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Use a JPEG, PNG or WebP photo"
+        )
+
+    avatar = db.get(UserAvatar, current_user.id)
+    if avatar is None:
+        avatar = UserAvatar(user_id=current_user.id)
+        db.add(avatar)
+    avatar.content_type = content_type
+    avatar.data = data
+    avatar.updated_at = datetime.now(timezone.utc)
+
+    # The version changes with every upload, so apps don't keep showing a cached old photo
+    version = hashlib.sha256(data).hexdigest()[:12]
+    current_user.avatar_url = f"/users/{current_user.id}/avatar?v={version}"
+
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
+
+@router.delete("/me/avatar", response_model=UserResponse)
+def delete_avatar(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(connect_db)
+):
+    avatar = db.get(UserAvatar, current_user.id)
+    if avatar is not None:
+        db.delete(avatar)
+    current_user.avatar_url = None
+
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
+
+# Public, so image views can load it without a token; the URL changes when the photo does
+@router.get("/{user_id}/avatar")
+def get_avatar(
+    user_id: int,
+    db: Session = Depends(connect_db)
+):
+    avatar = db.get(UserAvatar, user_id)
+    if avatar is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No photo"
+        )
+
+    return Response(
+        content=avatar.data,
+        media_type=avatar.content_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"}
+    )
 
 @router.get("/search", response_model=list[UserPublic])
 def search_users(

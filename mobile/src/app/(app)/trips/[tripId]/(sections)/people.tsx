@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, TextInp
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useMe, useMembers, useTripInvitations, type Invitation, type Member } from '@/api/trips';
+import { Avatar as PersonAvatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { Muted } from '@/components/text';
@@ -170,12 +171,16 @@ function InviteForm({ tripId }: { tripId: number }) {
   );
 }
 
-function Avatar({ name, faded = false }: { name: string; faded?: boolean }) {
+function Avatar({ name, url, faded = false }: { name: string; url?: string | null; faded?: boolean }) {
   const styles = useStyles();
   return (
-    <View style={[styles.avatar, faded && styles.avatarFaded]}>
-      <Text style={[styles.avatarText, faded && styles.avatarTextFaded]}>{name.trim().charAt(0).toUpperCase() || '?'}</Text>
-    </View>
+    <PersonAvatar
+      name={name}
+      url={url}
+      size={40}
+      style={faded && styles.avatarFaded}
+      textStyle={[styles.avatarText, faded && styles.avatarTextFaded]}
+    />
   );
 }
 
@@ -217,7 +222,7 @@ function MemberRow({
 
   const summary = (
     <>
-      <Avatar name={member.name} />
+      <Avatar name={member.name} url={member.avatar_url} />
       <View style={styles.rowText}>
         <Text style={styles.rowName} numberOfLines={1}>
           {member.name}
@@ -492,14 +497,6 @@ const useStyles = makeStyles((colors) => ({
   you: {
     fontFamily: fonts.body,
     color: colors.muted,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   avatarFaded: {
     backgroundColor: colors.chip,
