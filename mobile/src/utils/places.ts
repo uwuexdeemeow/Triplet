@@ -1,5 +1,5 @@
 import type { SavedLink, TripPlace } from '@/api/trips';
-import { parseDate } from '@/utils/dates';
+import { formatShortDate, parseDate, todayString } from '@/utils/dates';
 
 const PLATFORMS: Record<string, string> = {
   tiktok: 'TikTok',
@@ -50,6 +50,20 @@ export function missingDetailsReason(place: TripPlace): string | null {
     default:
       return null;
   }
+}
+
+export type PlaceDetail = { text: string; tone: 'muted' | 'teal' | 'coral' };
+
+// One line about where a place stands: planned, still loading, needs checking, or today's hours
+export function placeDetail(place: TripPlace, plannedDay: string | undefined): PlaceDetail {
+  if ((place.activity_ids?.length ?? 0) > 0) {
+    return { text: plannedDay ? `In the plan · ${formatShortDate(plannedDay)}` : 'In the plan', tone: 'teal' };
+  }
+  if (place.details_status === 'pending') return { text: 'Looking up the address…', tone: 'muted' };
+  if (needsCheck(place)) return { text: 'Check the location', tone: 'coral' };
+  const today = hoursOn(place, todayString());
+  if (today) return { text: today === 'Closed' ? 'Closed today' : `Open today · ${today}`, tone: 'muted' };
+  return { text: place.address ?? place.city ?? '', tone: 'muted' };
 }
 
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

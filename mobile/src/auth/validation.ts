@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { checkPassword } from '@/auth/password-strength';
+
 // Mirrors the backend's rules so users see problems before submitting
 
 const email = z.string().trim().min(1, 'Enter your email').email('Enter a valid email');
@@ -15,16 +17,33 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Enter your password'),
 });
 
-export const signupSchema = z.object({
-  // Python's str.isalnum(): letters and numbers in any language, no spaces
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Enter a name')
-    .regex(/^[\p{L}\p{N}]+$/u, 'Use letters and numbers only, no spaces'),
-  email,
-  password: newPassword,
-});
+// Python's str.isalnum(): letters and numbers in any language, no spaces
+export const nameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Enter a name')
+  .max(255, 'Use at most 255 characters')
+  .regex(/^[\p{L}\p{N}]+$/u, 'Use letters and numbers only, no spaces');
+
+export const signupSchema = z
+  .object({
+    name: nameSchema,
+    email,
+    password: newPassword,
+  })
+  // Same strength check as the backend, so a weak password is caught before submitting
+  .superRefine((values, ctx) => {
+    if (values.password.length < 8 || values.password.length > 64) return;
+    const strength = checkPassword(values.password, values.name, values.email);
+    if (!strength.strongEnough) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['password'],
+        // The meter under the field explains why
+        message: 'Choose a harder password to guess',
+      });
+    }
+  });
 
 export const forgotPasswordSchema = z.object({ email });
 

@@ -148,6 +148,7 @@ export default function PickLocationScreen() {
           longitude: center!.longitude,
           // Only a search result comes with a trustworthy address for the new spot
           ...(chosen?.address ? { address: chosen.address } : {}),
+          ...(chosen?.google_place_id ? { google_place_id: chosen.google_place_id } : {}),
         },
       }),
     onSuccess: () => {

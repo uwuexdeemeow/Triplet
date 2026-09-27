@@ -3796,6 +3796,58 @@
       "type": "string",
       "format": "date-time",
       "title": "Created At"
+     },
+     "trip_title": {
+      "type": "string",
+      "title": "Trip Title"
+     },
+     "trip_destination": {
+      "type": "string",
+      "title": "Trip Destination"
+     },
+     "trip_start_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Trip Start Date"
+     },
+     "trip_end_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Trip End Date"
+     },
+     "invitee_name": {
+      "type": "string",
+      "title": "Invitee Name"
+     },
+     "invitee_email": {
+      "type": "string",
+      "format": "email",
+      "title": "Invitee Email"
+     },
+     "invited_by_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Invited By Name"
      }
     },
     "type": "object",
@@ -3804,7 +3856,11 @@
      "trip_id",
      "user_id",
      "status",
-     "created_at"
+     "created_at",
+     "trip_title",
+     "trip_destination",
+     "invitee_name",
+     "invitee_email"
     ],
     "title": "InvitationResponse"
    },

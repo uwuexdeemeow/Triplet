@@ -6,6 +6,8 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ApiError } from '@/api/client';
 import { SessionProvider, useSession } from '@/auth/session';
@@ -34,13 +36,16 @@ export default function RootLayout() {
   });
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SessionProvider>
-        <StatusBar style="dark" />
-        {/* If the fonts fail to load, carry on with the system fonts */}
-        <RootNavigator fontsReady={fontsLoaded || fontError !== null} />
-      </SessionProvider>
-    </QueryClientProvider>
+    // Swipe gestures (like swiping a saved link to delete it) need this at the root
+    <GestureHandlerRootView style={styles.root}>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider>
+          <StatusBar style="dark" />
+          {/* If the fonts fail to load, carry on with the system fonts */}
+          <RootNavigator fontsReady={fontsLoaded || fontError !== null} />
+        </SessionProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -66,3 +71,9 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
     </Stack>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

@@ -567,6 +567,39 @@ class TripInvitation(Base):
         UniqueConstraint("user_id", "trip_id", name="uq_invitation_user_trip"),
     )
 
+    # The invitee isn't a member yet, so the invitation carries what they need to decide
+    trip: Mapped["Trip"] = relationship(foreign_keys=[trip_id])
+    user: Mapped["User"] = relationship(foreign_keys=[user_id])
+    invited_by: Mapped["User | None"] = relationship(foreign_keys=[invited_by_id])
+
+    @property
+    def trip_title(self) -> str:
+        return self.trip.title
+
+    @property
+    def trip_destination(self) -> str:
+        return self.trip.destination
+
+    @property
+    def trip_start_date(self) -> date | None:
+        return self.trip.start_date
+
+    @property
+    def trip_end_date(self) -> date | None:
+        return self.trip.end_date
+
+    @property
+    def invitee_name(self) -> str:
+        return self.user.name
+
+    @property
+    def invitee_email(self) -> str:
+        return self.user.email
+
+    @property
+    def invited_by_name(self) -> str | None:
+        return self.invited_by.name if self.invited_by else None
+
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 

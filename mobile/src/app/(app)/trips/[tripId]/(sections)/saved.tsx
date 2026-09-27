@@ -1,8 +1,10 @@
+import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { api, ApiError } from '@/api/client';
 import {
@@ -18,8 +20,7 @@ import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { Body, Muted, Title } from '@/components/text';
 import { colors, fonts, radii, spacing } from '@/theme/tokens';
-import { formatShortDate, todayString } from '@/utils/dates';
-import { hoursOn, linkTitle, needsCheck, platformName } from '@/utils/places';
+import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
 
 export default function SavedScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -30,6 +31,16 @@ export default function SavedScreen() {
   const anyProcessing = links.data?.some(isProcessing) ?? false;
   const places = usePlaces(id, { polling: anyProcessing });
   const itinerary = useItinerary(id);
+  // Cards start collapsed. Kept here so polling refetches don't close them again.
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+
+  const toggle = (linkId: number) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(linkId)) next.delete(linkId);
+      else next.add(linkId);
+      return next;
+    });
 
   // Which day each planned activity is on, for "In the plan · Fri 2 Oct"
   const activityDays = new Map<number, string>();
@@ -65,16 +76,21 @@ export default function SavedScreen() {
           </Body>
         </View>
       ) : (
-        links.data.map((link) => (
-          <LinkCard
-            key={link.id}
-            tripId={id}
-            link={link}
-            // Prefer the places list, which knows what's planned, then fall back to the link's own copy
-            places={places.data?.filter((place) => place.link_id === link.id) ?? (link.places as TripPlace[])}
-            activityDays={activityDays}
-          />
-        ))
+        <>
+          <Muted style={styles.hint}>Tap a post to see its places. Swipe it right to delete it.</Muted>
+          {links.data.map((link) => (
+            <LinkCard
+              key={link.id}
+              tripId={id}
+              link={link}
+              // Prefer the places list, which knows what's planned, then fall back to the link's own copy
+              places={places.data?.filter((place) => place.link_id === link.id) ?? (link.places as TripPlace[])}
+              activityDays={activityDays}
+              expanded={expanded.has(link.id)}
+              onToggle={() => toggle(link.id)}
+            />
+          ))}
+        </>
       )}
     </ScrollView>
   );
@@ -138,57 +154,133 @@ function LinkCard({
   link,
   places,
   activityDays,
+  expanded,
+  onToggle,
 }: {
   tripId: number;
   link: SavedLink;
   places: TripPlace[];
   activityDays: Map<number, string>;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const queryClient = useQueryClient();
+  const swipeable = useRef<SwipeableMethods>(null);
+
   const retry = useMutation({
     mutationFn: () => api(`/trips/${tripId}/links/${link.id}/refresh`, { method: 'POST' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tripKeys.links(tripId) }),
   });
 
+  // Deleting a post deletes the places found in it. Planned activities stay in the plan.
+  const remove = useMutation({
+    mutationFn: () => api(`/trips/${tripId}/links/${link.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tripKeys.links(tripId) });
+      queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) });
+      queryClient.invalidateQueries({ queryKey: tripKeys.itinerary(tripId) });
+    },
+    onError: () => swipeable.current?.close(),
+  });
+
   const source = [link.author_name ? `@${link.author_name}` : null, platformName(link)].filter(Boolean).join(' · ');
+  const canExpand = places.length > 0;
+  const plannedCount = places.filter((place) => (place.activity_ids?.length ?? 0) > 0).length;
+  const checkCount = places.filter((place) => !(place.activity_ids?.length ?? 0) && needsCheck(place)).length;
+  const summary = [plannedCount ? `${plannedCount} in the plan` : null, checkCount ? `${checkCount} to check` : null]
+    .filter(Boolean)
+    .join(' · ');
+
+  const top = (
+    <View style={styles.cardTop}>
+      {link.thumbnail_url ? (
+        <Image source={{ uri: link.thumbnail_url }} style={styles.thumbnail} contentFit="cover" accessibilityIgnoresInvertColors />
+      ) : (
+        <View style={[styles.thumbnail, styles.thumbnailEmpty]} />
+      )}
+      <View style={styles.cardText}>
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {linkTitle(link)}
+        </Text>
+        <Muted numberOfLines={1}>{source}</Muted>
+        <View style={styles.statusRow}>
+          <LinkStatus link={link} placeCount={places.length} />
+          {canExpand ? <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} /> : null}
+        </View>
+        {!expanded && summary ? (
+          <Text style={[styles.summary, checkCount > 0 && styles.placeDetailCoral]}>{summary}</Text>
+        ) : null}
+        {link.status === 'failed' ? (
+          <View style={styles.failed}>
+            {link.error ? <Muted>{link.error}</Muted> : null}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => retry.mutate()}
+              disabled={retry.isPending}
+              style={styles.retry}>
+              <Text style={styles.retryLabel}>{retry.isPending ? 'Trying…' : 'Try again'}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardTop}>
-        {link.thumbnail_url ? (
-          <Image source={{ uri: link.thumbnail_url }} style={styles.thumbnail} contentFit="cover" accessibilityIgnoresInvertColors />
+    <ReanimatedSwipeable
+      ref={swipeable}
+      friction={2}
+      leftThreshold={48}
+      overshootLeft={false}
+      containerStyle={styles.swipe}
+      renderLeftActions={() => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${linkTitle(link)}`}
+          disabled={remove.isPending}
+          onPress={() => remove.mutate()}
+          style={({ pressed }) => [styles.deleteAction, pressed && styles.pressed]}>
+          {remove.isPending ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <>
+              <Feather name="trash-2" size={20} color={colors.white} />
+              <Text style={styles.deleteLabel}>Delete</Text>
+            </>
+          )}
+        </Pressable>
+      )}>
+      <View
+        style={styles.card}
+        // Screen readers can't swipe, so delete is offered as an action too
+        accessibilityActions={[{ name: 'delete', label: 'Delete this post and its places' }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'delete') remove.mutate();
+        }}>
+        {canExpand ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            accessibilityHint={expanded ? 'Hides its places' : 'Shows its places'}
+            onPress={onToggle}
+            style={({ pressed }) => pressed && styles.pressed}>
+            {top}
+          </Pressable>
         ) : (
-          <View style={[styles.thumbnail, styles.thumbnailEmpty]} />
+          top
         )}
-        <View style={styles.cardText}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {linkTitle(link)}
-          </Text>
-          <Muted numberOfLines={1}>{source}</Muted>
-          <LinkStatus link={link} placeCount={places.length} />
-          {link.status === 'failed' ? (
-            <View style={styles.failed}>
-              {link.error ? <Muted>{link.error}</Muted> : null}
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => retry.mutate()}
-                disabled={retry.isPending}
-                style={styles.retry}>
-                <Text style={styles.retryLabel}>{retry.isPending ? 'Trying…' : 'Try again'}</Text>
-              </Pressable>
-            </View>
-          ) : null}
-        </View>
-      </View>
 
-      {places.length > 0 ? (
-        <View style={styles.places}>
-          {places.map((place) => (
-            <PlaceRow key={place.id} tripId={tripId} place={place} activityDays={activityDays} />
-          ))}
-        </View>
-      ) : null}
-    </View>
+        {expanded && canExpand ? (
+          <View style={styles.places}>
+            {places.map((place) => (
+              <PlaceRow key={place.id} tripId={tripId} place={place} activityDays={activityDays} />
+            ))}
+          </View>
+        ) : null}
+
+        {remove.error ? <FormMessage message={remove.error.message} /> : null}
+      </View>
+    </ReanimatedSwipeable>
   );
 }
 
@@ -220,20 +312,7 @@ function LinkStatus({ link, placeCount }: { link: SavedLink; placeCount: number 
 function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: TripPlace; activityDays: Map<number, string> }) {
   const plannedDay = place.activity_ids?.map((activityId) => activityDays.get(activityId)).find(Boolean);
   const planned = (place.activity_ids?.length ?? 0) > 0;
-  const today = hoursOn(place, todayString());
-
-  let detail: { text: string; tone: 'muted' | 'teal' | 'coral' };
-  if (planned) {
-    detail = { text: plannedDay ? `In the plan · ${formatShortDate(plannedDay)}` : 'In the plan', tone: 'teal' };
-  } else if (place.details_status === 'pending') {
-    detail = { text: 'Looking up the address…', tone: 'muted' };
-  } else if (needsCheck(place)) {
-    detail = { text: 'Check the location', tone: 'coral' };
-  } else if (today) {
-    detail = { text: today === 'Closed' ? 'Closed today' : `Open today · ${today}`, tone: 'muted' };
-  } else {
-    detail = { text: place.address ?? place.city ?? '', tone: 'muted' };
-  }
+  const detail = placeDetail(place, plannedDay);
 
   const params = { tripId: String(tripId), placeId: String(place.id) };
   const check = !planned && needsCheck(place);
@@ -469,5 +548,36 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.75,
+  },
+  hint: {
+    fontSize: 13,
+  },
+  swipe: {
+    borderRadius: 18,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  summary: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.teal,
+  },
+  deleteAction: {
+    width: 96,
+    marginRight: spacing.sm,
+    borderRadius: 18,
+    backgroundColor: colors.coral,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  deleteLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.white,
   },
 });

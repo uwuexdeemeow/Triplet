@@ -8,6 +8,8 @@ export type Itinerary = Schemas['ItineraryResponse'];
 export type ItineraryActivity = Schemas['ItineraryActivity'];
 export type SavedLink = Schemas['SavedLinkResponse'];
 export type TripPlace = Schemas['TripPlaceResponse'];
+export type Invitation = Schemas['InvitationResponse'];
+export type User = Schemas['UserResponse'];
 
 // One place for query keys, so screens invalidate the same caches they read
 export const tripKeys = {
@@ -17,6 +19,10 @@ export const tripKeys = {
   itinerary: (tripId: number) => ['trips', tripId, 'itinerary'] as const,
   links: (tripId: number) => ['trips', tripId, 'links'] as const,
   places: (tripId: number) => ['trips', tripId, 'places'] as const,
+  invitations: (tripId: number) => ['trips', tripId, 'invitations'] as const,
+  // Invitations sent to the signed-in user, across all trips
+  myInvitations: ['invitations'] as const,
+  me: ['me'] as const,
 };
 
 // Extraction runs in the background on the server, so check again every few seconds until it's done
@@ -63,5 +69,28 @@ export function usePlaces(tripId: number, { polling = false } = {}) {
     // Addresses and opening hours fill in after the places appear, so keep checking meanwhile
     refetchInterval: (query) =>
       polling || query.state.data?.some((place) => place.details_status === 'pending') ? POLL_MS : false,
+  });
+}
+
+export function useMe() {
+  return useQuery({
+    queryKey: tripKeys.me,
+    queryFn: () => api<User>('/users/me'),
+  });
+}
+
+// Includes answered invitations, so screens filter for the pending ones
+export function useTripInvitations(tripId: number, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: tripKeys.invitations(tripId),
+    queryFn: () => api<Invitation[]>(`/trips/${tripId}/invitations`),
+    enabled,
+  });
+}
+
+export function useMyInvitations() {
+  return useQuery({
+    queryKey: tripKeys.myInvitations,
+    queryFn: () => api<Invitation[]>('/invitations'),
   });
 }

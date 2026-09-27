@@ -1,13 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { Pressable, StyleSheet, Text, View, type TextInput } from 'react-native';
 
 import { ApiError } from '@/api/client';
+import { suggestEmail } from '@/auth/password-strength';
 import { useSession } from '@/auth/session';
 import { signupSchema, type SignupValues } from '@/auth/validation';
 import { Button } from '@/components/button';
+import { PasswordMeter } from '@/components/password-meter';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
@@ -29,10 +31,14 @@ export default function SignupScreen() {
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
-  const { control, handleSubmit, formState } = useForm<SignupValues>({
+  const { control, handleSubmit, formState, setValue } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: { name: '', email: '', password: '' },
+    // Check each field when the user leaves it, then again as they fix it
+    mode: 'onTouched',
   });
+  const [name, email, password] = useWatch({ control, name: ['name', 'email', 'password'] });
+  const emailSuggestion = suggestEmail(email);
 
   const onSubmit = handleSubmit(async ({ name, email, password }) => {
     setFormError(null);
@@ -95,6 +101,17 @@ export default function SignupScreen() {
               />
             )}
           />
+          {emailSuggestion ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Use ${emailSuggestion} instead`}
+              onPress={() => setValue('email', emailSuggestion, { shouldValidate: true })}
+              style={styles.suggestion}>
+              <Text style={styles.suggestionText}>
+                Did you mean <Text style={styles.suggestionEmail}>{emailSuggestion}</Text>?
+              </Text>
+            </Pressable>
+          ) : null}
 
           <Controller
             control={control}
@@ -116,6 +133,7 @@ export default function SignupScreen() {
               />
             )}
           />
+          <PasswordMeter password={password} name={name} email={email} />
 
           <Button label="Create account" loading={formState.isSubmitting} onPress={onSubmit} />
         </View>
@@ -156,5 +174,20 @@ const styles = StyleSheet.create({
   link: {
     fontFamily: fonts.bold,
     color: colors.teal,
+  },
+  suggestion: {
+    marginTop: -10,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  suggestionText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.muted,
+  },
+  suggestionEmail: {
+    fontFamily: fonts.bold,
+    color: colors.teal,
+    textDecorationLine: 'underline',
   },
 });

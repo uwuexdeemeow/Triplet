@@ -910,6 +910,23 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Trip Title */
+            trip_title: string;
+            /** Trip Destination */
+            trip_destination: string;
+            /** Trip Start Date */
+            trip_start_date?: string | null;
+            /** Trip End Date */
+            trip_end_date?: string | null;
+            /** Invitee Name */
+            invitee_name: string;
+            /**
+             * Invitee Email
+             * Format: email
+             */
+            invitee_email: string;
+            /** Invited By Name */
+            invited_by_name?: string | null;
         };
         /** ItineraryActivity */
         ItineraryActivity: {

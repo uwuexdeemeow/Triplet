@@ -1,9 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
+import { useMyInvitations } from '@/api/trips';
 import { colors, fonts } from '@/theme/tokens';
 
 export default function TabsLayout() {
+  const invitations = useMyInvitations();
+  const pending = invitations.data?.length ?? 0;
+
   return (
     <Tabs
       screenOptions={{
@@ -25,6 +29,8 @@ export default function TabsLayout() {
         name="invites"
         options={{
           title: 'Invites',
+          tabBarBadge: pending > 0 ? pending : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.coral, fontFamily: fonts.bold, fontSize: 11 },
           tabBarIcon: ({ color, size }) => <Feather name="mail" color={color} size={size} />,
         }}
       />

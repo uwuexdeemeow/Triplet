@@ -126,15 +126,25 @@ function ReviewForm({ tripId, place }: { tripId: number; place: TripPlace }) {
     },
   });
 
+  // A failed save shows its message above the form, so there's nothing more to do with the error
   const onSave = handleSubmit(async (values) => {
-    await save.mutateAsync(values);
-    router.back();
+    if (await trySave(values)) router.back();
   });
 
   const onSaveAndPlan = handleSubmit(async (values) => {
-    await save.mutateAsync(values);
-    router.replace({ pathname: '/trips/[tripId]/add-place', params: { tripId: String(tripId), placeId: String(place.id) } });
+    if (await trySave(values)) {
+      router.replace({ pathname: '/trips/[tripId]/add-place', params: { tripId: String(tripId), placeId: String(place.id) } });
+    }
   });
+
+  const trySave = async (values: Values) => {
+    try {
+      await save.mutateAsync(values);
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   const openPinPicker = () =>
     router.push({ pathname: '/trips/[tripId]/pick-location', params: { tripId: String(tripId), placeId: String(place.id) } });

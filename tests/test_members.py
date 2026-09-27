@@ -16,6 +16,22 @@ def test_invite_and_accept(client, alice, bob, trip):
     members = client.get(f"/trips/{trip['id']}/members", headers=bob["headers"]).json()
     assert {(m["user_id"], m["role"]) for m in members} == {(alice["id"], "owner"), (bob["id"], "member")}
 
+def test_invitation_describes_the_trip_and_people(client, alice, bob, trip):
+    invite(client, trip, alice, bob)
+
+    # Bob isn't a member yet, so the invitation itself says which trip and who from
+    received = client.get("/invitations", headers=bob["headers"]).json()[0]
+    assert received["trip_title"] == "Tokyo"
+    assert received["trip_destination"] == "Tokyo"
+    assert received["trip_start_date"] == "2026-10-01"
+    assert received["trip_end_date"] == "2026-10-05"
+    assert received["invited_by_name"] == client.get("/users/me", headers=alice["headers"]).json()["name"]
+
+    # The owner sees who a pending invitation is for
+    sent = client.get(f"/trips/{trip['id']}/invitations", headers=alice["headers"]).json()[0]
+    assert sent["invitee_email"] == bob["email"]
+    assert sent["invitee_name"] == client.get("/users/me", headers=bob["headers"]).json()["name"]
+
 def test_invite_by_user_id(client, alice, bob, trip):
     response = client.post(f"/trips/{trip['id']}/invitations", headers=alice["headers"], json={"user_id": bob["id"]})
 

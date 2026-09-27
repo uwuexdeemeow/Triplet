@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
-import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import MapView, { Marker, type Region } from 'react-native-maps';
+import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-maps';
 
 import { colors } from '@/theme/tokens';
 
@@ -69,6 +69,69 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
     </View>
   );
 });
+
+export type MapPlace = Coordinates & {
+  id: number;
+  name: string;
+  planned: boolean;
+};
+
+type TripMapProps = {
+  places: MapPlace[];
+  selectedId: number | null;
+  onSelect: (id: number | null) => void;
+  // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
+  bottomInset?: number;
+};
+
+/** Every pinned place in the trip. Tapping a pin selects it, tapping the map clears the selection. */
+export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripMapProps) {
+  const mapRef = useRef<MapView>(null);
+  const [ready, setReady] = useState(false);
+
+  // Frame the pins whenever the set of pins changes, e.g. after switching the filter
+  const pinKey = places.map((place) => place.id).join(',');
+  useEffect(() => {
+    if (!ready || !places.length) return;
+    if (places.length === 1) {
+      mapRef.current?.animateToRegion({ latitude: places[0].latitude, longitude: places[0].longitude, ...STREET_ZOOM }, 400);
+    } else {
+      mapRef.current?.fitToCoordinates(places, {
+        edgePadding: { top: 60, right: 40, bottom: bottomInset + 40, left: 40 },
+        animated: true,
+      });
+    }
+    // Only refit for a different set of pins, not when a pin is selected
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, pinKey]);
+
+  return (
+    <MapView
+      ref={mapRef}
+      style={StyleSheet.absoluteFill}
+      onMapReady={() => setReady(true)}
+      onPress={(event: MapPressEvent) => {
+        // Android reports marker taps to the map as well
+        if (event.nativeEvent.action !== 'marker-press') onSelect(null);
+      }}
+      toolbarEnabled={false}>
+      {places.map((place) => {
+        const selected = place.id === selectedId;
+        return (
+          <Marker
+            // Android only picks up a new pin colour on a fresh marker
+            key={`${place.id}-${selected ? 'selected' : place.planned ? 'planned' : 'saved'}`}
+            coordinate={{ latitude: place.latitude, longitude: place.longitude }}
+            title={place.name}
+            pinColor={selected ? colors.ink : place.planned ? colors.teal : colors.coral}
+            zIndex={selected ? 1 : 0}
+            onPress={() => onSelect(place.id)}
+          />
+        );
+      })}
+    </MapView>
+  );
+}
 
 const styles = StyleSheet.create({
   mini: {

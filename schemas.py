@@ -142,6 +142,13 @@ class InvitationResponse(BaseModel):
     invited_by_id: int | None = None
     status: str
     created_at: datetime
+    trip_title: str
+    trip_destination: str
+    trip_start_date: date | None = None
+    trip_end_date: date | None = None
+    invitee_name: str
+    invitee_email: EmailStr
+    invited_by_name: str | None = None
 
     model_config={
         "from_attributes": True
