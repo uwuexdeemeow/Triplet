@@ -14,6 +14,10 @@ from models import Activity, ExtractedPlace, SavedLink
     ("1.500", ("amount", 1500.0, "JPY")),
     ("800", ("amount", 800.0, "JPY")),
     ("Free", ("amount", 0.0, "JPY")),
+    # A real Instagram post: the dollars are only a conversion
+    ("Courses starting from ¥8,500 ($57USD~)", ("amount", 8500.0, "JPY")),
+    ("¥1000 ~ ¥1500", ("amount", 1250.0, "JPY")),
+    ("10 to 20 euros", ("amount", 15.0, "EUR")),
     ("$$", ("level", 1.0, None)),
     ("¥¥¥", ("level", 2.0, None)),
     ("pricey", None),

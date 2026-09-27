@@ -93,6 +93,8 @@ class DownloadedPost:
     info: dict
     # Set for normal videos
     video_path: Path | None = None
+    # Set for YouTube, which Gemini watches from the link itself
+    video_url: str | None = None
     # Set for photo slideshows, which only have background music instead of a video:
     # every slide when they could be fetched, otherwise just the cover
     images: list[bytes] = field(default_factory=list)
@@ -189,6 +191,34 @@ def download_slides(ydl: yt_dlp.YoutubeDL, info: dict) -> list[bytes]:
 
     return slides
 
+def download_covers(ydl: yt_dlp.YoutubeDL, entries: list[dict]) -> list[bytes]:
+    """
+    Download the cover image of each item in a carousel, like an Instagram post with several
+    photos and clips. Photos are their own cover; for clips it's the first frame.
+    """
+    covers = []
+    total_bytes = 0
+    for entry in entries[:MAX_SLIDES]:
+        url = entry.get("thumbnail") or next(
+            (thumb.get("url") for thumb in reversed(entry.get("thumbnails") or []) if thumb.get("url")), None
+        )
+        if not url:
+            continue
+        try:
+            data = ydl.urlopen(url).read()
+        except Exception:
+            continue
+        if total_bytes + len(data) > MAX_SLIDE_BYTES:
+            break
+        covers.append(data)
+        total_bytes += len(data)
+    return covers
+
+YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "music.youtube.com"}
+
+def is_youtube(url: str) -> bool:
+    return (urlparse(url).hostname or "").lower() in YOUTUBE_HOSTS
+
 def has_video_stream(info: dict) -> bool:
     formats = info.get("formats") or [info]
     return any((f.get("vcodec") or "none") != "none" for f in formats)
@@ -213,11 +243,31 @@ def download_post(url: str, dest_dir: str) -> DownloadedPost:
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
+        # Instagram photo posts have no video at all; carry on and read their images instead
+        "ignore_no_formats_error": True,
     }
 
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
+            if is_youtube(url):
+                # YouTube only serves separate video and audio streams, which need ffmpeg to join.
+                # Gemini can watch public YouTube videos by link, so just read the details here.
+                info = ydl.extract_info(url, download=False, process=False)
+                duration = info.get("duration")
+                if duration and duration > settings.VIDEO_MAX_DURATION_SECONDS:
+                    raise ExtractionError(f"Video is longer than {settings.VIDEO_MAX_DURATION_SECONDS // 60} minutes")
+                if not info.get("thumbnail") and info.get("thumbnails"):
+                    info["thumbnail"] = info["thumbnails"][-1].get("url")
+                return DownloadedPost(info=info, video_url=f"https://www.youtube.com/watch?v={info['id']}")
+
             info = ydl.extract_info(normalise_url(expand_short_link(url)), download=False)
+
+            if info.get("_type") == "playlist":
+                # A carousel of photos and clips, like many Instagram posts
+                entries = [entry for entry in info.get("entries") or [] if entry]
+                if not info.get("thumbnail") and entries:
+                    info["thumbnail"] = entries[0].get("thumbnail")
+                return DownloadedPost(info=info, images=download_covers(ydl, entries))
 
             if not has_video_stream(info):
                 # Slideshows only expose their background music, so read the slides instead.
@@ -260,7 +310,9 @@ def analyse_post(client: genai.Client, post: DownloadedPost) -> VideoExtraction:
     uploaded = None
 
     try:
-        if post.video_path is not None:
+        if post.video_url is not None:
+            contents.append(types.Part(file_data=types.FileData(file_uri=post.video_url, mime_type="video/*")))
+        elif post.video_path is not None:
             mime_type = mimetypes.guess_type(post.video_path.name)[0] or "video/mp4"
 
             if post.video_path.stat().st_size <= INLINE_LIMIT_BYTES:

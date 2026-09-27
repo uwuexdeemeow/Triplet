@@ -30,6 +30,8 @@ WORDS = {
 }
 DOLLAR_CURRENCIES = {"USD", "SGD", "HKD", "AUD", "CAD", "NZD", "TWD", "MXN"}
 NUMBER = re.compile(r"(\d+(?:[.,]\d+)*)\s*([kK])?")
+# "1,000-1,500", "¥1000 ~ ¥1500", "10 to 20"
+RANGE = re.compile(r"(\d+(?:[.,]\d+)*)\s*([kK])?\s*(?:-|–|—|~|to)\s*\D{0,3}?(\d+(?:[.,]\d+)*)\s*([kK])?")
 
 def _currency_in(text: str, trip_currency: str) -> str | None:
     lowered = text.casefold()
@@ -75,9 +77,19 @@ def parse_price(text: str | None, trip_currency: str) -> tuple[str, float, str |
             return ("level", PRICE_LEVELS[len(value.strip())], None)
         return None
 
-    # A range means somewhere in the middle
-    amount = sum(numbers[:2]) / min(len(numbers), 2)
-    return ("amount", amount, _currency_in(value, trip_currency) or trip_currency)
+    # A range means somewhere in the middle; otherwise the first price, since posts often add a
+    # conversion after it, like "¥8,500 ($57)"
+    match = RANGE.search(value)
+    if match:
+        amount = (_number(*match.group(1, 2)) + _number(*match.group(3, 4))) / 2
+    else:
+        match = NUMBER.search(value)
+        amount = numbers[0]
+    # The currency right by that price: "¥" in "¥8,500 ($57)", "yen" in "1000 yen"
+    before = value[max(0, match.start() - 3):match.start()]
+    after = re.split(r"[(\[/,;]", value[match.end():match.end() + 10], maxsplit=1)[0]
+    currency = _currency_in(before, trip_currency) or _currency_in(after, trip_currency) or _currency_in(value, trip_currency)
+    return ("amount", amount, currency or trip_currency)
 
 def meals_covered(plans: list[tuple[str | None, int]]) -> set[str]:
     """Which meals a day's food plans already are, from (category, start minute)."""

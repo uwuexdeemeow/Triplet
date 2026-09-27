@@ -55,8 +55,9 @@ def fake_youtube_dl(
         def __exit__(self, *args):
             return False
 
-        def extract_info(self, url, download):
+        def extract_info(self, url, download, process=True):
             FakeYoutubeDL.requested_urls.append(url)
+            FakeYoutubeDL.processed = process
             if error:
                 raise error
             return info
@@ -158,6 +159,56 @@ def test_download_with_no_file_fails(tmp_path):
     with patch("yt_dlp.YoutubeDL", fake_youtube_dl(VIDEO_INFO, write_file=False)):
         with pytest.raises(ExtractionError, match="too large"):
             download_post("https://www.tiktok.com/@a/video/1", str(tmp_path))
+
+def test_youtube_is_watched_by_link_not_downloaded(tmp_path):
+    # YouTube only offers separate video and audio streams, which can't be joined without ffmpeg
+    info = {"id": "TaSlCACPLmQ", "duration": 50, "title": "Ramen", "thumbnails": [{"url": "small"}, {"url": "big"}]}
+    fake = fake_youtube_dl(info)
+
+    with patch("yt_dlp.YoutubeDL", fake):
+        post = download_post("https://youtu.be/TaSlCACPLmQ", str(tmp_path))
+
+    assert fake.processed is False
+    assert post.video_url == "https://www.youtube.com/watch?v=TaSlCACPLmQ"
+    assert post.video_path is None
+    assert post.info["thumbnail"] == "big"
+    assert list(tmp_path.iterdir()) == []
+
+def test_instagram_carousel_reads_each_cover(tmp_path):
+    info = {
+        "_type": "playlist",
+        "id": "DSZ",
+        "description": "Must try food in Tokyo",
+        "entries": [
+            {"id": "a", "thumbnail": "https://example.com/slide0.jpg"},
+            {"id": "b", "thumbnails": [{"url": "https://example.com/slide1.jpg"}], "formats": [{"vcodec": "h264"}]},
+            {"id": "c"},
+        ],
+    }
+
+    with patch("yt_dlp.YoutubeDL", fake_youtube_dl(info)):
+        post = download_post("https://www.instagram.com/p/DSZ/", str(tmp_path))
+
+    assert post.images == [b"slide:0", b"slide:1"]
+    assert post.caption == "Must try food in Tokyo"
+    assert post.info["thumbnail"] == "https://example.com/slide0.jpg"
+
+def test_single_instagram_photo_uses_its_image(tmp_path):
+    info = {"id": "x", "extractor_key": "Instagram", "description": "Cafe", "thumbnail": "https://example.com/p.jpg", "formats": []}
+
+    with patch("yt_dlp.YoutubeDL", fake_youtube_dl(info)):
+        post = download_post("https://www.instagram.com/p/x/", str(tmp_path))
+
+    assert post.images == [JPEG]
+
+def test_analyse_youtube_sends_the_link():
+    client = gemini_client(parsed=VideoExtraction())
+
+    analyse_post(client, DownloadedPost(info={"title": "Ramen"}, video_url="https://www.youtube.com/watch?v=abc"))
+
+    contents = sent_contents(client)
+    assert contents[0].file_data.file_uri == "https://www.youtube.com/watch?v=abc"
+    client.files.upload.assert_not_called()
 
 def gemini_client(parsed=None, text=None):
     client = MagicMock()
