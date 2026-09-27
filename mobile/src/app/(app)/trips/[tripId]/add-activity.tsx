@@ -18,7 +18,15 @@ import { activitySchema, parseAmount, type ActivityValues } from '@/trips/valida
 import { addMinutes, dayOfMonth, eachDay, toActivityTime, weekdayShort } from '@/utils/dates';
 
 export default function AddActivityScreen() {
-  const { tripId, day } = useLocalSearchParams<{ tripId: string; day?: string }>();
+  // Opened from the map, it also gets the dropped pin and what's there
+  const { tripId, day, latitude, longitude, location, address } = useLocalSearchParams<{
+    tripId: string;
+    day?: string;
+    latitude?: string;
+    longitude?: string;
+    location?: string;
+    address?: string;
+  }>();
   const id = Number(tripId);
   const trip = useTrip(id);
   const queryClient = useQueryClient();
@@ -29,7 +37,7 @@ export default function AddActivityScreen() {
     resolver: zodResolver(activitySchema),
     defaultValues: {
       title: '',
-      location: '',
+      location: location ?? '',
       day: day ?? trip.data?.start_date ?? '',
       startTime: '12:00',
       endTime: '13:00',
@@ -38,7 +46,9 @@ export default function AddActivityScreen() {
   });
 
   // Where the activity is on the map: from a suggestion or dropped on the map picker
-  const [pin, setPin] = useState<Pin | null>(null);
+  const [pin, setPin] = useState<Pin | null>(
+    latitude && longitude ? { latitude: Number(latitude), longitude: Number(longitude), address: address || null } : null,
+  );
   const title = useWatch({ control, name: 'title' });
 
   const addActivity = useMutation({

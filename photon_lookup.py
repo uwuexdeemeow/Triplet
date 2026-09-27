@@ -9,6 +9,7 @@ from config import settings
 # Photon searches OpenStreetMap data and, unlike Nominatim, is built for search-as-you-type,
 # so the "Where" field's suggestions use it. Data © OpenStreetMap contributors.
 PHOTON_URL = "https://photon.komoot.io/api/"
+PHOTON_REVERSE_URL = "https://photon.komoot.io/reverse"
 
 # Typing "Menya", "Menya I", "Menya It" repeats a lot of queries, so remember recent answers
 CACHE_SIZE = 500
@@ -32,11 +33,11 @@ def _cached(key: tuple, fetch) -> list[dict]:
             _cache.popitem(last=False)
     return value
 
-def photon_request(params: dict) -> list[dict]:
+def photon_request(params: dict, url: str = PHOTON_URL) -> list[dict]:
     """Raw GeoJSON features from Photon."""
     # English names where OpenStreetMap has them, e.g. "Menya Itto" rather than "麵屋一燈"
     params = {**params, "lang": "en"}
-    request = Request(f"{PHOTON_URL}?{urlencode(params)}", headers={"User-Agent": settings.OSM_USER_AGENT})
+    request = Request(f"{url}?{urlencode(params)}", headers={"User-Agent": settings.OSM_USER_AGENT})
     try:
         with urlopen(request, timeout=8) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -80,6 +81,27 @@ def suggest(query: str, near: tuple[float, float] | None = None, limit: int = 6)
         return suggestions
 
     return _cached(("suggest", query.strip().casefold(), near), fetch)
+
+def reverse(latitude: float, longitude: float) -> dict | None:
+    """
+    What's at a dropped pin: the nearest named place or address, or None.
+
+    Returns:
+        dict | None: {"name", "address", "latitude", "longitude"}, with the pin's own coordinates.
+    """
+    # About 10 m of rounding, so tiny nudges of the same pin reuse the answer
+    key = ("reverse", round(latitude, 4), round(longitude, 4))
+
+    def fetch():
+        features = photon_request({"lat": latitude, "lon": longitude, "limit": 1}, PHOTON_REVERSE_URL)
+        suggestion = to_suggestion(features[0]) if features else None
+        return [suggestion] if suggestion else []
+
+    found = _cached(key, fetch)
+    if not found:
+        return None
+    # Keep the exact spot the user chose, not the matched place's centre
+    return {**found[0], "latitude": latitude, "longitude": longitude}
 
 def _coordinates(feature: dict) -> tuple[float, float] | None:
     try:

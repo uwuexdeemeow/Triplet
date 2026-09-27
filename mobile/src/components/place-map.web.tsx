@@ -134,24 +134,51 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
 });
 
 export type MapPlace = Coordinates & {
-  id: number;
+  // "activity-12" or "place-5": the map shows both plans and saved places
+  id: string;
   name: string;
   planned: boolean;
 };
 
-type TripMapProps = {
+export type TripMapProps = {
   places: MapPlace[];
-  selectedId: number | null;
-  onSelect: (id: number | null) => void;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  // Where to look when there are no pins yet, e.g. the trip's destination
+  fallbackCenter?: Coordinates | null;
+  // A spot the user right-clicked or long-pressed, shown as its own pin
+  droppedPin?: Coordinates | null;
+  onLongPress?: (coordinates: Coordinates) => void;
   // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
   bottomInset?: number;
 };
 
-/** Every pinned place in the trip. Clicking a pin selects it, clicking the map clears the selection. */
-export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripMapProps) {
-  const first = places[0] ?? { latitude: 20, longitude: 0 };
-  const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : 1.5, true);
-  const select = useEffectEvent((id: number | null) => onSelect(id));
+/**
+ * Every pin in the trip. Clicking a pin selects it, clicking the map clears the selection, and
+ * right-clicking (a long press on touch screens) drops a pin to add something there.
+ */
+export type TripMapHandle = {
+  // Fly to a spot at street level, e.g. a search result
+  moveTo: (coordinates: Coordinates) => void;
+};
+
+export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
+  { places, selectedId, onSelect, fallbackCenter = null, droppedPin = null, onLongPress, bottomInset = 0 },
+  ref,
+) {
+  const first = places[0] ?? fallbackCenter ?? { latitude: 20, longitude: 0 };
+  const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : fallbackCenter ? AREA_ZOOM : 1.5, true);
+  const select = useEffectEvent((id: string | null) => onSelect(id));
+  const drop = useEffectEvent((coordinates: Coordinates) => onLongPress?.(coordinates));
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      moveTo: (coordinates) =>
+        map?.easeTo({ center: [coordinates.longitude, coordinates.latitude], zoom: STREET_ZOOM, duration: 500 }),
+    }),
+    [map],
+  );
 
   // Clicking empty map clears the selection. Marker clicks are handled on the markers.
   useEffect(() => {
@@ -160,11 +187,29 @@ export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripM
       const target = event.originalEvent.target as HTMLElement | null;
       if (!target?.closest('.maplibregl-marker')) select(null);
     };
+    // Right-click, or a long press on a touch screen
+    const pressed = (event: { lngLat: { lng: number; lat: number }; preventDefault: () => void }) => {
+      event.preventDefault();
+      drop({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
+    };
     map.on('click', clicked);
+    map.on('contextmenu', pressed);
     return () => {
       map.off('click', clicked);
+      map.off('contextmenu', pressed);
     };
   }, [map]);
+
+  const dropLat = droppedPin?.latitude;
+  const dropLon = droppedPin?.longitude;
+  useEffect(() => {
+    if (!map || !lib || dropLat === undefined || dropLon === undefined) return;
+    const marker = new lib.Marker({ color: colors.ink }).setLngLat([dropLon, dropLat]).addTo(map);
+    marker.getElement().style.zIndex = '2';
+    return () => {
+      marker.remove();
+    };
+  }, [map, lib, dropLat, dropLon]);
 
   // Redraw the pins when they, or the selection, change. The screen rebuilds `places` on every
   // render, so compare what's in it rather than the array itself.
@@ -194,8 +239,13 @@ export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripM
 
   // Frame the pins whenever the set of pins changes, e.g. after switching the filter
   const pinKey = places.map((place) => place.id).join(',');
+  const fallbackKey = fallbackCenter ? `${fallbackCenter.latitude},${fallbackCenter.longitude}` : '';
   useEffect(() => {
-    if (!map || !lib || !places.length) return;
+    if (!map || !lib) return;
+    if (!places.length) {
+      if (fallbackCenter) map.easeTo({ center: [fallbackCenter.longitude, fallbackCenter.latitude], zoom: AREA_ZOOM, duration: 400 });
+      return;
+    }
     if (places.length === 1) {
       map.easeTo({ center: [places[0].longitude, places[0].latitude], zoom: STREET_ZOOM, duration: 400 });
       return;
@@ -205,14 +255,14 @@ export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripM
     map.fitBounds(bounds, { padding: { top: 70, right: 40, bottom: bottomInset + 40, left: 40 }, maxZoom: STREET_ZOOM, duration: 400 });
     // Only refit for a different set of pins, not when a pin is selected
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, lib, pinKey]);
+  }, [map, lib, pinKey, fallbackKey]);
 
   return (
     <View style={StyleSheet.absoluteFill}>
       <div ref={container} style={fill} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   mini: {

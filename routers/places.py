@@ -8,7 +8,7 @@ from schemas import TripPlaceResponse, PlaceUpdate, PlaceSearchResult
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES
 from places_lookup import active_provider, search_places, search_places_osm, reserve_call, PlacesError, PlacesQuotaError, SEARCH_API
 from osm_lookup import OsmError
-from photon_lookup import PhotonError, locate, suggest
+from photon_lookup import PhotonError, locate, reverse, suggest
 
 router = APIRouter(
     prefix="/trips/{trip_id}/places",
@@ -123,6 +123,22 @@ def suggest_places(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Place suggestions are unavailable right now"
+        )
+
+@router.get("/reverse", response_model=PlaceSearchResult | None)
+def reverse_place(
+    trip_id: int,
+    lat: float = Query(ge=-90, le=90),
+    lon: float = Query(ge=-180, le=180),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """The name and address at a pin dropped on the map, or null when there's nothing there."""
+    try:
+        return reverse(lat, lon)
+    except PhotonError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Place lookup is unavailable right now"
         )
 
 @router.get("/{place_id}", response_model=TripPlaceResponse)

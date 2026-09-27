@@ -2137,6 +2137,84 @@
     }
    }
   },
+  "/trips/{trip_id}/places/reverse": {
+   "get": {
+    "tags": [
+     "Places"
+    ],
+    "summary": "Reverse Place",
+    "description": "The name and address at a pin dropped on the map, or null when there's nothing there.",
+    "operationId": "reverse_place_trips__trip_id__places_reverse_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "lat",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "maximum": 90,
+       "minimum": -90,
+       "title": "Lat"
+      }
+     },
+     {
+      "name": "lon",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "number",
+       "maximum": 180,
+       "minimum": -180,
+       "title": "Lon"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/PlaceSearchResult"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Reverse Place Trips  Trip Id  Places Reverse Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/places/{place_id}": {
    "get": {
     "tags": [

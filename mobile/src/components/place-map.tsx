@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-maps';
+import MapView, { Marker, type LongPressEvent, type MapPressEvent, type Region } from 'react-native-maps';
 
 import { colors } from '@/theme/tokens';
 
@@ -73,29 +73,56 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
 });
 
 export type MapPlace = Coordinates & {
-  id: number;
+  // "activity-12" or "place-5": the map shows both plans and saved places
+  id: string;
   name: string;
   planned: boolean;
 };
 
-type TripMapProps = {
+export type TripMapProps = {
   places: MapPlace[];
-  selectedId: number | null;
-  onSelect: (id: number | null) => void;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  // Where to look when there are no pins yet, e.g. the trip's destination
+  fallbackCenter?: Coordinates | null;
+  // A spot the user long-pressed, shown as its own pin
+  droppedPin?: Coordinates | null;
+  onLongPress?: (coordinates: Coordinates) => void;
   // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
   bottomInset?: number;
 };
 
-/** Every pinned place in the trip. Tapping a pin selects it, tapping the map clears the selection. */
-export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripMapProps) {
+// A city's worth of map, for when there's nothing pinned yet
+const AREA_ZOOM = { latitudeDelta: 0.18, longitudeDelta: 0.18 };
+
+/**
+ * Every pin in the trip. Tapping a pin selects it, tapping the map clears the selection,
+ * and long-pressing drops a pin to add something there.
+ */
+export type TripMapHandle = {
+  // Fly to a spot at street level, e.g. a search result
+  moveTo: (coordinates: Coordinates) => void;
+};
+
+export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
+  { places, selectedId, onSelect, fallbackCenter = null, droppedPin = null, onLongPress, bottomInset = 0 },
+  ref,
+) {
   const mapRef = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
 
+  useImperativeHandle(ref, () => ({
+    moveTo: (coordinates) => mapRef.current?.animateToRegion({ ...coordinates, ...STREET_ZOOM }, 500),
+  }));
+
   // Frame the pins whenever the set of pins changes, e.g. after switching the filter
   const pinKey = places.map((place) => place.id).join(',');
+  const fallbackKey = fallbackCenter ? `${fallbackCenter.latitude},${fallbackCenter.longitude}` : '';
   useEffect(() => {
-    if (!ready || !places.length) return;
-    if (places.length === 1) {
+    if (!ready) return;
+    if (!places.length) {
+      if (fallbackCenter) mapRef.current?.animateToRegion({ ...fallbackCenter, ...AREA_ZOOM }, 400);
+    } else if (places.length === 1) {
       mapRef.current?.animateToRegion({ latitude: places[0].latitude, longitude: places[0].longitude, ...STREET_ZOOM }, 400);
     } else {
       mapRef.current?.fitToCoordinates(places, {
@@ -105,7 +132,7 @@ export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripM
     }
     // Only refit for a different set of pins, not when a pin is selected
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, pinKey]);
+  }, [ready, pinKey, fallbackKey]);
 
   return (
     <MapView
@@ -116,6 +143,7 @@ export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripM
         // Android reports marker taps to the map as well
         if (event.nativeEvent.action !== 'marker-press') onSelect(null);
       }}
+      onLongPress={(event: LongPressEvent) => onLongPress?.(event.nativeEvent.coordinate)}
       toolbarEnabled={false}>
       {places.map((place) => {
         const selected = place.id === selectedId;
@@ -131,9 +159,17 @@ export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripM
           />
         );
       })}
+      {droppedPin ? (
+        <Marker
+          key={`dropped-${droppedPin.latitude},${droppedPin.longitude}`}
+          coordinate={droppedPin}
+          pinColor={colors.ink}
+          zIndex={2}
+        />
+      ) : null}
     </MapView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   mini: {

@@ -15,7 +15,8 @@ import { activityClock, dayOfMonth, eachDay, formatLongDate, todayString, weekda
 import { formatMoney } from '@/utils/money';
 
 export default function PlanScreen() {
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // Other tabs can open the plan on a given day, e.g. the map's "See in plan"
+  const { tripId, day: dayParam } = useLocalSearchParams<{ tripId: string; day?: string }>();
   const id = Number(tripId);
   const trip = useTrip(id);
   const itinerary = useItinerary(id);
@@ -24,7 +25,7 @@ export default function PlanScreen() {
   const days = trip.data?.start_date && trip.data.end_date ? eachDay(trip.data.start_date, trip.data.end_date) : [];
 
   // Open on today during the trip, otherwise on the first day
-  const [pickedDay, setPickedDay] = useState<string | null>(null);
+  const [pickedDay, setPickedDay] = useState<string | null>(dayParam ?? null);
   const today = todayString();
   const selectedDay = pickedDay && days.includes(pickedDay) ? pickedDay : days.includes(today) ? today : days[0];
 

@@ -496,6 +496,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/places/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reverse Place
+         * @description The name and address at a pin dropped on the map, or null when there's nothing there.
+         */
+        get: operations["reverse_place_trips__trip_id__places_reverse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/places/{place_id}": {
         parameters: {
             query?: never;
@@ -2677,6 +2697,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaceSearchResult"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reverse_place_trips__trip_id__places_reverse_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+            };
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceSearchResult"] | null;
                 };
             };
             /** @description Validation Error */

@@ -1,16 +1,29 @@
 import { Feather } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useItinerary, usePlaces, type TripPlace } from '@/api/trips';
+import { api, type Schemas } from '@/api/client';
+import {
+  useItinerary,
+  useMe,
+  useMembers,
+  usePlaces,
+  useTrip,
+  type ItineraryActivity,
+  type TripPlace,
+} from '@/api/trips';
 import { Button } from '@/components/button';
-import { TripMap, type MapPlace } from '@/components/place-map';
+import { MapSearch } from '@/components/map-search';
+import { TripMap, type Coordinates, type MapPlace, type TripMapHandle } from '@/components/place-map';
 import { FormMessage } from '@/components/screen';
-import { Body, Title } from '@/components/text';
 import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { activityClock, formatShortDate } from '@/utils/dates';
 import { needsCheck, placeDetail } from '@/utils/places';
+
+type SearchResult = Schemas['PlaceSearchResult'];
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -20,160 +33,393 @@ const FILTERS = [
 
 type Filter = (typeof FILTERS)[number]['key'];
 
+// A spot to add something at: long-pressed on the map, or picked from search (which already knows its name)
+type Dropped = Coordinates & { known?: { name: string; address: string | null } };
+
+// A pin is either a plan (any activity with a location) or a saved place that isn't planned yet
+type MapItem =
+  | (MapPlace & { kind: 'activity'; activity: ItineraryActivity; day: string })
+  | (MapPlace & { kind: 'place'; place: TripPlace });
+
 function isPlanned(place: TripPlace): boolean {
   return (place.activity_ids?.length ?? 0) > 0;
 }
 
-function hasPin(place: TripPlace): place is TripPlace & { latitude: number; longitude: number } {
-  return place.latitude != null && place.longitude != null;
+function hasPin<T extends { latitude?: number | null; longitude?: number | null }>(
+  item: T,
+): item is T & { latitude: number; longitude: number } {
+  return item.latitude != null && item.longitude != null;
 }
 
 export default function TripMapScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
   const insets = useSafeAreaInsets();
+  const trip = useTrip(id);
   const places = usePlaces(id);
   const itinerary = useItinerary(id);
+  const me = useMe();
+  const members = useMembers(id);
   const [filter, setFilter] = useState<Filter>('all');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dropped, setDropped] = useState<Dropped | null>(null);
   const [sheetHeight, setSheetHeight] = useState(0);
+  const [searching, setSearching] = useState(false);
+  const mapRef = useRef<TripMapHandle>(null);
 
-  if (places.isPending) return <ActivityIndicator color={colors.teal} style={styles.loading} />;
+  const role = members.data?.find((member) => member.user_id === me.data?.id)?.role;
+  const canEdit = role === 'owner' || role === 'member';
 
-  if (places.isError) {
+  // Every plan with a location, whether it came from a TikTok or was added by hand
+  const activityItems: MapItem[] = (itinerary.data?.days ?? []).flatMap((day) =>
+    day.activities.filter(hasPin).map((activity) => ({
+      kind: 'activity' as const,
+      id: `activity-${activity.id}`,
+      name: activity.title,
+      latitude: activity.latitude,
+      longitude: activity.longitude,
+      planned: true,
+      activity,
+      day: day.date,
+    })),
+  );
+  const pinnedActivityIds = new Set(activityItems.map((item) => (item.kind === 'activity' ? item.activity.id : 0)));
+
+  // Saved places, unless one of their plans is already on the map
+  const placeItems: MapItem[] = (places.data ?? [])
+    .filter(hasPin)
+    .filter((place) => !place.activity_ids?.some((activityId) => pinnedActivityIds.has(activityId)))
+    .map((place) => ({
+      kind: 'place' as const,
+      id: `place-${place.id}`,
+      name: place.name,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      planned: isPlanned(place),
+      place,
+    }));
+
+  const items = [...activityItems, ...placeItems];
+  const unpinned = (places.data ?? []).filter((place) => !hasPin(place) && !isPlanned(place) && place.details_status !== 'pending');
+  const lookingUp = (places.data ?? []).some((place) => !hasPin(place) && place.details_status === 'pending');
+
+  const counts: Record<Filter, number> = {
+    all: items.length,
+    planned: items.filter((item) => item.planned).length,
+    saved: items.filter((item) => !item.planned).length,
+  };
+  const shown = items.filter((item) => filter === 'all' || (filter === 'planned') === item.planned);
+  const selected = shown.find((item) => item.id === selectedId) ?? null;
+
+  // With nothing pinned, open the map on the trip's destination
+  const destination = trip.data?.destination;
+  const area = useQuery({
+    queryKey: ['trips', id, 'suggest', destination ?? ''],
+    queryFn: () => api<SearchResult[]>(`/trips/${id}/places/suggest`, { query: { q: destination ?? '' } }),
+    enabled: !!destination && destination.length >= 2 && !places.isPending && !itinerary.isPending && items.length === 0,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const areaResult = area.data?.find(hasPin);
+  const fallbackCenter = areaResult ? { latitude: areaResult.latitude!, longitude: areaResult.longitude! } : null;
+
+  if (places.isPending || itinerary.isPending) return <ActivityIndicator color={colors.teal} style={styles.loading} />;
+
+  if (places.isError || itinerary.isError) {
     return (
       <View style={styles.state}>
-        <FormMessage message={places.error.message} />
-        <Button label="Try again" variant="secondary" onPress={() => places.refetch()} />
-      </View>
-    );
-  }
-
-  if (places.data.length === 0) {
-    return (
-      <View style={styles.state}>
-        <Feather name="map" size={32} color={colors.muted} style={styles.stateIcon} />
-        <Title style={styles.center}>No places yet</Title>
-        <Body style={styles.stateText}>
-          Save a TikTok in the Saved tab and the places it mentions will show up here.
-        </Body>
+        <FormMessage message={(places.error ?? itinerary.error)?.message ?? null} />
         <Button
-          label="Go to Saved"
+          label="Try again"
           variant="secondary"
-          onPress={() => router.replace({ pathname: '/trips/[tripId]/saved', params: { tripId } })}
+          onPress={() => {
+            places.refetch();
+            itinerary.refetch();
+          }}
         />
       </View>
     );
   }
 
-  // Which day each planned activity is on, for "In the plan · Fri 2 Oct"
-  const activityDays = new Map<number, string>();
-  for (const day of itinerary.data?.days ?? []) {
-    for (const activity of day.activities) activityDays.set(activity.id, day.date);
-  }
-
-  const pinned = places.data.filter(hasPin);
-  const unpinned = places.data.filter((place) => !hasPin(place) && place.details_status !== 'pending');
-  const lookingUp = places.data.some((place) => !hasPin(place) && place.details_status === 'pending');
-
-  const counts: Record<Filter, number> = {
-    all: pinned.length,
-    planned: pinned.filter(isPlanned).length,
-    saved: pinned.filter((place) => !isPlanned(place)).length,
+  const select = (itemId: string | null) => {
+    setSelectedId(itemId);
+    setDropped(null);
   };
-  const shown = pinned.filter((place) => filter === 'all' || (filter === 'planned') === isPlanned(place));
-  const mapPlaces: MapPlace[] = shown.map((place) => ({
-    id: place.id,
-    name: place.name,
-    latitude: place.latitude,
-    longitude: place.longitude,
-    planned: isPlanned(place),
-  }));
-  const selected = shown.find((place) => place.id === selectedId) ?? null;
 
   return (
     <View style={styles.screen}>
-      <TripMap places={mapPlaces} selectedId={selected?.id ?? null} onSelect={setSelectedId} bottomInset={sheetHeight} />
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filters}
-        contentContainerStyle={styles.filtersContent}>
-        {FILTERS.map(({ key, label }) => {
-          const active = key === filter;
-          return (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              onPress={() => {
-                setFilter(key);
+      <TripMap
+        ref={mapRef}
+        places={shown}
+        selectedId={selected?.id ?? null}
+        onSelect={select}
+        fallbackCenter={fallbackCenter}
+        droppedPin={dropped}
+        onLongPress={
+          canEdit
+            ? (coordinates) => {
                 setSelectedId(null);
-              }}
-              style={[styles.filter, active && styles.filterActive]}>
-              {key !== 'all' ? (
-                <View style={[styles.dot, { backgroundColor: key === 'planned' ? colors.teal : colors.coral }]} />
-              ) : null}
-              <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
-                {label} · {counts[key]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+                setDropped(coordinates);
+              }
+            : undefined
+        }
+        bottomInset={sheetHeight}
+      />
+
+      <View style={styles.top} pointerEvents="box-none">
+        <View style={styles.searchWrap}>
+          <MapSearch
+            tripId={id}
+            onOpenChange={setSearching}
+            onPick={(result) => {
+              setSelectedId(null);
+              setDropped({
+                latitude: result.latitude,
+                longitude: result.longitude,
+                known: { name: result.name, address: result.address ?? null },
+              });
+              mapRef.current?.moveTo(result);
+            }}
+          />
+        </View>
+        {searching ? null : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filters}
+            contentContainerStyle={styles.filtersContent}>
+            {FILTERS.map(({ key, label }) => {
+              const active = key === filter;
+              return (
+                <Pressable
+                  key={key}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    setFilter(key);
+                    select(null);
+                  }}
+                  style={[styles.filter, active && styles.filterActive]}>
+                  {key !== 'all' ? (
+                    <View style={[styles.dot, { backgroundColor: key === 'planned' ? colors.teal : colors.coral }]} />
+                  ) : null}
+                  <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
+                    {label} · {counts[key]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+      </View>
 
       <View
         style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}
-        onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
-        pointerEvents="box-none">
-        {selected ? (
-          <SelectedPlace
-            tripId={tripId}
-            place={selected}
-            plannedDay={selected.activity_ids?.map((activityId) => activityDays.get(activityId)).find(Boolean)}
-          />
-        ) : unpinned.length > 0 ? (
-          <Unpinned tripId={tripId} places={unpinned} />
-        ) : shown.length === 0 ? (
-          <Text style={styles.sheetNote}>
-            {lookingUp
-              ? 'Looking up addresses… pins appear as they’re found.'
-              : filter === 'planned'
-                ? 'Nothing from your saved places is in the plan yet.'
-                : filter === 'saved'
-                  ? 'Every pinned place is already in the plan.'
-                  : 'No places have a pin yet.'}
-          </Text>
+        onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}>
+        {dropped ? (
+          <DroppedPin tripId={tripId} dropped={dropped} canEdit={canEdit} onCancel={() => setDropped(null)} />
+        ) : selected?.kind === 'activity' ? (
+          <SelectedActivity tripId={tripId} activity={selected.activity} day={selected.day} />
+        ) : selected?.kind === 'place' ? (
+          <SelectedPlace tripId={tripId} place={selected.place} />
         ) : (
-          <Text style={styles.sheetNote}>
-            {lookingUp ? 'Looking up more addresses… ' : ''}Tap a pin to see the place.
-          </Text>
+          <Idle
+            tripId={tripId}
+            canEdit={canEdit}
+            unpinned={unpinned}
+            note={
+              lookingUp
+                ? 'Looking up addresses… pins appear as they’re found.'
+                : items.length === 0
+                  ? 'Nothing on the map yet.'
+                  : shown.length === 0
+                    ? filter === 'planned'
+                      ? 'No plans with a location yet.'
+                      : 'Every saved place is already in the plan.'
+                    : null
+            }
+          />
         )}
       </View>
     </View>
   );
 }
 
-function SelectedPlace({ tripId, place, plannedDay }: { tripId: string; place: TripPlace; plannedDay: string | undefined }) {
-  const detail = placeDetail(place, plannedDay);
+// Nothing selected: how to use the map, and a way to add a plan
+function Idle({
+  tripId,
+  canEdit,
+  unpinned,
+  note,
+}: {
+  tripId: string;
+  canEdit: boolean;
+  unpinned: TripPlace[];
+  note: string | null;
+}) {
+  const how = Platform.OS === 'web' ? 'Right-click' : 'Long-press';
+
+  return (
+    <View style={styles.idle}>
+      <View style={styles.idleRow}>
+        <View style={styles.idleText}>
+          {note ? <Text style={styles.idleNote}>{note}</Text> : null}
+          <Text style={styles.idleHint}>
+            Tap a pin to see it.{canEdit ? ` ${how} the map to add a plan there.` : ''}
+          </Text>
+        </View>
+        {canEdit ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add activity"
+            onPress={() => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId } })}
+            style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
+            <Feather name="plus" size={18} color={colors.white} />
+            <Text style={styles.addLabel}>Add</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {unpinned.length > 0 ? (
+        <View style={styles.unpinned}>
+          <Text style={styles.sheetTitle}>
+            {unpinned.length} saved {unpinned.length === 1 ? 'place needs' : 'places need'} a pin
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unpinnedList}>
+            {unpinned.map((place) => (
+              <Pressable
+                key={place.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Drop a pin for ${place.name}`}
+                onPress={() =>
+                  router.push({ pathname: '/trips/[tripId]/pick-location', params: { tripId, placeId: String(place.id) } })
+                }
+                style={({ pressed }) => [styles.unpinnedChip, pressed && styles.pressed]}>
+                <Feather name="map-pin" size={14} color={colors.coralText} />
+                <Text style={styles.unpinnedLabel} numberOfLines={1}>
+                  {place.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// A pin the user dropped: say what's there and offer to plan something
+function DroppedPin({
+  tripId,
+  dropped: coordinates,
+  canEdit,
+  onCancel,
+}: {
+  tripId: string;
+  dropped: Dropped;
+  canEdit: boolean;
+  onCancel: () => void;
+}) {
+  const known = coordinates.known;
+  const lookup = useQuery({
+    // Rounded, so a tiny nudge of the same spot reuses the answer
+    queryKey: ['trips', Number(tripId), 'reverse', coordinates.latitude.toFixed(4), coordinates.longitude.toFixed(4)],
+    queryFn: () =>
+      api<SearchResult | null>(`/trips/${tripId}/places/reverse`, {
+        query: { lat: coordinates.latitude, lon: coordinates.longitude },
+      }),
+    staleTime: Infinity,
+    retry: false,
+    // A search result already says what's there
+    enabled: !known,
+  });
+
+  const found = known ?? lookup.data ?? null;
+  const addHere = () => {
+    onCancel();
+    router.push({
+      pathname: '/trips/[tripId]/add-activity',
+      params: {
+        tripId,
+        latitude: String(coordinates.latitude),
+        longitude: String(coordinates.longitude),
+        location: found?.name ?? '',
+        address: found?.address ?? '',
+      },
+    });
+  };
+
+  return (
+    <View style={styles.selected}>
+      <View style={styles.selectedText}>
+        <Text style={styles.kicker}>{known ? 'Search result' : 'Dropped pin'}</Text>
+        {!known && lookup.isPending ? (
+          <ActivityIndicator color={colors.teal} style={styles.lookupLoading} />
+        ) : (
+          <>
+            <Text style={styles.selectedName} numberOfLines={2}>
+              {found?.name ?? 'This spot'}
+            </Text>
+            <Text style={styles.address} numberOfLines={2}>
+              {found?.address ?? `${coordinates.latitude.toFixed(5)}, ${coordinates.longitude.toFixed(5)}`}
+            </Text>
+          </>
+        )}
+      </View>
+      {canEdit ? (
+        <View style={styles.actions}>
+          <Button label="Cancel" variant="secondary" style={styles.action} onPress={onCancel} />
+          <Button label="Add activity here" style={styles.actionWide} onPress={addHere} />
+        </View>
+      ) : (
+        <Button label="Close" variant="secondary" onPress={onCancel} />
+      )}
+    </View>
+  );
+}
+
+function SelectedActivity({ tripId, activity, day }: { tripId: string; activity: ItineraryActivity; day: string }) {
+  return (
+    <View style={styles.selected}>
+      <View style={styles.selectedText}>
+        <Text style={styles.kicker}>In the plan</Text>
+        <Text style={styles.selectedName} numberOfLines={2}>
+          {activity.title}
+        </Text>
+        <Text style={[styles.detail, styles.detailTeal]}>
+          {formatShortDate(day)} · {activityClock(activity.start_time)}–{activityClock(activity.end_time)}
+        </Text>
+        {activity.location ? (
+          <Text style={styles.address} numberOfLines={1}>
+            {activity.location}
+          </Text>
+        ) : null}
+      </View>
+      <Button
+        label="See it in the plan"
+        variant="secondary"
+        onPress={() => router.replace({ pathname: '/trips/[tripId]', params: { tripId, day } })}
+      />
+    </View>
+  );
+}
+
+function SelectedPlace({ tripId, place }: { tripId: string; place: TripPlace }) {
+  const detail = placeDetail(place, undefined);
   const params = { tripId, placeId: String(place.id) };
   const planned = isPlanned(place);
 
   return (
     <View style={styles.selected}>
       <View style={styles.selectedText}>
+        <Text style={styles.kicker}>{planned ? 'In the plan' : 'Saved from a post'}</Text>
         <Text style={styles.selectedName} numberOfLines={2}>
           {place.name}
         </Text>
         {detail.text ? (
           <Text
             numberOfLines={1}
-            style={[
-              styles.detail,
-              detail.tone === 'teal' && styles.detailTeal,
-              detail.tone === 'coral' && styles.detailCoral,
-            ]}>
+            style={[styles.detail, detail.tone === 'teal' && styles.detailTeal, detail.tone === 'coral' && styles.detailCoral]}>
             {detail.text}
           </Text>
         ) : null}
@@ -211,33 +457,6 @@ function SelectedPlace({ tripId, place, plannedDay }: { tripId: string; place: T
   );
 }
 
-function Unpinned({ tripId, places }: { tripId: string; places: TripPlace[] }) {
-  return (
-    <View style={styles.unpinned}>
-      <Text style={styles.sheetTitle}>
-        {places.length} {places.length === 1 ? 'place needs' : 'places need'} a pin
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unpinnedList}>
-        {places.map((place) => (
-          <Pressable
-            key={place.id}
-            accessibilityRole="button"
-            accessibilityLabel={`Drop a pin for ${place.name}`}
-            onPress={() =>
-              router.push({ pathname: '/trips/[tripId]/pick-location', params: { tripId, placeId: String(place.id) } })
-            }
-            style={({ pressed }) => [styles.unpinnedChip, pressed && styles.pressed]}>
-            <Feather name="map-pin" size={14} color={colors.coralText} />
-            <Text style={styles.unpinnedLabel} numberOfLines={1}>
-              {place.name}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -255,21 +474,17 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     alignSelf: 'center',
   },
-  stateIcon: {
-    alignSelf: 'center',
-  },
-  center: {
-    textAlign: 'center',
-  },
-  stateText: {
-    textAlign: 'center',
-    color: colors.muted,
-  },
-  filters: {
+  top: {
     position: 'absolute',
     top: spacing.md,
     left: 0,
     right: 0,
+    gap: spacing.sm,
+  },
+  searchWrap: {
+    paddingHorizontal: 20,
+  },
+  filters: {
     flexGrow: 0,
   },
   filtersContent: {
@@ -316,13 +531,51 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
-  sheetNote: {
-    fontFamily: fonts.semibold,
+  idle: {
+    gap: spacing.md,
+  },
+  idleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  idleText: {
+    flex: 1,
+    gap: 2,
+  },
+  idleNote: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  idleHint: {
+    fontFamily: fonts.body,
     fontSize: 14,
+    lineHeight: 19,
     color: colors.muted,
-    textAlign: 'center',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: radii.pill,
+    backgroundColor: colors.teal,
+  },
+  addLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.white,
   },
   sheetTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  },
+  kicker: {
     fontFamily: fonts.bold,
     fontSize: 12,
     letterSpacing: 0.6,
@@ -339,6 +592,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.displaySemi,
     fontSize: 22,
     color: colors.ink,
+  },
+  lookupLoading: {
+    alignSelf: 'flex-start',
+    marginVertical: spacing.sm,
   },
   detail: {
     fontFamily: fonts.semibold,
@@ -362,6 +619,9 @@ const styles = StyleSheet.create({
   },
   action: {
     flex: 1,
+  },
+  actionWide: {
+    flex: 2,
   },
   unpinned: {
     gap: spacing.sm,

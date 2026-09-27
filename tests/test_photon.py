@@ -67,3 +67,30 @@ def test_suggest_reports_when_photon_is_down(client, alice, trip):
         response = suggest(client, alice, trip)
 
     assert response.status_code == 502
+
+def reverse_lookup(client, user, trip, lat=35.66, lon=139.70):
+    return client.get(f"/trips/{trip['id']}/places/reverse", headers=user["headers"], params={"lat": lat, "lon": lon})
+
+def test_reverse_names_a_dropped_pin_but_keeps_its_spot(client, alice, trip):
+    with patch("photon_lookup.photon_request", return_value=[ICHIRAN]) as request:
+        response = reverse_lookup(client, alice, trip, lat=35.6612, lon=139.7011)
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Ichiran"
+    assert response.json()["address"] == "1-22-7 Jinnan, Shibuya, Tokyo, Japan"
+    # The pin stays where the user dropped it
+    assert (response.json()["latitude"], response.json()["longitude"]) == (35.6612, 139.7011)
+    assert request.call_args.args[1] == photon_lookup.PHOTON_REVERSE_URL
+
+def test_reverse_is_null_when_nothing_is_there(client, alice, trip):
+    with patch("photon_lookup.photon_request", return_value=[]):
+        response = reverse_lookup(client, alice, trip)
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+def test_reverse_rejects_impossible_coordinates(client, alice, trip):
+    assert reverse_lookup(client, alice, trip, lat=91).status_code == 422
+
+def test_reverse_is_for_trip_members(client, bob, trip):
+    assert reverse_lookup(client, bob, trip).status_code in (403, 404)
