@@ -21,6 +21,7 @@ export default function InvitesScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <FlatList
+        contentInsetAdjustmentBehavior="automatic"
         data={invitations.data ?? []}
         keyExtractor={(invitation) => String(invitation.id)}
         contentContainerStyle={styles.list}
@@ -151,6 +152,7 @@ const useStyles = makeStyles((colors) => ({
     padding: spacing.lg,
     gap: spacing.xs,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
   },
   title: {

@@ -99,6 +99,7 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
   },
   trashHover: {
     backgroundColor: colors.dangerSoft,

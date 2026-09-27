@@ -2,10 +2,11 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api, ApiError, type Schemas } from '@/api/client';
 import { Button } from '@/components/button';
+import { Glass } from '@/components/glass';
 import { PickerMap, type Coordinates, type PickerMapHandle } from '@/components/place-map';
 import { FormMessage } from '@/components/screen';
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -61,6 +62,7 @@ export function LocationPicker({
 }: LocationPickerProps) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const mapRef = useRef<PickerMapHandle>(null);
   const [searchedStart, setSearchedStart] = useState<Start | null>(null);
   const [movedTo, setMovedTo] = useState<Coordinates | null>(null);
@@ -189,22 +191,26 @@ export function LocationPicker({
 
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.top} pointerEvents="box-none">
         <View style={styles.searchRow}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}>
-            <Feather name="chevron-left" size={22} color={colors.ink} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.round}>
+            <Glass interactive style={styles.iconButton}>
+              <Feather name="chevron-left" size={22} color={colors.ink} />
+            </Glass>
           </Pressable>
-          <TextInput
-            accessibilityLabel="Search for a place"
-            placeholder="Search for a place"
-            placeholderTextColor={colors.muted}
-            returnKeyType="search"
-            value={queryText}
-            onChangeText={setQuery}
-            onSubmitEditing={runSearch}
-            style={styles.searchInput}
-          />
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={runSearch} style={styles.iconButton}>
-            {searching ? <ActivityIndicator color={colors.accent} /> : <Feather name="search" size={20} color={colors.ink} />}
-          </Pressable>
+          <Glass style={styles.searchPill}>
+            <TextInput
+              accessibilityLabel="Search for a place"
+              placeholder="Search for a place"
+              placeholderTextColor={colors.muted}
+              returnKeyType="search"
+              value={queryText}
+              onChangeText={setQuery}
+              onSubmitEditing={runSearch}
+              style={styles.searchInput}
+            />
+            <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={runSearch} style={styles.searchButton}>
+              {searching ? <ActivityIndicator color={colors.accent} /> : <Feather name="search" size={20} color={colors.ink} />}
+            </Pressable>
+          </Glass>
         </View>
 
         {results.length > 0 ? (
@@ -238,7 +244,8 @@ export function LocationPicker({
         ) : null}
       </SafeAreaView>
 
-      <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.bottom}>
+      {/* Floats over the map, clear of the screen's edges and home indicator */}
+      <Glass style={[styles.bottom, { bottom: Math.max(insets.bottom, spacing.md) }]}>
         <Text style={styles.hint}>Drag or tap the map to move the pin</Text>
         <Text style={styles.title} numberOfLines={1}>
           {title}
@@ -248,7 +255,7 @@ export function LocationPicker({
         </Text>
         <FormMessage message={error} />
         <Button label="Use this location" loading={saving} disabled={!center} onPress={confirm} />
-      </SafeAreaView>
+      </Glass>
     </View>
   );
 }
@@ -283,30 +290,45 @@ const useStyles = makeStyles((colors) => ({
     gap: spacing.sm,
     alignItems: 'center',
   },
+  round: {
+    borderRadius: 24,
+  },
   iconButton: {
     width: 48,
     height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  searchPill: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    paddingLeft: 16,
+    borderRadius: 24,
   },
   searchInput: {
     flex: 1,
     minWidth: 0,
-    height: 48,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
+    height: '100%',
     fontFamily: fonts.body,
     fontSize: 16,
     color: colors.ink,
+  },
+  searchButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   results: {
     marginLeft: 56,
     marginRight: 56,
     borderRadius: 12,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     overflow: 'hidden',
   },
   resultsScroll: {
@@ -345,16 +367,13 @@ const useStyles = makeStyles((colors) => ({
   },
   bottom: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 20,
-    paddingTop: 18,
+    left: spacing.md,
+    right: spacing.md,
+    paddingHorizontal: 18,
+    paddingTop: 16,
     paddingBottom: spacing.lg,
     gap: 6,
-    backgroundColor: colors.bg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 28,
   },
   hint: {
     fontFamily: fonts.bold,

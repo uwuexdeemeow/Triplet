@@ -461,6 +461,7 @@ const useStyles = makeStyles((colors) => ({
   },
   card: {
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
     overflow: 'hidden',
   },

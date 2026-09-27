@@ -6,9 +6,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/api/client';
 import { tripKeys, type Trip } from '@/api/trips';
+import { Enter } from '@/components/enter';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
+import { PressableScale } from '@/components/pressable-scale';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { formatDateRange, tripCountdown } from '@/utils/dates';
@@ -24,6 +26,7 @@ export default function TripsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <FlatList
+        contentInsetAdjustmentBehavior="automatic"
         data={trips.data ?? []}
         keyExtractor={(trip) => String(trip.id)}
         contentContainerStyle={styles.list}
@@ -57,7 +60,11 @@ export default function TripsScreen() {
             </View>
           )
         }
-        renderItem={({ item }) => <TripCard trip={item} />}
+        renderItem={({ item, index }) => (
+          <Enter index={index}>
+            <TripCard trip={item} />
+          </Enter>
+        )}
       />
     </SafeAreaView>
   );
@@ -68,11 +75,12 @@ function TripCard({ trip }: { trip: Trip }) {
   const countdown = trip.start_date && trip.end_date ? tripCountdown(trip.start_date, trip.end_date) : null;
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={`${trip.title}, ${trip.destination}`}
       onPress={() => router.push({ pathname: '/trips/[tripId]', params: { tripId: String(trip.id) } })}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+      scaleTo={0.98}
+      style={styles.card}>
       <View style={styles.cardBanner}>
         <Text style={styles.cardTitle} numberOfLines={1}>
           {trip.title}
@@ -89,7 +97,7 @@ function TripCard({ trip }: { trip: Trip }) {
         ) : null}
         <Muted>{trip.destination}</Muted>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -146,6 +154,7 @@ const useStyles = makeStyles((colors) => ({
   },
   card: {
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: radii.card,
     overflow: 'hidden',
   },

@@ -14,7 +14,11 @@ type ScreenProps = {
 export function Screen({ children, scroll = true }: ScreenProps) {
   const styles = useStyles();
   const content = scroll ? (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      // iOS: leave room for floating bars, like the Liquid Glass tab bar
+      contentInsetAdjustmentBehavior="automatic">
       {children}
     </ScrollView>
   ) : (

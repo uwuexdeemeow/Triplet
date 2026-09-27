@@ -210,6 +210,7 @@ const useStyles = makeStyles((colors) => ({
   },
   card: {
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: radii.card,
     padding: spacing.lg,
     gap: 4,

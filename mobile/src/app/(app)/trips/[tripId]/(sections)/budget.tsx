@@ -14,11 +14,14 @@ import {
   type BudgetSummary,
   type Expense,
 } from '@/api/trips';
+import { Enter } from '@/components/enter';
 import { Button } from '@/components/button';
+import { Fab } from '@/components/fab';
 import { FormMessage } from '@/components/screen';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Title } from '@/components/text';
-import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { PressableScale } from '@/components/pressable-scale';
+import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { categoryMeta, EXPENSE_CATEGORIES, CATEGORY_META, settleUp } from '@/utils/budget';
 import { formatShortDate } from '@/utils/dates';
@@ -96,17 +99,18 @@ export default function BudgetScreen() {
                 <Text style={styles.groupTitle}>{day ? formatShortDate(day) : 'No date'}</Text>
                 <Text style={styles.groupTotal}>{money(items.reduce((total, item) => total + item.amount, 0))}</Text>
               </View>
-              {items.map((expense) => (
-                <ExpenseRow
-                  key={expense.id}
-                  tripId={id}
-                  expense={expense}
-                  payer={expense.paid_by_id != null ? names.get(expense.paid_by_id) : undefined}
-                  showPayer={summary.balances.length > 1}
-                  plan={expense.activity_id != null ? planTitles.get(expense.activity_id) : undefined}
-                  canEdit={canEdit}
-                  money={money}
-                />
+              {items.map((expense, index) => (
+                <Enter key={expense.id} index={index}>
+                  <ExpenseRow
+                    tripId={id}
+                    expense={expense}
+                    payer={expense.paid_by_id != null ? names.get(expense.paid_by_id) : undefined}
+                    showPayer={summary.balances.length > 1}
+                    plan={expense.activity_id != null ? planTitles.get(expense.activity_id) : undefined}
+                    canEdit={canEdit}
+                    money={money}
+                  />
+                </Enter>
               ))}
             </View>
           ))
@@ -114,13 +118,7 @@ export default function BudgetScreen() {
       </ScrollView>
 
       {canEdit ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add expense"
-          onPress={() => router.push({ pathname: '/trips/[tripId]/expense', params: { tripId } })}
-          style={({ pressed }) => [styles.fab, pressed && styles.pressed]}>
-          <Feather name="plus" size={26} color={colors.onAccent} />
-        </Pressable>
+        <Fab label="Add expense" onPress={() => router.push({ pathname: '/trips/[tripId]/expense', params: { tripId } })} />
       ) : null}
     </View>
   );
@@ -337,7 +335,7 @@ function ExpenseRow({
     .join(' · ');
 
   const row = (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={`${expense.title}, ${money(expense.amount)}`}
       accessibilityHint={canEdit ? 'Opens the expense to edit it' : undefined}
@@ -345,7 +343,8 @@ function ExpenseRow({
       onPress={() =>
         router.push({ pathname: '/trips/[tripId]/expense', params: { tripId: String(tripId), expenseId: String(expense.id) } })
       }
-      style={({ pressed }) => [styles.expense, pressed && styles.pressed]}>
+      scaleTo={0.98}
+      style={styles.expense}>
       <View style={[styles.expenseIcon, { backgroundColor: meta.color[scheme] }]}>
         <Feather name={meta.icon} size={16} color={colors.onAccent} />
       </View>
@@ -364,7 +363,7 @@ function ExpenseRow({
       <Text style={[styles.expenseAmount, canEdit && Platform.OS === 'web' && styles.expenseAmountWeb]}>
         {money(expense.amount)}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 
   return canEdit ? (
@@ -397,6 +396,7 @@ const useStyles = makeStyles((colors) => ({
     padding: spacing.lg,
     gap: spacing.sm,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: radii.card,
   },
   cardLabel: {
@@ -619,6 +619,7 @@ const useStyles = makeStyles((colors) => ({
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
   },
   expenseIcon: {
@@ -655,20 +656,5 @@ const useStyles = makeStyles((colors) => ({
   },
   expenseAmountWeb: {
     marginRight: 36,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: `0 6px 16px ${shadow(colors, 0.3)}`,
-  },
-  pressed: {
-    opacity: 0.8,
   },
 }));

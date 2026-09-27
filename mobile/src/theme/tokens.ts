@@ -35,6 +35,11 @@ export type Palette = {
   onDanger: string;
   // Shadow tint, used with an opacity
   shadow: string;
+  // Lift under cards: soft layered shadows in light mode, a faint top highlight in dark mode
+  cardShadow: string;
+  // Floating controls over the map and content (see components/glass.tsx)
+  glassFill: string;
+  glassEdge: string;
 };
 
 export const palettes: Record<ColorScheme, Palette> = {
@@ -59,6 +64,9 @@ export const palettes: Record<ColorScheme, Palette> = {
     dangerSoft: '#F6E4E1',
     onDanger: '#FFFFFF',
     shadow: '22, 24, 29',
+    cardShadow: '0 1px 2px rgba(22, 24, 29, 0.05), 0 6px 16px rgba(22, 24, 29, 0.06)',
+    glassFill: 'rgba(255, 255, 255, 0.78)',
+    glassEdge: 'rgba(255, 255, 255, 0.7)',
   },
   // Soft contrast on purpose: off-white text on graphite, not white on black
   dark: {
@@ -82,6 +90,9 @@ export const palettes: Record<ColorScheme, Palette> = {
     dangerSoft: '#33201E',
     onDanger: '#1E0E0C',
     shadow: '0, 0, 0',
+    cardShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 3px rgba(0, 0, 0, 0.35)',
+    glassFill: 'rgba(30, 33, 38, 0.72)',
+    glassEdge: 'rgba(255, 255, 255, 0.08)',
   },
 };
 

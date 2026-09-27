@@ -135,6 +135,8 @@ function ActivityForm({
     // Saved places know which plans they're in, and the budget counts plan costs
     queryClient.invalidateQueries({ queryKey: tripKeys.places(id) });
     queryClient.invalidateQueries({ queryKey: tripKeys.budget(id) });
+    // Deleting a plan unlinks its expenses
+    queryClient.invalidateQueries({ queryKey: tripKeys.expenses(id) });
   };
 
   const save = useMutation({

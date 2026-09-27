@@ -18,8 +18,9 @@ export function platformName(link: SavedLink): string {
 }
 
 // "5 ramen shops every ramen lover should visit", falling back to the summary or the address
+// The name the user gave the post wins over the post's own title
 export function linkTitle(link: SavedLink): string {
-  return link.title || link.summary || link.place_name || link.url;
+  return link.custom_title || link.title || link.summary || link.place_name || link.url;
 }
 
 // opening_hours has seven entries, Monday first. JavaScript's getDay() starts on Sunday.

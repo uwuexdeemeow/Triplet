@@ -1,48 +1,41 @@
-import { Feather } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Platform } from 'react-native';
 
 import { useMyInvitations } from '@/api/trips';
 import { useTheme } from '@/theme/theme';
 import { fonts } from '@/theme/tokens';
 
+// The phone's own tab bar: Liquid Glass on iOS 26, Material on Android.
+// The website uses _layout.web.tsx.
 export default function TabsLayout() {
   const { colors } = useTheme();
   const invitations = useMyInvitations();
   const pending = invitations.data?.length ?? 0;
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontFamily: fonts.semibold, fontSize: 12 },
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
-        sceneStyle: { backgroundColor: colors.bg },
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Trips',
-          tabBarIcon: ({ color, size }) => <Feather name="briefcase" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="invites"
-        options={{
-          title: 'Invites',
-          tabBarBadge: pending > 0 ? pending : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.onDanger, fontFamily: fonts.bold, fontSize: 11 },
-          tabBarIcon: ({ color, size }) => <Feather name="mail" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Feather name="user" color={color} size={size} />,
-        }}
-      />
-    </Tabs>
+    <NativeTabs
+      tintColor={colors.accent}
+      iconColor={{ default: colors.muted, selected: colors.accent }}
+      labelStyle={{ fontFamily: fonts.medium, fontSize: 11 }}
+      badgeBackgroundColor={colors.danger}
+      // iOS draws its own glass behind the tabs; Android gets the app's surface colour
+      backgroundColor={Platform.OS === 'android' ? colors.surface : undefined}>
+      <NativeTabs.Trigger name="index">
+        <NativeTabs.Trigger.Label>Trips</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'suitcase', selected: 'suitcase.fill' }} md="luggage" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="invites">
+        <NativeTabs.Trigger.Label>Invites</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'envelope', selected: 'envelope.fill' }} md="mail" />
+        {pending > 0 ? <NativeTabs.Trigger.Badge>{String(pending)}</NativeTabs.Trigger.Badge> : null}
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
+          md="account_circle"
+        />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

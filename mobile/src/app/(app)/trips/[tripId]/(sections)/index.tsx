@@ -5,15 +5,20 @@ import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { api } from '@/api/client';
-import { tripKeys, useItinerary, useMe, useMembers, useTrip, type ItineraryActivity } from '@/api/trips';
+import { tripKeys, useExpenses, useItinerary, useMe, useMembers, useTrip, type ItineraryActivity } from '@/api/trips';
+import { Enter } from '@/components/enter';
 import { Button } from '@/components/button';
+import { Fab } from '@/components/fab';
+import { ItemMenu } from '@/components/item-menu';
 import { FormMessage } from '@/components/screen';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Muted, Title } from '@/components/text';
+import { PressableScale } from '@/components/pressable-scale';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { activityClock, dayOfMonth, eachDay, formatLongDate, todayString, weekdayShort } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
+import { select, warn } from '@/utils/haptics';
 
 export default function PlanScreen() {
   const styles = useStyles();
@@ -23,6 +28,13 @@ export default function PlanScreen() {
   const id = Number(tripId);
   const trip = useTrip(id);
   const itinerary = useItinerary(id);
+  const expenses = useExpenses(id);
+
+  // What's been spent on each plan, from expenses linked to it in the Budget tab
+  const paid = new Map<number, number>();
+  for (const expense of expenses.data ?? []) {
+    if (expense.activity_id != null) paid.set(expense.activity_id, (paid.get(expense.activity_id) ?? 0) + expense.amount);
+  }
   const me = useMe();
   const members = useMembers(id);
   const role = members.data?.find((member) => member.user_id === me.data?.id)?.role;
@@ -59,7 +71,10 @@ export default function PlanScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected }}
               accessibilityLabel={`${formatLongDate(date)}${plannedDays.has(date) ? ', has plans' : ''}`}
-              onPress={() => setPickedDay(date)}
+              onPress={() => {
+                select();
+                setPickedDay(date);
+              }}
               style={[styles.dayChip, selected && styles.dayChipSelected]}>
               <Text style={[styles.dayName, selected && styles.dayNameSelected]}>{weekdayShort(date)}</Text>
               <Text style={[styles.dayNumber, selected && styles.dayNumberSelected]}>{dayOfMonth(date)}</Text>
@@ -94,34 +109,32 @@ export default function PlanScreen() {
           </View>
         ) : (
           <>
-            {activities.map((activity) => (
-              <ActivityRow
-                key={activity.id}
-                tripId={id}
-                activity={activity}
-                titles={titles}
-                currency={currency}
-                canEdit={canEdit}
-              />
+            {activities.map((activity, index) => (
+              <Enter key={activity.id} index={index}>
+                <ActivityRow
+                  tripId={id}
+                  activity={activity}
+                  titles={titles}
+                  currency={currency}
+                  canEdit={canEdit}
+                  paid={paid.get(activity.id)}
+                />
+              </Enter>
             ))}
             {canEdit ? (
               <Muted style={styles.hint}>
-                Tap a plan to edit it.{Platform.OS === 'web' ? '' : ' Swipe it right to delete it.'}
+                Tap a plan to edit it, or press and hold for more.{Platform.OS === 'web' ? '' : ' Swipe right to delete.'}
               </Muted>
             ) : null}
           </>
         )}
       </ScrollView>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add activity"
-        onPress={() =>
-          router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, day: selectedDay } })
-        }
-        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}>
-        <Feather name="plus" size={26} color={colors.onAccent} />
-      </Pressable>
+      <Fab
+        label="Add activity"
+        bottom={32}
+        onPress={() => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, day: selectedDay } })}
+      />
     </View>
   );
 }
@@ -129,12 +142,15 @@ export default function PlanScreen() {
 function ActivityRow({
   tripId,
   canEdit,
+  paid,
   activity,
   titles,
   currency,
 }: {
   tripId: number;
   canEdit: boolean;
+  // Total of the expenses linked to this plan, if any
+  paid?: number;
   activity: ItineraryActivity;
   titles: Map<number, string>;
   currency: string;
@@ -142,36 +158,58 @@ function ActivityRow({
   const styles = useStyles();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const openEditor = () =>
+    router.push({
+      pathname: '/trips/[tripId]/add-activity',
+      params: { tripId: String(tripId), activityId: String(activity.id) },
+    });
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: tripKeys.itinerary(tripId) });
+    queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) });
+    // Deleting a plan unlinks its expenses, and the budget counts plan costs
+    queryClient.invalidateQueries({ queryKey: tripKeys.expenses(tripId) });
+    queryClient.invalidateQueries({ queryKey: tripKeys.budget(tripId) });
+  };
+
   // A place planned as this activity goes back to "saved" in the Saved and Map tabs
   const remove = useMutation({
     mutationFn: () => api(`/trips/${tripId}/activities/${activity.id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: tripKeys.itinerary(tripId) });
-      queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) });
-    },
+    onSuccess: refresh,
   });
 
   const conflicts = activity.conflicts_with ?? [];
   const details = [
     `Until ${activityClock(activity.end_time)}`,
     activity.location,
-    activity.estimated_cost != null ? (activity.estimated_cost === 0 ? 'Free' : formatMoney(activity.estimated_cost, currency)) : null,
+    // What was actually spent wins over the estimate; the estimate comes back if those expenses are deleted
+    paid
+      ? `Paid ${formatMoney(paid, currency)}`
+      : activity.estimated_cost != null
+        ? activity.estimated_cost === 0
+          ? 'Free'
+          : `About ${formatMoney(activity.estimated_cost, currency)}`
+        : null,
   ]
     .filter(Boolean)
     .join(' · ');
 
   const card = (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
-      accessibilityHint={canEdit ? 'Opens the plan to edit it' : undefined}
+      accessibilityHint={canEdit ? 'Opens the plan to edit it. Press and hold for more options.' : undefined}
       disabled={!canEdit}
-      onPress={() =>
-        router.push({
-          pathname: '/trips/[tripId]/add-activity',
-          params: { tripId: String(tripId), activityId: String(activity.id) },
-        })
-      }
-      style={({ pressed }) => [styles.card, conflicts.length > 0 && styles.cardConflict, pressed && styles.cardPressed]}>
+      onPress={openEditor}
+      // Press and hold for Edit, Rename and Delete
+      onLongPress={() => {
+        warn();
+        setMenuOpen(true);
+      }}
+      delayLongPress={350}
+      scaleTo={0.98}
+      style={[styles.card, conflicts.length > 0 && styles.cardConflict]}>
       <Text style={styles.cardTitle}>{activity.title}</Text>
       <Text style={styles.cardDetails} numberOfLines={2}>
         {details}
@@ -193,7 +231,7 @@ function ActivityRow({
         </View>
       ) : null}
       {remove.error ? <Text style={styles.deleteError}>{remove.error.message}</Text> : null}
-    </Pressable>
+    </PressableScale>
   );
 
   return (
@@ -208,6 +246,28 @@ function ActivityRow({
           card
         )}
       </View>
+      {canEdit ? (
+        <ItemMenu
+          visible={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          title={activity.title}
+          subtitle={details}
+          actions={[{ label: 'Edit plan', icon: 'sliders', onPress: openEditor }]}
+          rename={{
+            value: activity.title,
+            placeholder: 'e.g. Lunch at Menya Itto',
+            onSave: async (title) => {
+              await api(`/trips/${tripId}/activities/${activity.id}`, { method: 'PATCH', body: { title } });
+              refresh();
+            },
+          }}
+          remove={{
+            question: 'Delete this plan?',
+            detail: activity.place_id != null ? 'The saved place stays in the Saved tab.' : undefined,
+            onDelete: () => remove.mutateAsync(),
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -318,11 +378,9 @@ const useStyles = makeStyles((colors) => ({
     fontSize: 13,
     textAlign: 'center',
   },
-  cardPressed: {
-    opacity: 0.8,
-  },
   card: {
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: spacing.md,
@@ -367,19 +425,5 @@ const useStyles = makeStyles((colors) => ({
   },
   badgeConflictText: {
     color: colors.dangerText,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 32,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fabPressed: {
-    opacity: 0.85,
   },
 }));

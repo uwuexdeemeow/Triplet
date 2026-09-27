@@ -294,6 +294,7 @@ const useStyles = makeStyles((colors) => ({
     gap: spacing.md,
     padding: 14,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
   },
   locationText: {

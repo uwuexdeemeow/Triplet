@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, type Schemas } from '@/api/client';
+import { Glass } from '@/components/glass';
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
 import { fonts, spacing, touchTarget } from '@/theme/tokens';
 
@@ -69,7 +70,7 @@ export function MapSearch({ tripId, onPick, onOpenChange }: MapSearchProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.bar}>
+      <Glass style={styles.bar}>
         <Feather name="search" size={18} color={colors.muted} />
         <TextInput
           accessibilityLabel="Search for an address or place"
@@ -97,7 +98,7 @@ export function MapSearch({ tripId, onPick, onOpenChange }: MapSearchProps) {
             <Feather name="x" size={18} color={colors.muted} />
           </Pressable>
         ) : null}
-      </View>
+      </Glass>
 
       {showPanel ? (
         <View style={styles.results}>
@@ -146,9 +147,8 @@ const useStyles = makeStyles((colors) => ({
     height: 48,
     paddingLeft: 14,
     paddingRight: 6,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    boxShadow: `0 2px 10px ${shadow(colors, 0.1)}`,
+    // A glass pill, like iOS search fields
+    borderRadius: 24,
   },
   input: {
     flex: 1,

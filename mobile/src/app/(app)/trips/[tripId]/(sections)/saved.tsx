@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import {
@@ -11,16 +11,21 @@ import {
   tripKeys,
   useItinerary,
   useLinks,
+  useMe,
+  useMembers,
   usePlaces,
   type SavedLink,
   type TripPlace,
 } from '@/api/trips';
+import { Enter } from '@/components/enter';
 import { Button } from '@/components/button';
+import { ItemMenu } from '@/components/item-menu';
 import { FormMessage } from '@/components/screen';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Muted, Title } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
+import { warn } from '@/utils/haptics';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
 
 export default function SavedScreen() {
@@ -34,6 +39,10 @@ export default function SavedScreen() {
   const anyProcessing = links.data?.some(isProcessing) ?? false;
   const places = usePlaces(id, { polling: anyProcessing });
   const itinerary = useItinerary(id);
+  const me = useMe();
+  const members = useMembers(id);
+  const role = members.data?.find((member) => member.user_id === me.data?.id)?.role;
+  const canEdit = role === 'owner' || role === 'member';
   // Cards start collapsed. Kept here so polling refetches don't close them again.
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
 
@@ -81,19 +90,21 @@ export default function SavedScreen() {
       ) : (
         <>
           <Muted style={styles.hint}>
-            Tap a post to see its places.{Platform.OS === 'web' ? '' : ' Swipe it right to delete it.'}
+            Tap a post to see its places, or press and hold to rename or delete it.
           </Muted>
-          {links.data.map((link) => (
-            <LinkCard
-              key={link.id}
-              tripId={id}
-              link={link}
-              // Prefer the places list, which knows what's planned, then fall back to the link's own copy
-              places={places.data?.filter((place) => place.link_id === link.id) ?? (link.places as TripPlace[])}
-              activityDays={activityDays}
-              expanded={expanded.has(link.id)}
-              onToggle={() => toggle(link.id)}
-            />
+          {links.data.map((link, index) => (
+            <Enter key={link.id} index={index}>
+              <LinkCard
+                tripId={id}
+                link={link}
+                // Prefer the places list, which knows what's planned, then fall back to the link's own copy
+                places={places.data?.filter((place) => place.link_id === link.id) ?? (link.places as TripPlace[])}
+                activityDays={activityDays}
+                expanded={expanded.has(link.id)}
+                onToggle={() => toggle(link.id)}
+                canEdit={canEdit}
+              />
+            </Enter>
           ))}
         </>
       )}
@@ -163,6 +174,7 @@ function LinkCard({
   activityDays,
   expanded,
   onToggle,
+  canEdit,
 }: {
   tripId: number;
   link: SavedLink;
@@ -170,10 +182,12 @@ function LinkCard({
   activityDays: Map<number, string>;
   expanded: boolean;
   onToggle: () => void;
+  canEdit: boolean;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
   const retry = useMutation({
     mutationFn: () => api(`/trips/${tripId}/links/${link.id}/refresh`, { method: 'POST' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tripKeys.links(tripId) }),
@@ -232,21 +246,23 @@ function LinkCard({
     </View>
   );
 
-  return (
-    <SwipeToDelete label={`Delete ${linkTitle(link)} and its places`} onDelete={() => remove.mutateAsync()}>
+  const content = (
+    <>
       <View style={styles.card}>
-        {canExpand ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded }}
-            accessibilityHint={expanded ? 'Hides its places' : 'Shows its places'}
-            onPress={onToggle}
-            style={({ pressed }) => pressed && styles.pressed}>
-            {top}
-          </Pressable>
-        ) : (
-          top
-        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={canExpand ? { expanded } : undefined}
+          accessibilityHint={`${canExpand ? (expanded ? 'Hides its places. ' : 'Shows its places. ') : ''}Press and hold for more options.`}
+          onPress={canExpand ? onToggle : undefined}
+          // Press and hold for Rename, Delete and more
+          onLongPress={() => {
+            warn();
+            setMenuOpen(true);
+          }}
+          delayLongPress={350}
+          style={({ pressed }) => pressed && canExpand && styles.pressed}>
+          {top}
+        </Pressable>
 
         {expanded && canExpand ? (
           <View style={styles.places}>
@@ -258,7 +274,55 @@ function LinkCard({
 
         {remove.error ? <FormMessage message={remove.error.message} /> : null}
       </View>
+
+      <ItemMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={linkTitle(link)}
+        subtitle={source}
+        actions={[
+          { label: 'Open post', icon: 'external-link', onPress: () => Linking.openURL(link.url) },
+          ...(canEdit && !isProcessing(link)
+            ? [{ label: 'Find places again', icon: 'refresh-cw' as const, onPress: () => retry.mutate() }]
+            : []),
+        ]}
+        rename={
+          canEdit
+            ? {
+                value: link.custom_title ?? linkTitle(link),
+                placeholder: link.title ?? 'Name this post',
+                hint: 'Leave it empty to go back to the post’s own title.',
+                allowEmpty: true,
+                onSave: async (name) => {
+                  await api(`/trips/${tripId}/links/${link.id}`, { method: 'PATCH', body: { custom_title: name || null } });
+                  queryClient.invalidateQueries({ queryKey: tripKeys.links(tripId) });
+                },
+              }
+            : undefined
+        }
+        remove={
+          canEdit
+            ? {
+                question: 'Delete this post?',
+                detail:
+                  places.length > 0
+                    ? `Its ${places.length} ${places.length === 1 ? 'place goes' : 'places go'} too. Plans made from them stay in the plan.`
+                    : undefined,
+                onDelete: () => remove.mutateAsync(),
+              }
+            : undefined
+        }
+      />
+    </>
+  );
+
+  // Only people who can change the trip get swipe-to-delete
+  return canEdit ? (
+    <SwipeToDelete label={`Delete ${linkTitle(link)} and its places`} onDelete={() => remove.mutateAsync()}>
+      {content}
     </SwipeToDelete>
+  ) : (
+    content
   );
 }
 
@@ -399,6 +463,7 @@ const useStyles = makeStyles((colors) => ({
   },
   card: {
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
     overflow: 'hidden',
   },

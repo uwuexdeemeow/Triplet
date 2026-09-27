@@ -203,6 +203,7 @@ const useStyles = makeStyles((colors) => ({
   suggestions: {
     borderRadius: radii.input,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     overflow: 'hidden',
   },
   suggestion: {

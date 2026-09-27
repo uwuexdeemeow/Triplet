@@ -448,6 +448,7 @@ const useStyles = makeStyles((colors) => ({
     gap: spacing.md,
     padding: spacing.md,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
   },
   sourceText: {
@@ -501,6 +502,7 @@ const useStyles = makeStyles((colors) => ({
     padding: spacing.lg,
     gap: spacing.md,
     backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
     borderRadius: 12,
   },
   cardHeader: {

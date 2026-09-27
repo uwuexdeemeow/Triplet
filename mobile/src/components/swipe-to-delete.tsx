@@ -5,6 +5,7 @@ import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture
 
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, spacing } from '@/theme/tokens';
+import { success, warn } from '@/utils/haptics';
 
 export type SwipeToDeleteProps = {
   children: ReactNode;
@@ -27,6 +28,7 @@ export function SwipeToDelete({ children, label, onDelete, radius = 18 }: SwipeT
     setDeleting(true);
     try {
       await onDelete();
+      success();
     } catch {
       swipeable.current?.close();
     } finally {
@@ -40,6 +42,8 @@ export function SwipeToDelete({ children, label, onDelete, radius = 18 }: SwipeT
       friction={2}
       leftThreshold={48}
       overshootLeft={false}
+      // A firmer tap as Delete comes into view
+      onSwipeableWillOpen={() => warn()}
       containerStyle={{ borderRadius: radius }}
       renderLeftActions={() => (
         <Pressable

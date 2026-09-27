@@ -18,11 +18,13 @@ import {
 import { Button } from '@/components/button';
 import { MapSearch } from '@/components/map-search';
 import { TripMap, type Coordinates, type MapPlace, type TripMapHandle } from '@/components/place-map';
+import { Glass } from '@/components/glass';
 import { FormMessage } from '@/components/screen';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { activityClock, formatShortDate } from '@/utils/dates';
 import { needsCheck, placeDetail } from '@/utils/places';
+import { select as selectionTick } from '@/utils/haptics';
 
 type SearchResult = Schemas['PlaceSearchResult'];
 
@@ -199,16 +201,19 @@ export default function TripMapScreen() {
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   onPress={() => {
+                    selectionTick();
                     setFilter(key);
                     select(null);
                   }}
-                  style={[styles.filter, active && styles.filterActive]}>
-                  {key !== 'all' ? (
-                    <View style={[styles.dot, { backgroundColor: key === 'planned' ? colors.accent : colors.second }]} />
-                  ) : null}
-                  <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
-                    {label} · {counts[key]}
-                  </Text>
+                  style={styles.filterPress}>
+                  <Glass interactive tintColor={active ? colors.accent : undefined} style={styles.filter}>
+                    {key !== 'all' ? (
+                      <View style={[styles.dot, { backgroundColor: key === 'planned' ? colors.accent : colors.second }]} />
+                    ) : null}
+                    <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
+                      {label} · {counts[key]}
+                    </Text>
+                  </Glass>
                 </Pressable>
               );
             })}
@@ -216,8 +221,9 @@ export default function TripMapScreen() {
         )}
       </View>
 
-      <View
-        style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}
+      <Glass
+        // Floats over the map, clear of the screen's edges and home indicator
+        style={[styles.sheet, { bottom: Math.max(insets.bottom, spacing.md) }]}
         onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}>
         {dropped ? (
           <DroppedPin tripId={tripId} dropped={dropped} canEdit={canEdit} onCancel={() => setDropped(null)} />
@@ -243,7 +249,7 @@ export default function TripMapScreen() {
             }
           />
         )}
-      </View>
+      </Glass>
     </View>
   );
 }
@@ -522,6 +528,9 @@ const useStyles = makeStyles((colors) => ({
     paddingHorizontal: 20,
     gap: spacing.sm,
   },
+  filterPress: {
+    borderRadius: radii.pill,
+  },
   filter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -529,11 +538,6 @@ const useStyles = makeStyles((colors) => ({
     minHeight: 40,
     paddingHorizontal: 14,
     borderRadius: radii.pill,
-    backgroundColor: colors.chip,
-  },
-  filterActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
   },
   filterLabel: {
     fontFamily: fonts.semibold,
@@ -551,14 +555,12 @@ const useStyles = makeStyles((colors) => ({
   },
   sheet: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    backgroundColor: colors.bg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    left: spacing.md,
+    right: spacing.md,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: spacing.lg,
+    borderRadius: 28,
   },
   idle: {
     gap: spacing.md,
