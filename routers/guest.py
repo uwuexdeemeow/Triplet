@@ -1,8 +1,9 @@
 import secrets
 import string
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from config import settings
 from database import connect_db
 from models import Trip, TripMembership, TripGuestAccess, Activity
 from schemas import GuestAccessCreate, GuestAccessSetup, GuestAccessResponse, Token, TripResponse, ActivityResponse, ItineraryResponse
@@ -39,8 +40,10 @@ def guest_access(
     guest_access_create: GuestAccessCreate,
     db: Session = Depends(connect_db)
 ):
+    # Codes are shown in capitals, but people often type them in lower case
+    access_code = guest_access_create.access_code.strip().upper()
     guest_access = db.query(TripGuestAccess).filter(
-        TripGuestAccess.access_code == guest_access_create.access_code
+        TripGuestAccess.access_code == access_code
     ).first()
     if guest_access is None:
         raise HTTPException(
@@ -57,7 +60,13 @@ def guest_access(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Guest access has expired"
         )
-    token = create_access_token({"sub": str(guest_access.id), "type": "guest", "trip_id": str(guest_access.trip_id)})
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.GUEST_TOKEN_EXPIRE_HOURS)
+    if guest_access.expires_at is not None:
+        expires_at = min(expires_at, as_utc(guest_access.expires_at))
+    token = create_access_token(
+        {"sub": str(guest_access.id), "type": "guest", "trip_id": str(guest_access.trip_id)},
+        expires_at=expires_at
+    )
     return {"access_token": token, "token_type": "bearer"}
 
 @router.get("/trip", response_model=TripResponse)

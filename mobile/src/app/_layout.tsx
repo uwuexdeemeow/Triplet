@@ -91,6 +91,9 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
       <Stack.Protected guard={status === 'signedOut'}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
+      <Stack.Protected guard={status === 'guest'}>
+        <Stack.Screen name="(guest)" />
+      </Stack.Protected>
     </Stack>
   );
 }

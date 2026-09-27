@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     PASSWORD_RESET_EXPIRE_MINUTES: int = 30
+    # Guests can't refresh, so their token lasts a day (or until the code expires, if sooner)
+    GUEST_TOKEN_EXPIRE_HOURS: int = 24
 
     # Browser origins allowed to call the API, e.g. the Expo web dev server
     CORS_ORIGINS: list[str] = ["http://localhost:8081"]

@@ -1,4 +1,6 @@
 import pytest
+from datetime import datetime, timedelta, timezone
+from security import decode_access_token
 
 @pytest.fixture
 def guest_code(client, alice, trip):
@@ -62,6 +64,27 @@ def test_resetting_access_invalidates_old_code(client, alice, trip, guest_code):
     client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "1234"})
 
     assert client.post("/guest/access", json={"access_code": guest_code, "pin": "1234"}).status_code == 401
+
+def test_code_is_not_case_sensitive(client, guest_code):
+    response = client.post("/guest/access", json={"access_code": f" {guest_code.lower()} ", "pin": "1234"})
+
+    assert response.status_code == 200
+
+def test_guest_token_lasts_a_day_but_not_past_the_code(client, alice, trip):
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "1234"}).json()["access_code"]
+    token = client.post("/guest/access", json={"access_code": code, "pin": "1234"}).json()["access_token"]
+    lasts = datetime.fromtimestamp(decode_access_token(token)["exp"], timezone.utc) - datetime.now(timezone.utc)
+
+    assert timedelta(hours=23) < lasts <= timedelta(hours=24)
+
+    soon = datetime.now(timezone.utc) + timedelta(hours=2)
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={
+        "pin": "1234",
+        "expires_at": soon.isoformat()
+    }).json()["access_code"]
+    token = client.post("/guest/access", json={"access_code": code, "pin": "1234"}).json()["access_token"]
+
+    assert decode_access_token(token)["exp"] <= soon.timestamp() + 1
 
 def test_revoke_guest_access(client, alice, trip, guest_code):
     assert client.delete(f"/trips/{trip['id']}/guest-access", headers=alice["headers"]).status_code == 204
