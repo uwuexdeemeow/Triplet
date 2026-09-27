@@ -13,6 +13,8 @@ const STYLE_URLS = {
   light: 'https://tiles.openfreemap.org/styles/liberty',
   dark: 'https://tiles.openfreemap.org/styles/dark',
 } as const;
+// Where the site serves MapLibre's background worker; copied there on npm install
+const WORKER_URL = '/maplibre/maplibre-gl-worker.mjs';
 const STREET_ZOOM = 15.5;
 const AREA_ZOOM = 10.5;
 
@@ -37,6 +39,8 @@ function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
 
     import('maplibre-gl').then((module) => {
       const lib = ((module as { default?: MapLibre }).default ?? module) as MapLibre;
+      // The worker file is served from public/ (see scripts/copy-maplibre-worker.js)
+      lib.setWorkerUrl(WORKER_URL);
       if (cancelled || !container.current) return;
       map = new lib.Map({
         container: container.current,

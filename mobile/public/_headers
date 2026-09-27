@@ -1,0 +1,18 @@
+# Security headers for the website. Cloudflare Pages and Netlify apply this file automatically
+# (Expo copies public/ into the build). Other hosts need the same headers set in their settings.
+#
+# Content-Security-Policy is the main defence for the sign-in token the website keeps in
+# browser storage: only the site's own scripts may run, so injected script can't read it.
+# - The sha256 hash allows Expo Router's one inline line, globalThis.__EXPO_ROUTER_HYDRATE__=true;
+#   If an Expo upgrade changes that line, the browser console shows the new hash to use.
+# - style-src needs 'unsafe-inline' because React Native Web writes its styles at runtime.
+# - worker-src blob: lets the map start its background worker.
+# - connect-src https: covers the API wherever it's hosted, plus the map tiles.
+# - img-src https: covers post thumbnails from TikTok, YouTube and Instagram.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains

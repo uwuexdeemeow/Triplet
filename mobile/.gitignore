@@ -44,3 +44,6 @@ example
 
 # Personal Claude Code settings, not shared with the team
 .claude/settings.json
+
+# Copied from node_modules on install (scripts/copy-maplibre-worker.js)
+/public/maplibre
