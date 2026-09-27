@@ -8,6 +8,7 @@ from schemas import TripPlaceResponse, PlaceUpdate, PlaceSearchResult
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES
 from places_lookup import active_provider, search_places, search_places_osm, reserve_call, PlacesError, PlacesQuotaError, SEARCH_API
 from osm_lookup import OsmError
+from photon_lookup import PhotonError, locate, suggest
 
 router = APIRouter(
     prefix="/trips/{trip_id}/places",
@@ -102,6 +103,26 @@ def search(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Place search is unavailable right now"
+        )
+
+@router.get("/suggest", response_model=list[PlaceSearchResult])
+def suggest_places(
+    trip_id: int,
+    q: str = Query(min_length=2, max_length=255),
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """Suggestions while typing a location. Free OpenStreetMap data, so no daily cap."""
+    destination = db.query(Trip.destination).filter(Trip.id == trip_id).scalar()
+
+    try:
+        # Rank places near the trip first, so "Ichiran" finds the one in Tokyo
+        near = locate(destination) if destination else None
+        return suggest(q.strip(), near)
+    except PhotonError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Place suggestions are unavailable right now"
         )
 
 @router.get("/{place_id}", response_model=TripPlaceResponse)

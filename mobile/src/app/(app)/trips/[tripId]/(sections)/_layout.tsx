@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { router, Slot, useLocalSearchParams, usePathname } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -5,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMembers, useTrip } from '@/api/trips';
 import { FormMessage } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
-import { colors, fonts, radii, spacing } from '@/theme/tokens';
+import { colors, fonts, radii, spacing, touchTarget } from '@/theme/tokens';
 import { formatDateRange } from '@/utils/dates';
 
 const SECTIONS = [
@@ -37,7 +38,23 @@ export default function TripSectionsLayout() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <ScreenHeader title={trip.data?.title ?? ' '} subtitle={subtitle} onBack={() => router.replace('/')} />
+        <ScreenHeader
+          title={trip.data?.title ?? ' '}
+          subtitle={subtitle}
+          onBack={() => router.replace('/')}
+          right={
+            trip.data ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Trip settings"
+                accessibilityHint="Rename or delete the trip"
+                onPress={() => router.push({ pathname: '/trips/[tripId]/settings', params: { tripId } })}
+                style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
+                <Feather name="settings" size={20} color={colors.ink} />
+              </Pressable>
+            ) : null
+          }
+        />
 
         <View accessibilityRole="tablist" style={styles.tabs}>
           {SECTIONS.map((section) => {
@@ -114,6 +131,17 @@ const styles = StyleSheet.create({
   },
   loading: {
     marginTop: spacing.xxl,
+  },
+  settings: {
+    width: touchTarget,
+    height: touchTarget,
+    borderRadius: 999,
+    backgroundColor: colors.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pressed: {
+    opacity: 0.7,
   },
   error: {
     padding: 20,

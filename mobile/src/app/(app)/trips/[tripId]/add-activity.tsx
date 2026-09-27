@@ -1,13 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Controller, useForm } from 'react-hook-form';
+import { useState } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useTrip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { TimeField } from '@/components/date-time-field';
+import { LocationField, type Pin } from '@/components/location-field';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { TextField } from '@/components/text-field';
@@ -35,6 +37,10 @@ export default function AddActivityScreen() {
     },
   });
 
+  // Where the activity is on the map: from a suggestion or dropped on the map picker
+  const [pin, setPin] = useState<Pin | null>(null);
+  const title = useWatch({ control, name: 'title' });
+
   const addActivity = useMutation({
     mutationFn: (values: ActivityValues) =>
       api(`/trips/${id}/activities`, {
@@ -45,6 +51,8 @@ export default function AddActivityScreen() {
           start_time: toActivityTime(values.day, values.startTime),
           end_time: toActivityTime(values.day, values.endTime),
           estimated_cost: parseAmount(values.estimatedCost),
+          latitude: pin?.latitude ?? null,
+          longitude: pin?.longitude ?? null,
         },
       }),
     onSuccess: () => {
@@ -85,13 +93,17 @@ export default function AddActivityScreen() {
           control={control}
           name="location"
           render={({ field, fieldState }) => (
-            <TextField
+            <LocationField
+              tripId={id}
               label="Where"
-              placeholder="e.g. Shinkoiwa"
+              placeholder="Start typing a place, e.g. Tokyo Tower"
               value={field.value}
               onChangeText={field.onChange}
               onBlur={field.onBlur}
               error={fieldState.error?.message}
+              pin={pin}
+              onPinChange={setPin}
+              title={title}
             />
           )}
         />

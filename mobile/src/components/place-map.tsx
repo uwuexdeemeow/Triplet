@@ -59,6 +59,8 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
         onRegionChangeComplete={(region: Region) =>
           onCenterChange({ latitude: region.latitude, longitude: region.longitude })
         }
+        // Tapping drops the pin there: the map slides so the tapped spot sits under the pin
+        onPress={(event: MapPressEvent) => mapRef.current?.animateCamera({ center: event.nativeEvent.coordinate }, { duration: 250 })}
         toolbarEnabled={false}
       />
       {/* The pin stays still while the map moves under it */}

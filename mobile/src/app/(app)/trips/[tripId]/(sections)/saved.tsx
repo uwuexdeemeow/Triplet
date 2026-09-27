@@ -2,9 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import {
@@ -18,6 +17,7 @@ import {
 } from '@/api/trips';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
+import { SwipeToDelete } from '@/components/swipe-to-delete';
 import { Body, Muted, Title } from '@/components/text';
 import { colors, fonts, radii, spacing } from '@/theme/tokens';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
@@ -77,7 +77,9 @@ export default function SavedScreen() {
         </View>
       ) : (
         <>
-          <Muted style={styles.hint}>Tap a post to see its places. Swipe it right to delete it.</Muted>
+          <Muted style={styles.hint}>
+            Tap a post to see its places.{Platform.OS === 'web' ? '' : ' Swipe it right to delete it.'}
+          </Muted>
           {links.data.map((link) => (
             <LinkCard
               key={link.id}
@@ -165,8 +167,6 @@ function LinkCard({
   onToggle: () => void;
 }) {
   const queryClient = useQueryClient();
-  const swipeable = useRef<SwipeableMethods>(null);
-
   const retry = useMutation({
     mutationFn: () => api(`/trips/${tripId}/links/${link.id}/refresh`, { method: 'POST' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tripKeys.links(tripId) }),
@@ -180,7 +180,6 @@ function LinkCard({
       queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) });
       queryClient.invalidateQueries({ queryKey: tripKeys.itinerary(tripId) });
     },
-    onError: () => swipeable.current?.close(),
   });
 
   const source = [link.author_name ? `@${link.author_name}` : null, platformName(link)].filter(Boolean).join(' · ');
@@ -227,36 +226,8 @@ function LinkCard({
   );
 
   return (
-    <ReanimatedSwipeable
-      ref={swipeable}
-      friction={2}
-      leftThreshold={48}
-      overshootLeft={false}
-      containerStyle={styles.swipe}
-      renderLeftActions={() => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Delete ${linkTitle(link)}`}
-          disabled={remove.isPending}
-          onPress={() => remove.mutate()}
-          style={({ pressed }) => [styles.deleteAction, pressed && styles.pressed]}>
-          {remove.isPending ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <>
-              <Feather name="trash-2" size={20} color={colors.white} />
-              <Text style={styles.deleteLabel}>Delete</Text>
-            </>
-          )}
-        </Pressable>
-      )}>
-      <View
-        style={styles.card}
-        // Screen readers can't swipe, so delete is offered as an action too
-        accessibilityActions={[{ name: 'delete', label: 'Delete this post and its places' }]}
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === 'delete') remove.mutate();
-        }}>
+    <SwipeToDelete label={`Delete ${linkTitle(link)} and its places`} onDelete={() => remove.mutateAsync()}>
+      <View style={styles.card}>
         {canExpand ? (
           <Pressable
             accessibilityRole="button"
@@ -280,7 +251,7 @@ function LinkCard({
 
         {remove.error ? <FormMessage message={remove.error.message} /> : null}
       </View>
-    </ReanimatedSwipeable>
+    </SwipeToDelete>
   );
 }
 
@@ -552,9 +523,6 @@ const styles = StyleSheet.create({
   hint: {
     fontSize: 13,
   },
-  swipe: {
-    borderRadius: 18,
-  },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -565,19 +533,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 13,
     color: colors.teal,
-  },
-  deleteAction: {
-    width: 96,
-    marginRight: spacing.sm,
-    borderRadius: 18,
-    backgroundColor: colors.coral,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  deleteLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 14,
-    color: colors.white,
   },
 });

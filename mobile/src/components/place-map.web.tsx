@@ -1,22 +1,76 @@
+import 'maplibre-gl/dist/maplibre-gl.css';
+
 import { Feather } from '@expo/vector-icons';
-import { forwardRef, useImperativeHandle } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
+import { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { colors, fonts, touchTarget } from '@/theme/tokens';
+import { colors } from '@/theme/tokens';
 
-// react-native-maps doesn't run on the web. The web build shows the coordinates instead,
-// and the pin picker relies on its search results.
+// react-native-maps only draws native maps, so the website uses MapLibre instead.
+// OpenFreeMap serves the map free with no key; its style credits OpenStreetMap and OpenMapTiles.
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+const STREET_ZOOM = 15.5;
+const AREA_ZOOM = 10.5;
+
+type MapLibre = typeof import('maplibre-gl');
 
 export type Coordinates = { latitude: number; longitude: number };
 
+const fill: CSSProperties = { position: 'absolute', inset: 0 };
+
+/**
+ * Creates a map in a div once MapLibre has loaded. MapLibre needs the browser, so it's loaded
+ * on demand rather than imported at the top, which would break the static web export.
+ */
+function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
+  const container = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState<{ map: MapLibreMap; lib: MapLibre } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let map: MapLibreMap | null = null;
+
+    import('maplibre-gl').then((module) => {
+      const lib = ((module as { default?: MapLibre }).default ?? module) as MapLibre;
+      if (cancelled || !container.current) return;
+      map = new lib.Map({
+        container: container.current,
+        style: STYLE_URL,
+        center: [center.longitude, center.latitude],
+        zoom,
+        interactive,
+        attributionControl: { compact: true },
+      });
+      setState({ map, lib });
+    });
+
+    return () => {
+      cancelled = true;
+      map?.remove();
+    };
+    // The map is created once; later changes move it instead
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { container, map: state?.map ?? null, lib: state?.lib ?? null };
+}
+
+/** A small, non-interactive map with a pin, for previews. */
 export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { height?: number }) {
+  const { container, map, lib } = useMapLibre({ latitude, longitude }, STREET_ZOOM - 0.5, false);
+  const marker = useRef<MapLibreMarker | null>(null);
+
+  useEffect(() => {
+    if (!map || !lib) return;
+    map.jumpTo({ center: [longitude, latitude] });
+    marker.current ??= new lib.Marker({ color: colors.teal }).setLngLat([longitude, latitude]).addTo(map);
+    marker.current.setLngLat([longitude, latitude]);
+  }, [map, lib, latitude, longitude]);
+
   return (
-    <View style={[styles.box, { height }]}>
-      <Feather name="map-pin" size={24} color={colors.teal} />
-      <Text style={styles.text}>
-        Pinned at {latitude.toFixed(5)}, {longitude.toFixed(5)}
-      </Text>
-      <Text style={styles.hint}>The map shows in the phone app</Text>
+    <View style={[styles.mini, { height }]} accessibilityLabel="Map showing the pinned location">
+      <div ref={container} style={fill} />
     </View>
   );
 }
@@ -27,19 +81,54 @@ export type PickerMapHandle = {
 
 type PickerMapProps = {
   initial: Coordinates;
+  // Called when the map stops moving, with the point under the centre pin
   onCenterChange: (center: Coordinates) => void;
   zoomedOut?: boolean;
 };
 
-export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function PickerMap({ onCenterChange }, ref) {
-  // Without a map, "moving" just means taking the chosen search result's location
-  useImperativeHandle(ref, () => ({ moveTo: (coordinates) => onCenterChange(coordinates) }));
+/** A full map with a pin fixed in the middle: drag the map, or click a spot, to move the pin. */
+export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function PickerMap(
+  { initial, onCenterChange, zoomedOut = false },
+  ref,
+) {
+  const { container, map } = useMapLibre(initial, zoomedOut ? AREA_ZOOM : STREET_ZOOM, true);
+  const reportCenter = useEffectEvent((center: Coordinates) => onCenterChange(center));
+
+  useEffect(() => {
+    if (!map) return;
+    const report = () => {
+      const center = map.getCenter();
+      reportCenter({ latitude: center.lat, longitude: center.lng });
+    };
+    // Clicking drops the pin there: the map slides so the clicked spot sits under the pin
+    const clicked = (event: { lngLat: { lng: number; lat: number } }) =>
+      map.easeTo({ center: [event.lngLat.lng, event.lngLat.lat], duration: 250 });
+
+    map.on('moveend', report);
+    map.on('click', clicked);
+    return () => {
+      map.off('moveend', report);
+      map.off('click', clicked);
+    };
+  }, [map]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      moveTo: (coordinates) =>
+        map?.easeTo({ center: [coordinates.longitude, coordinates.latitude], zoom: STREET_ZOOM, duration: 400 }),
+    }),
+    [map],
+  );
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.box]}>
-      <Feather name="map" size={32} color={colors.muted} />
-      <Text style={styles.text}>Search for the place and pick a result</Text>
-      <Text style={styles.hint}>Dragging a pin on the map works in the phone app</Text>
+    <View style={StyleSheet.absoluteFill}>
+      <div ref={container} style={fill} />
+      {/* The pin stays still while the map moves under it */}
+      <View pointerEvents="none" style={styles.centerPin}>
+        <Feather name="map-pin" size={40} color={colors.teal} />
+        <View style={styles.pinShadow} />
+      </View>
     </View>
   );
 });
@@ -54,81 +143,97 @@ type TripMapProps = {
   places: MapPlace[];
   selectedId: number | null;
   onSelect: (id: number | null) => void;
+  // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
   bottomInset?: number;
 };
 
-// Without a map, list the pinned places so they can still be opened
+/** Every pinned place in the trip. Clicking a pin selects it, clicking the map clears the selection. */
 export function TripMap({ places, selectedId, onSelect, bottomInset = 0 }: TripMapProps) {
+  const first = places[0] ?? { latitude: 20, longitude: 0 };
+  const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : 1.5, true);
+  const select = useEffectEvent((id: number | null) => onSelect(id));
+
+  // Clicking empty map clears the selection. Marker clicks are handled on the markers.
+  useEffect(() => {
+    if (!map) return;
+    const clicked = (event: { originalEvent: MouseEvent }) => {
+      const target = event.originalEvent.target as HTMLElement | null;
+      if (!target?.closest('.maplibregl-marker')) select(null);
+    };
+    map.on('click', clicked);
+    return () => {
+      map.off('click', clicked);
+    };
+  }, [map]);
+
+  // Redraw the pins when they, or the selection, change. The screen rebuilds `places` on every
+  // render, so compare what's in it rather than the array itself.
+  const markerKey = JSON.stringify([places, selectedId]);
+  useEffect(() => {
+    if (!map || !lib) return;
+    const markers = places.map((place) => {
+      const selected = place.id === selectedId;
+      const marker = new lib.Marker({ color: selected ? colors.ink : place.planned ? colors.teal : colors.coral })
+        .setLngLat([place.longitude, place.latitude])
+        .addTo(map);
+      const element = marker.getElement();
+      element.style.cursor = 'pointer';
+      element.style.zIndex = selected ? '1' : '0';
+      element.setAttribute('role', 'button');
+      element.setAttribute('aria-label', place.name);
+      element.title = place.name;
+      element.addEventListener('click', (event) => {
+        event.stopPropagation();
+        select(place.id);
+      });
+      return marker;
+    });
+    return () => markers.forEach((marker) => marker.remove());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, lib, markerKey]);
+
+  // Frame the pins whenever the set of pins changes, e.g. after switching the filter
+  const pinKey = places.map((place) => place.id).join(',');
+  useEffect(() => {
+    if (!map || !lib || !places.length) return;
+    if (places.length === 1) {
+      map.easeTo({ center: [places[0].longitude, places[0].latitude], zoom: STREET_ZOOM, duration: 400 });
+      return;
+    }
+    const bounds = new lib.LngLatBounds();
+    places.forEach((place) => bounds.extend([place.longitude, place.latitude]));
+    map.fitBounds(bounds, { padding: { top: 70, right: 40, bottom: bottomInset + 40, left: 40 }, maxZoom: STREET_ZOOM, duration: 400 });
+    // Only refit for a different set of pins, not when a pin is selected
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, lib, pinKey]);
+
   return (
-    <ScrollView style={StyleSheet.absoluteFill} contentContainerStyle={[styles.list, { paddingBottom: bottomInset + 16 }]}>
-      <Text style={styles.hint}>The map shows in the phone app. Pinned places:</Text>
-      {places.map((place) => {
-        const selected = place.id === selectedId;
-        return (
-          <Pressable
-            key={place.id}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            onPress={() => onSelect(selected ? null : place.id)}
-            style={[styles.row, selected && styles.rowSelected]}>
-            <Feather name="map-pin" size={18} color={place.planned ? colors.teal : colors.coral} />
-            <Text style={styles.rowText} numberOfLines={1}>
-              {place.name}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+    <View style={StyleSheet.absoluteFill}>
+      <div ref={container} style={fill} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  box: {
+  mini: {
     borderRadius: 16,
-    backgroundColor: colors.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: 16,
-  },
-  text: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.ink,
-    textAlign: 'center',
-  },
-  hint: {
-    fontFamily: fonts.body,
-    fontSize: 12.5,
-    color: colors.muted,
-    textAlign: 'center',
-  },
-  list: {
-    padding: 16,
-    gap: 8,
-    width: '100%',
-    maxWidth: 560,
-    alignSelf: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minHeight: touchTarget,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.card,
+    backgroundColor: colors.chip,
   },
-  rowSelected: {
-    borderColor: colors.teal,
-    backgroundColor: colors.tealSoft,
+  centerPin: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    alignItems: 'center',
+    // The pin's point, not its middle, marks the spot
+    transform: [{ translateX: -20 }, { translateY: -40 }],
   },
-  rowText: {
-    flex: 1,
-    fontFamily: fonts.semibold,
-    fontSize: 15,
-    color: colors.ink,
+  pinShadow: {
+    width: 14,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(29, 27, 24, 0.25)',
   },
 });

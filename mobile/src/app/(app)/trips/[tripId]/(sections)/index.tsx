@@ -1,12 +1,15 @@
 import { Feather } from '@expo/vector-icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { useItinerary, useTrip, type ItineraryActivity } from '@/api/trips';
+import { api } from '@/api/client';
+import { tripKeys, useItinerary, useTrip, type ItineraryActivity } from '@/api/trips';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
-import { Body, Title } from '@/components/text';
+import { SwipeToDelete } from '@/components/swipe-to-delete';
+import { Body, Muted, Title } from '@/components/text';
 import { colors, fonts, radii, spacing } from '@/theme/tokens';
 import { activityClock, dayOfMonth, eachDay, formatLongDate, todayString, weekdayShort } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
@@ -82,9 +85,12 @@ export default function PlanScreen() {
             <Body style={styles.emptyText}>Nothing planned for this day yet.</Body>
           </View>
         ) : (
-          activities.map((activity) => (
-            <ActivityRow key={activity.id} activity={activity} titles={titles} currency={currency} />
-          ))
+          <>
+            {activities.map((activity) => (
+              <ActivityRow key={activity.id} tripId={id} activity={activity} titles={titles} currency={currency} />
+            ))}
+            {Platform.OS === 'web' ? null : <Muted style={styles.hint}>Swipe a plan right to delete it.</Muted>}
+          </>
         )}
       </ScrollView>
 
@@ -102,14 +108,26 @@ export default function PlanScreen() {
 }
 
 function ActivityRow({
+  tripId,
   activity,
   titles,
   currency,
 }: {
+  tripId: number;
   activity: ItineraryActivity;
   titles: Map<number, string>;
   currency: string;
 }) {
+  const queryClient = useQueryClient();
+  // A place planned as this activity goes back to "saved" in the Saved and Map tabs
+  const remove = useMutation({
+    mutationFn: () => api(`/trips/${tripId}/activities/${activity.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tripKeys.itinerary(tripId) });
+      queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) });
+    },
+  });
+
   const conflicts = activity.conflicts_with ?? [];
   const details = [
     `Until ${activityClock(activity.end_time)}`,
@@ -122,27 +140,32 @@ function ActivityRow({
   return (
     <View style={styles.row}>
       <Text style={styles.time}>{activityClock(activity.start_time)}</Text>
-      <View style={[styles.card, conflicts.length > 0 && styles.cardConflict]}>
-        <Text style={styles.cardTitle}>{activity.title}</Text>
-        <Text style={styles.cardDetails} numberOfLines={2}>
-          {details}
-        </Text>
-        {activity.source_link_id != null || conflicts.length > 0 ? (
-          <View style={styles.badges}>
-            {activity.source_link_id != null ? (
-              <View style={styles.badge}>
-                <Feather name="link" size={12} color={colors.muted} />
-                <Text style={styles.badgeText}>From TikTok</Text>
+      <View style={styles.swipe}>
+        <SwipeToDelete label={`Delete ${activity.title}`} radius={16} onDelete={() => remove.mutateAsync()}>
+          <View style={[styles.card, conflicts.length > 0 && styles.cardConflict]}>
+            <Text style={styles.cardTitle}>{activity.title}</Text>
+            <Text style={styles.cardDetails} numberOfLines={2}>
+              {details}
+            </Text>
+            {activity.source_link_id != null || conflicts.length > 0 ? (
+              <View style={styles.badges}>
+                {activity.source_link_id != null ? (
+                  <View style={styles.badge}>
+                    <Feather name="link" size={12} color={colors.muted} />
+                    <Text style={styles.badgeText}>From TikTok</Text>
+                  </View>
+                ) : null}
+                {conflicts.map((otherId) => (
+                  <View key={otherId} style={[styles.badge, styles.badgeConflict]}>
+                    <Feather name="alert-triangle" size={12} color={colors.coralText} />
+                    <Text style={[styles.badgeText, styles.badgeConflictText]}>Overlaps {titles.get(otherId) ?? 'another plan'}</Text>
+                  </View>
+                ))}
               </View>
             ) : null}
-            {conflicts.map((otherId) => (
-              <View key={otherId} style={[styles.badge, styles.badgeConflict]}>
-                <Feather name="alert-triangle" size={12} color={colors.coralText} />
-                <Text style={[styles.badgeText, styles.badgeConflictText]}>Overlaps {titles.get(otherId) ?? 'another plan'}</Text>
-              </View>
-            ))}
+            {remove.error ? <Text style={styles.deleteError}>{remove.error.message}</Text> : null}
           </View>
-        ) : null}
+        </SwipeToDelete>
       </View>
     </View>
   );
@@ -244,8 +267,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.ink,
   },
-  card: {
+  swipe: {
     flex: 1,
+  },
+  deleteError: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.coralText,
+  },
+  hint: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  card: {
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.line,
