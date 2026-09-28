@@ -225,7 +225,11 @@ function InviteForm({ tripId }: { tripId: number }) {
       {sentTo ? (
         <FormMessage
           tone="success"
-          message={`Invite sent to ${sentTo}. They'll get an email; if they're new to Triplet, it asks them to sign up first.`}
+          message={
+            sentTo.includes('@')
+              ? `Invite sent to ${sentTo}. They'll get an email; if they're new to Triplet, it asks them to sign up first.`
+              : `Invite sent to ${sentTo}. They'll see it in their Invites tab.`
+          }
         />
       ) : null}
     </View>

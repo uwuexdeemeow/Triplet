@@ -7,7 +7,7 @@ import { api } from '@/api/client';
 import { tripKeys, useMe, type User } from '@/api/trips';
 import { useSession } from '@/auth/session';
 import { nameSchema } from '@/auth/validation';
-import { AccountSettings } from '@/components/account-settings';
+import { AccountSettings, DeleteAccount } from '@/components/account-settings';
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
@@ -62,6 +62,8 @@ export default function ProfileScreen() {
           />
           <FormMessage message={signOutEverywhere.error?.message ?? null} />
         </View>
+
+        {me.data ? <DeleteAccount /> : null}
       </View>
     </Screen>
   );

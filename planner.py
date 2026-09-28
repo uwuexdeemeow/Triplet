@@ -162,8 +162,17 @@ def draft_plan(days: list[date], candidates: list[Candidate], planned: list[Busy
         if item.day in busy_by_day:
             busy_by_day[item.day].append(item)
 
+    by_id = {candidate.place_id: candidate for candidate in candidates}
     planned_ids = {candidate.place_id for candidate in candidates if candidate.planned}
-    groups = [group for group in merge_duplicates(candidates) if not planned_ids & set(group.place_ids)]
+    groups = []
+    for group in merge_duplicates(candidates):
+        if not planned_ids & set(group.place_ids):
+            groups.append(group)
+            continue
+        # Someone else's copy of a place that's already planned: say so, rather than leaving it out silently
+        for place_id in group.place_ids:
+            if place_id not in planned_ids:
+                draft.unplaced.append(Unplaced(place_id, by_id[place_id].name, "Already in the plan from another save"))
     draft.merged_count = sum(len(group.place_ids) - 1 for group in groups)
     # Places more people saved go first, so they get the best days
     groups.sort(key=lambda group: (-len(group.saved_by), group.place.place_id))

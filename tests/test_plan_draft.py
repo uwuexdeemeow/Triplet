@@ -97,7 +97,8 @@ def test_skips_places_someone_already_planned():
     ], [])
 
     assert draft.proposals == []
-    assert draft.unplaced == []
+    # Bob's copy is listed, so it's clear why it isn't suggested
+    assert [(u.place_id, u.reason) for u in draft.unplaced] == [(2, "Already in the plan from another save")]
 
 @pytest.fixture
 def save_place(db, trip):

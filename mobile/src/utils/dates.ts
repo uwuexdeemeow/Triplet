@@ -83,7 +83,9 @@ export function toActivityTime(day: string, time: string): string {
 
 // "2026-10-02T12:00:00Z" -> "12:00"
 export function activityClock(value: string): string {
-  const date = new Date(value);
+  // Plan times are wall-clock times stored as UTC; a database that drops the offset
+  // (like SQLite) mustn't make the browser read them as local time
+  const date = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(value) ? value : `${value}Z`);
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
 }
 

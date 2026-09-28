@@ -61,9 +61,23 @@ export default function SavedScreen() {
     for (const activity of day.activities) activityDays.set(activity.id, day.date);
   }
 
-  // Places to stay aren't planned as outings, so they don't count
+  // Places to stay aren't planned as outings, and neither is someone's copy of a place already
+  // planned (the same name, like the planner's "Already in the plan from another save")
+  const sameName = (name: string) =>
+    name
+      .normalize('NFKD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+  const plannedNames = new Set(
+    places.data?.filter((place) => place.activity_ids.length > 0).map((place) => sameName(place.name)),
+  );
   const unplanned =
-    places.data?.filter((place) => place.activity_ids.length === 0 && place.category !== 'accommodation').length ?? 0;
+    places.data?.filter(
+      (place) =>
+        place.activity_ids.length === 0 && place.category !== 'accommodation' && !plannedNames.has(sameName(place.name)),
+    ).length ?? 0;
 
   const refresh = () => {
     links.refetch();

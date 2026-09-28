@@ -14,9 +14,9 @@ import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 
-type Panel = 'email' | 'password' | 'delete' | null;
+type Panel = 'email' | 'password' | null;
 
-/** Email, password and deleting the account. Each opens in place, one at a time. */
+/** Email and password. Each opens in place, one at a time. */
 export function AccountSettings({ user }: { user: User }) {
   const styles = useStyles();
   const [open, setOpen] = useState<Panel>(null);
@@ -45,8 +45,6 @@ export function AccountSettings({ user }: { user: User }) {
           <PasswordForm user={user} onDone={() => setOpen(null)} />
         </Row>
       </View>
-
-      <DeleteAccount open={open === 'delete'} onToggle={() => toggle('delete')} />
     </View>
   );
 }
@@ -219,12 +217,15 @@ function PasswordForm({ user, onDone }: { user: User; onDone: () => void }) {
   );
 }
 
-// Everything goes: trips you own alone, your saves, photo and sign-ins. It can't be undone.
-function DeleteAccount({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+// Everything goes: trips only you were on, your saves, photo and sign-ins. It can't be undone.
+// Kept at the bottom of the profile, away from everyday settings.
+export function DeleteAccount() {
   const styles = useStyles();
   const { colors } = useTheme();
   const { signOut } = useSession();
+  const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
+  const onToggle = () => setOpen((value) => !value);
 
   const remove = useMutation({
     mutationFn: () => api('/users/me', { method: 'DELETE', body: { password } }),

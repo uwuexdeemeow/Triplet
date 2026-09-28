@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useGuestItinerary, useGuestTrip } from '@/api/guest';
 import { useSession } from '@/auth/session';
 import { Button } from '@/components/button';
-import { Enter } from '@/components/enter';
 import { FormMessage } from '@/components/screen';
 import { Body, Heading, Muted, Title } from '@/components/text';
 import { WeatherLine } from '@/components/weather-line';
@@ -73,7 +72,8 @@ export default function GuestTripScreen() {
         ) : itinerary.data.days.length === 0 ? (
           <Body style={styles.empty}>Nothing’s planned yet. Pull down to check again later.</Body>
         ) : (
-          itinerary.data.days.map((day, dayIndex) => (
+          // No entrance animation here: on the web it stalled in this stack and left the plans invisible
+          itinerary.data.days.map((day) => (
             <View key={day.date} style={styles.day}>
               <View style={styles.dayHeader}>
                 <Title>{formatLongDate(day.date)}</Title>
@@ -82,9 +82,8 @@ export default function GuestTripScreen() {
                 ) : null}
               </View>
               {day.weather ? <WeatherLine weather={day.weather} /> : null}
-              {day.activities.map((activity, index) => (
-                <Enter key={activity.id} index={dayIndex + index}>
-                  <View style={styles.row}>
+              {day.activities.map((activity) => (
+                <View key={activity.id} style={styles.row}>
                     <Text style={styles.time}>{activityClock(activity.start_time)}</Text>
                     <View style={styles.card}>
                       <Text style={styles.cardTitle}>{activity.title}</Text>
@@ -97,8 +96,7 @@ export default function GuestTripScreen() {
                         </Text>
                       ) : null}
                     </View>
-                  </View>
-                </Enter>
+                </View>
               ))}
             </View>
           ))
