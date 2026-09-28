@@ -48,6 +48,10 @@ You don't create any tables: the server does that itself each time it starts (`a
 
 Nobody can finish signing up without receiving their code, so this step matters. Pick one service.
 
+Render's free plan blocks the usual email ports (25, 465 and 587), so on Render the server sends
+on port **2525**. Brevo accepts it; Gmail doesn't, so Gmail only works on your own computer or a
+paid Render plan. If codes don't arrive, Render's **Logs** show `Failed to send email` with the reason.
+
 ### Option A: Brevo (recommended, 300 emails a day free)
 
 1. Sign up at [brevo.com](https://www.brevo.com). It asks a few questions about your business;
@@ -65,7 +69,7 @@ Nobody can finish signing up without receiving their code, so this step matters.
    | Setting | Value |
    | --- | --- |
    | `SMTP_HOST` | `smtp-relay.brevo.com` |
-   | `SMTP_PORT` | `587` |
+   | `SMTP_PORT` | `2525` on Render (`587` works on your own computer) |
    | `SMTP_USERNAME` | the **Login** shown on that page (looks like `8a1b2c001@smtp-brevo.com`) |
    | `SMTP_PASSWORD` | the SMTP key from step 3 |
    | `SMTP_FROM` | `Triplet <the sender address from step 2>` |
@@ -73,7 +77,9 @@ Nobody can finish signing up without receiving their code, so this step matters.
 Emails from a Gmail or Outlook sender address may land in spam. Adding your own domain (step 6)
 fixes that.
 
-### Option B: Gmail (fine for testing)
+### Option B: Gmail (testing on your own computer only)
+
+Gmail only takes ports 465 and 587, which Render's free plan blocks.
 
 1. Turn on 2-Step Verification for the Google account: [myaccount.google.com/security](https://myaccount.google.com/security).
 2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), name it
@@ -92,6 +98,7 @@ fixes that.
 
 Do step 6 first, then add and verify the domain in Resend. `SMTP_HOST` is `smtp.resend.com`,
 `SMTP_USERNAME` is `resend`, `SMTP_PASSWORD` is an API key, and `SMTP_FROM` is an address on your domain.
+On Render, set `SMTP_PORT` to the STARTTLS port Resend's SMTP settings list besides 587.
 
 ### Try it locally first (optional)
 
@@ -282,8 +289,13 @@ Mail from your own domain is much less likely to land in spam.
   missing or invalid: fix it under **Environment**.
 - **`could not translate host name` or `password authentication failed`**: `DB_SETTINGS` is wrong.
   Copy it from Neon again and check it starts `postgresql+psycopg://`.
-- **No code arrives**: check spam first. Then look in the Render logs for an email error, and check
-  the `SMTP_*` values (a Brevo login is the `...@smtp-brevo.com` address, not your own email).
+- **No code arrives**: check spam first. Then look in the Render logs for `Failed to send email`:
+  - `timed out` or `Network is unreachable`: the port is blocked. Set `SMTP_PORT` to `2525`
+    (Render's free plan blocks 25, 465 and 587)
+  - `Authentication` errors: check `SMTP_USERNAME` and `SMTP_PASSWORD` (a Brevo login is the
+    `...@smtp-brevo.com` address, not your own email)
+  - `Sender` errors: `SMTP_FROM` must be a sender you verified in Brevo
+  - No error and an `--- Email to` block instead: `SMTP_HOST` isn't set, so the code went to the log
 - **The website loads but you're signed out on every reload**: check `API_PATH_PREFIX` is `/api`
   (the sign-in cookie only reaches the API at that path). Leave `CORS_ORIGINS` unset: the website
   and API share one address, so it isn't needed.
