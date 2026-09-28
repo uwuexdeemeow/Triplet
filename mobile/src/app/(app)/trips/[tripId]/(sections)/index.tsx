@@ -38,6 +38,7 @@ import {
   weekdayShort,
 } from '@/utils/dates';
 import { useShowsMapPanel, useWideLayout } from '@/utils/layout';
+import { usePullToRefresh } from '@/utils/pull-to-refresh';
 import { formatMoney } from '@/utils/money';
 import { platformLabel } from '@/utils/places';
 import { select, warn } from '@/utils/haptics';
@@ -77,6 +78,7 @@ export default function PlanScreen() {
   const currency = trip.data?.currency ?? 'USD';
   const wide = useWideLayout();
   const mapPanel = useShowsMapPanel();
+  const pull = usePullToRefresh(itinerary.refetch);
 
   if (!trip.data || !selectedDay) return null;
 
@@ -167,7 +169,7 @@ export default function PlanScreen() {
           style={styles.center}
           contentContainerStyle={styles.centerContent}
           refreshControl={
-            <RefreshControl refreshing={itinerary.isRefetching} onRefresh={itinerary.refetch} tintColor={colors.accent} />
+            <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />
           }>
           {dayPlans}
           <Pressable
@@ -219,7 +221,7 @@ export default function PlanScreen() {
       <ScrollView
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={itinerary.isRefetching} onRefresh={itinerary.refetch} tintColor={colors.accent} />
+          <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />
         }>
         {dayPlans}
       </ScrollView>

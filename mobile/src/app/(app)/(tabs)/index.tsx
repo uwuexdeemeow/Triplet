@@ -25,6 +25,7 @@ import {
   type TripPhase,
 } from '@/utils/dates';
 import { useWideLayout } from '@/utils/layout';
+import { usePullToRefresh } from '@/utils/pull-to-refresh';
 import { tap } from '@/utils/haptics';
 import { formatMoney } from '@/utils/money';
 
@@ -56,6 +57,7 @@ export default function TripsScreen() {
   const trips = useTrips();
   const me = useMe();
   const { refetch } = trips;
+  const pull = usePullToRefresh(refetch);
 
   // Coming back from a trip: its plans, saved posts and spending may have changed
   useFocusEffect(
@@ -85,7 +87,7 @@ export default function TripsScreen() {
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[styles.page, wide && styles.pageWide]}
-        refreshControl={<RefreshControl refreshing={trips.isRefetching} onRefresh={trips.refetch} tintColor={colors.accent} />}>
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />}>
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.greeting}>{name ? `${greeting()}, ${name}` : greeting()}</Text>

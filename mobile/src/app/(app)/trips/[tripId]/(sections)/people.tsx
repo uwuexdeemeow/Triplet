@@ -21,6 +21,7 @@ import { Muted } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { useWideLayout } from '@/utils/layout';
+import { usePullToRefresh } from '@/utils/pull-to-refresh';
 
 type Role = 'owner' | 'member' | 'viewer';
 
@@ -50,10 +51,7 @@ export default function PeopleScreen() {
   const ownerCount = members.data?.filter((member) => member.role === 'owner').length ?? 0;
   const pending = invitations.data?.filter((invitation) => invitation.status === 'pending') ?? [];
 
-  const refresh = () => {
-    members.refetch();
-    invitations.refetch();
-  };
+  const pull = usePullToRefresh(() => Promise.all([members.refetch(), invitations.refetch()]));
 
   if (members.isPending || me.isPending) return <ActivityIndicator color={colors.accent} style={styles.loading} />;
 
@@ -61,7 +59,7 @@ export default function PeopleScreen() {
     return (
       <View style={styles.list}>
         <FormMessage message={(members.error ?? me.error)?.message ?? null} />
-        <Button label="Try again" variant="secondary" onPress={refresh} />
+        <Button label="Try again" variant="secondary" onPress={pull.onRefresh} />
       </View>
     );
   }
@@ -70,7 +68,7 @@ export default function PeopleScreen() {
     <ScrollView
       contentContainerStyle={[styles.list, wide && styles.listWide]}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={members.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
+      refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />}>
       {isOwner ? <InviteForm tripId={id} /> : null}
 
       <View style={styles.section}>

@@ -11,6 +11,7 @@ import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { activityClock, formatDateRange, formatLongDate } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
+import { usePullToRefresh } from '@/utils/pull-to-refresh';
 
 // A read-only look at one trip's plan, day by day
 export default function GuestTripScreen() {
@@ -21,17 +22,14 @@ export default function GuestTripScreen() {
   const itinerary = useGuestItinerary();
   const currency = trip.data?.currency ?? 'USD';
 
-  const refresh = () => {
-    trip.refetch();
-    itinerary.refetch();
-  };
+  const pull = usePullToRefresh(() => Promise.all([trip.refetch(), itinerary.refetch()]));
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={itinerary.isRefetching} onRefresh={refresh} tintColor={colors.accent} />
+          <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />
         }>
         <View style={styles.header}>
           <View style={styles.badge}>
@@ -67,7 +65,7 @@ export default function GuestTripScreen() {
         ) : trip.isError || itinerary.isError ? (
           <View style={styles.state}>
             <FormMessage message={(trip.error ?? itinerary.error)?.message ?? null} />
-            <Button label="Try again" variant="secondary" onPress={refresh} />
+            <Button label="Try again" variant="secondary" onPress={pull.onRefresh} />
           </View>
         ) : itinerary.data.days.length === 0 ? (
           <Body style={styles.empty}>Nothing’s planned yet. Pull down to check again later.</Body>

@@ -29,6 +29,7 @@ import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { categoryMeta, EXPENSE_CATEGORIES, CATEGORY_META, settleUp } from '@/utils/budget';
 import { formatShortDate } from '@/utils/dates';
 import { useWideLayout } from '@/utils/layout';
+import { usePullToRefresh } from '@/utils/pull-to-refresh';
 import { formatMoney } from '@/utils/money';
 
 export default function BudgetScreen() {
@@ -44,12 +45,8 @@ export default function BudgetScreen() {
   const members = useMembers(id);
   const me = useMe();
 
-  const refresh = () => {
-    budget.refetch();
-    estimate.refetch();
-    expenses.refetch();
-    itinerary.refetch();
-  };
+  const refresh = () => Promise.all([budget.refetch(), estimate.refetch(), expenses.refetch(), itinerary.refetch()]);
+  const pull = usePullToRefresh(refresh);
 
   const myRole = members.data?.find((member) => member.user_id === me.data?.id)?.role;
   const canEdit = myRole === 'owner' || myRole === 'member';
@@ -82,7 +79,7 @@ export default function BudgetScreen() {
     <View style={[styles.screen, wide && styles.screenWide]}>
       <ScrollView
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={budget.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />}>
         <SummaryCard tripId={tripId} summary={summary} stillToPay={stillToPay} canEdit={canEdit} money={money} />
 
         {estimate.data ? <EstimateCard estimate={estimate.data} money={money} /> : null}

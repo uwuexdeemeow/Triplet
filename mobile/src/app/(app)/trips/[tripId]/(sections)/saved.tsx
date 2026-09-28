@@ -28,6 +28,7 @@ import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { warn } from '@/utils/haptics';
 import { useWideLayout } from '@/utils/layout';
+import { usePullToRefresh } from '@/utils/pull-to-refresh';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
 
 export default function SavedScreen() {
@@ -83,11 +84,9 @@ export default function SavedScreen() {
         place.activity_ids.length === 0 && place.category !== 'accommodation' && !plannedNames.has(sameName(place.name)),
     ).length ?? 0;
 
-  const refresh = () => {
-    links.refetch();
-    places.refetch();
-    itinerary.refetch();
-  };
+  const refresh = () => Promise.all([links.refetch(), places.refetch(), itinerary.refetch()]);
+  // The list also re-checks every few seconds while a post is processed; only a pull shows the spinner
+  const pull = usePullToRefresh(refresh);
 
   const placesFor = (link: SavedLink) =>
     // Prefer the places list, which knows what's planned, then fall back to the link's own copy
@@ -102,7 +101,7 @@ export default function SavedScreen() {
           style={styles.wideList}
           contentContainerStyle={styles.wideListContent}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={links.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
+          refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />}>
           <SaveLinkForm tripId={id} onSaved={() => queryClient.invalidateQueries({ queryKey: tripKeys.links(id) })} />
           {canEdit && unplanned > 0 ? (
             <PressableScale
@@ -158,7 +157,7 @@ export default function SavedScreen() {
     <ScrollView
       contentContainerStyle={styles.list}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={links.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
+      refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />}>
       <SaveLinkForm tripId={id} onSaved={() => queryClient.invalidateQueries({ queryKey: tripKeys.links(id) })} />
 
       {links.isPending ? (
