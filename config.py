@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     # Guests can't refresh, so their token lasts a day (or until the code expires, if sooner)
     GUEST_TOKEN_EXPIRE_HOURS: int = 24
 
+    # Hosting: where the API is mounted when one server also serves the website (serve.py puts it at
+    # "/api"), so the sign-in cookie's path matches. Empty when the API runs on its own.
+    API_PATH_PREFIX: str = ""
+    # How many proxies in front of the server add to X-Forwarded-For (1 on Render or Fly). The visitor's
+    # address is the entry the nearest of them added; the ones before it could be made up by anyone.
+    # 0 (running locally) ignores the header.
+    TRUSTED_PROXY_HOPS: int = 0
+
     # Browser origins allowed to call the API, e.g. the Expo web dev server. The website signs in
     # with a cookie, so these must be exact origins on the same site as the API (see SECURITY.md)
     CORS_ORIGINS: list[str] = ["http://localhost:8081"]

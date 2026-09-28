@@ -23,7 +23,16 @@ STALE_AFTER = timedelta(days=2)
 CLEANUP_CHANCE = 0.01
 
 def client_ip(request: Request) -> str:
-    # Behind a proxy (Render, Fly), run uvicorn with --proxy-headers so this is the real client
+    """The visitor's address, for rate limits.
+
+    Behind a hosting proxy the connection comes from the proxy, which adds the real address to the
+    end of X-Forwarded-For. Only the entries added by the trusted proxies count: anything to their
+    left came from the visitor and could be anything, which would dodge the limits.
+    """
+    if settings.TRUSTED_PROXY_HOPS > 0:
+        forwarded = [part.strip() for part in request.headers.get("X-Forwarded-For", "").split(",") if part.strip()]
+        if len(forwarded) >= settings.TRUSTED_PROXY_HOPS:
+            return forwarded[-settings.TRUSTED_PROXY_HOPS]
     return request.client.host if request.client else "unknown"
 
 def _row(db: Session, key: str) -> RateLimit:

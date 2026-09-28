@@ -1,0 +1,22 @@
+# Secrets stay out of the image: the host provides settings as environment variables
+.env
+.env.*
+!.env.example
+
+.git
+.claude
+**/__pycache__
+*.pyc
+venv
+.venv
+tests
+test.py
+pytest.ini
+requirements-dev.txt
+
+# Built fresh inside the image
+mobile/node_modules
+mobile/dist
+mobile/.expo
+mobile/android
+mobile/ios

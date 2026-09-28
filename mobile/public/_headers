@@ -1,5 +1,6 @@
 # Security headers for the website. Cloudflare Pages and Netlify apply this file automatically
-# (Expo copies public/ into the build). Other hosts need the same headers set in their settings.
+# (Expo copies public/ into the build), and so does serve.py when one server hosts both the API and
+# the website. Other hosts need the same headers set in their settings.
 #
 # Content-Security-Policy is the main defence for the sign-in token the website keeps in
 # browser storage: only the site's own scripts may run, so injected script can't read it.

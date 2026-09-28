@@ -18,3 +18,7 @@ Trip memory that links the original TikTok to each saved place so users remember
 Multi-source intelligence, combining TikTok, Instagram, YouTube, blogs, Google Maps, and screenshots into a single knowledge base.
 Budget-aware itineraries that estimate transport, meals, attractions, and daily spending automatically.
 Context-aware AI, answering questions like "Which cafés from my saved TikToks are within a 10-minute walk of my hotel?"
+
+# Putting it online
+
+See [DEPLOY.md](DEPLOY.md): one server for the API and the website, on Render with a Neon database.

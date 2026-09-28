@@ -62,14 +62,14 @@ def set_refresh_cookie(response: Response, refresh_token: str):
         refresh_token,
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         # Only sent to the endpoints that need it, never with ordinary API calls
-        path="/auth",
+        path=f"{settings.API_PATH_PREFIX}/auth",
         httponly=True,
         secure=settings.is_production,
         samesite="strict",
     )
 
 def clear_refresh_cookie(response: Response):
-    response.delete_cookie(REFRESH_COOKIE, path="/auth", httponly=True, secure=settings.is_production, samesite="strict")
+    response.delete_cookie(REFRESH_COOKIE, path=f"{settings.API_PATH_PREFIX}/auth", httponly=True, secure=settings.is_production, samesite="strict")
 
 def presented_refresh_token(request: Request, refresh_request: RefreshRequest | None) -> str | None:
     if refresh_request is not None and refresh_request.refresh_token:

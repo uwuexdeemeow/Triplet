@@ -1,0 +1,40 @@
+# Render Blueprint: New > Blueprint in the Render dashboard, pick this repository.
+# Render asks for each "sync: false" value when it creates the service. See DEPLOY.md.
+services:
+  - type: web
+    name: triplet
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: API_PATH_PREFIX
+        value: /api
+      # Render's load balancer adds the visitor's address to X-Forwarded-For
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: SECRET_KEY
+        generateValue: true
+      # Postgres connection string, e.g. from Neon: postgresql+psycopg://user:password@host/db?sslmode=require
+      - key: DB_SETTINGS
+        sync: false
+      # The site's address, e.g. https://triplet.onrender.com
+      - key: APP_URL
+        sync: false
+      # JSON list with the same address, e.g. ["https://triplet.onrender.com"]
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
