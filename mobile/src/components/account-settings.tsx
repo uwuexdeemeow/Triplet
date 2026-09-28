@@ -7,6 +7,7 @@ import { tripKeys, type User } from '@/api/trips';
 import { checkPassword } from '@/auth/password-strength';
 import { useSession } from '@/auth/session';
 import { Button } from '@/components/button';
+import { CodeField } from '@/components/code-field';
 import { PasswordMeter } from '@/components/password-meter';
 import { FormMessage } from '@/components/screen';
 import { Muted } from '@/components/text';
@@ -30,7 +31,7 @@ export function AccountSettings({ user }: { user: User }) {
           label="Email"
           value={user.email}
           detail={user.pending_email ? `Waiting for you to confirm ${user.pending_email}` : undefined}
-          action="Change"
+          action={user.pending_email ? 'Enter code' : 'Change'}
           expanded={open === 'email'}
           onPress={() => toggle('email')}>
           <EmailForm user={user} onDone={() => setOpen(null)} />
@@ -93,11 +94,14 @@ function Row({
   );
 }
 
-// A new email only takes over once it's confirmed from its own inbox
+// A new email only takes over once the code sent to it is entered here
 function EmailForm({ user, onDone }: { user: User; onDone: () => void }) {
   const queryClient = useQueryClient();
+  // Straight to the code if a change is already waiting for one
+  const [step, setStep] = useState<'address' | 'code'>(user.pending_email ? 'code' : 'address');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
@@ -105,10 +109,50 @@ function EmailForm({ user, onDone }: { user: User; onDone: () => void }) {
       api<User>('/users/me', { method: 'PATCH', body }),
     onSuccess: (updated) => {
       queryClient.setQueryData(tripKeys.me, updated);
+      setPassword('');
+      setStep('code');
+    },
+    onError: (err) => setError(err.message),
+  });
+
+  const confirm = useMutation({
+    mutationFn: (value: string) => api<User>('/users/me/email/verify', { method: 'POST', body: { code: value } }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(tripKeys.me, updated);
+      // Member lists show emails
+      queryClient.invalidateQueries({ queryKey: tripKeys.all });
       onDone();
     },
     onError: (err) => setError(err.message),
   });
+
+  if (step === 'code') {
+    const submitCode = () => {
+      setError(null);
+      if (code.length !== 6) return setError('Enter all 6 digits');
+      confirm.mutate(code);
+    };
+    return (
+      <>
+        <Muted>
+          We emailed a 6-digit code to {user.pending_email ?? 'your new address'}. Enter it here to switch. It works for
+          15 minutes.
+        </Muted>
+        <CodeField value={code} onChangeText={setCode} onSubmit={submitCode} error={error} autoFocus />
+        <Button label="Confirm new email" loading={confirm.isPending} onPress={submitCode} />
+        <Button
+          label="Send a new code, or use another address"
+          variant="text"
+          onPress={() => {
+            setError(null);
+            setCode('');
+            setEmail(user.pending_email ?? '');
+            setStep('address');
+          }}
+        />
+      </>
+    );
+  }
 
   const submit = () => {
     const value = email.trim().toLowerCase();
@@ -141,8 +185,8 @@ function EmailForm({ user, onDone }: { user: User; onDone: () => void }) {
         onSubmitEditing={submit}
       />
       <FormMessage message={error} />
-      <Button label="Send confirmation link" loading={save.isPending} onPress={submit} />
-      <Muted>We’ll email a link to the new address. Your email only changes once you open it.</Muted>
+      <Button label="Email me a code" loading={save.isPending} onPress={submit} />
+      <Muted>We’ll email a code to the new address. Your email only changes once you enter it.</Muted>
     </>
   );
 }

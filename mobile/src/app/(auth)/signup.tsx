@@ -10,7 +10,6 @@ import { useSession } from '@/auth/session';
 import { signupSchema, type SignupValues } from '@/auth/validation';
 import { Button } from '@/components/button';
 import { PasswordMeter } from '@/components/password-meter';
-import { ResendConfirmation } from '@/components/resend-confirmation';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
@@ -30,8 +29,6 @@ export default function SignupScreen() {
   const styles = useStyles();
   const { signUp } = useSession();
   const [formError, setFormError] = useState<string | null>(null);
-  // Set once the account is created and waiting for its email to be confirmed
-  const [sentTo, setSentTo] = useState<string | null>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
@@ -48,31 +45,12 @@ export default function SignupScreen() {
     setFormError(null);
     try {
       await signUp(name, email, password);
-      setSentTo(email.trim().toLowerCase());
+      // Next: the code we just emailed
+      router.push({ pathname: '/verify-code', params: { email: email.trim().toLowerCase() } });
     } catch (error) {
       setFormError(signupError(error));
     }
   });
-
-  if (sentTo) {
-    return (
-      <Screen>
-        <View style={styles.container}>
-          <View style={styles.intro}>
-            <Heading>Check your inbox</Heading>
-            <Body style={styles.muted}>
-              We sent a link to <Text style={styles.strong}>{sentTo}</Text>. Open it to confirm your email, then log
-              in. The link works for 48 hours.
-            </Body>
-          </View>
-          <View style={styles.form}>
-            <ResendConfirmation email={sentTo} label="Didn’t get it? Send a new link" />
-            <Button label="Go to log in" onPress={() => router.replace('/login')} />
-          </View>
-        </View>
-      </Screen>
-    );
-  }
 
   return (
     <Screen>

@@ -88,6 +88,48 @@
     }
    }
   },
+  "/auth/verify-email/code": {
+   "post": {
+    "tags": [
+     "Authentication"
+    ],
+    "summary": "Verify Email Code",
+    "description": "Enter the code from the sign-up email. It confirms the address and signs straight in.",
+    "operationId": "verify_email_code_auth_verify_email_code_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerifyCodeRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/auth/verify-email/resend": {
    "post": {
     "tags": [
@@ -433,6 +475,53 @@
       "application/json": {
        "schema": {
         "$ref": "#/components/schemas/UserUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ]
+   }
+  },
+  "/users/me/email/verify": {
+   "post": {
+    "tags": [
+     "User Data"
+    ],
+    "summary": "Verify New Email",
+    "description": "Enter the code sent to a new email address; the account switches to it.",
+    "operationId": "verify_new_email_users_me_email_verify_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CodeRequest"
        }
       }
      },
@@ -4268,6 +4357,20 @@
     ],
     "title": "BudgetSummary"
    },
+   "CodeRequest": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "maxLength": 12,
+      "title": "Code"
+     }
+    },
+    "type": "object",
+    "required": [
+     "code"
+    ],
+    "title": "CodeRequest"
+   },
    "DayWeather": {
     "properties": {
      "summary": {
@@ -5348,9 +5451,40 @@
    },
    "PasswordResetConfirm": {
     "properties": {
+     "email": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "email"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email"
+     },
+     "code": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 12
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Code"
+     },
      "token": {
-      "type": "string",
-      "maxLength": 256,
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 256
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Token"
      },
      "new_password": {
@@ -5361,7 +5495,6 @@
     },
     "type": "object",
     "required": [
-     "token",
      "new_password"
     ],
     "title": "PasswordResetConfirm"
@@ -6958,6 +7091,26 @@
      "type"
     ],
     "title": "ValidationError"
+   },
+   "VerifyCodeRequest": {
+    "properties": {
+     "email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email"
+     },
+     "code": {
+      "type": "string",
+      "maxLength": 12,
+      "title": "Code"
+     }
+    },
+    "type": "object",
+    "required": [
+     "email",
+     "code"
+    ],
+    "title": "VerifyCodeRequest"
    },
    "VerifyEmailRequest": {
     "properties": {

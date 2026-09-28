@@ -21,6 +21,7 @@ type Session = {
   status: Status;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
+  confirmSignup: (email: string, code: string) => Promise<void>;
   enterAsGuest: (accessCode: string, pin: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -116,14 +117,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(
-    async (email: string, password: string) => {
-      const tokens = await api<Tokens>('/auth/login', {
-        method: 'POST',
-        body: { email, password },
-        auth: false,
-        refreshCookie: REFRESH_IN_COOKIE,
-      });
+  const startSession = useCallback(
+    async (tokens: Tokens) => {
       accessToken = tokens.access_token;
       isGuest = false;
       await clearGuestToken();
@@ -134,7 +129,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  // Signing up doesn't sign in: the account works once the emailed link confirms the address
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const tokens = await api<Tokens>('/auth/login', {
+        method: 'POST',
+        body: { email, password },
+        auth: false,
+        refreshCookie: REFRESH_IN_COOKIE,
+      });
+      await startSession(tokens);
+    },
+    [startSession],
+  );
+
+  // The code from the sign-up email confirms the address and signs straight in
+  const confirmSignup = useCallback(
+    async (email: string, code: string) => {
+      const tokens = await api<Tokens>('/auth/verify-email/code', {
+        method: 'POST',
+        body: { email, code },
+        auth: false,
+        refreshCookie: REFRESH_IN_COOKIE,
+      });
+      await startSession(tokens);
+    },
+    [startSession],
+  );
+
+  // Signing up doesn't sign in: the account works once the emailed code confirms the address
   const signUp = useCallback(async (name: string, email: string, password: string) => {
     await api('/auth/signup', { method: 'POST', body: { name, email, password }, auth: false });
   }, []);
@@ -183,8 +205,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const value = useMemo(
-    () => ({ status, signIn, signUp, enterAsGuest, signOut }),
-    [status, signIn, signUp, enterAsGuest, signOut],
+    () => ({ status, signIn, signUp, confirmSignup, enterAsGuest, signOut }),
+    [status, signIn, signUp, confirmSignup, enterAsGuest, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

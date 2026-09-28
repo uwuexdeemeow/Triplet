@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Text, View, type TextInput } from 'react-native';
@@ -9,7 +9,6 @@ import { ApiError } from '@/api/client';
 import { useSession } from '@/auth/session';
 import { loginSchema, type LoginValues } from '@/auth/validation';
 import { Button } from '@/components/button';
-import { ResendConfirmation } from '@/components/resend-confirmation';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
@@ -40,7 +39,7 @@ export default function LoginScreen() {
       if (error instanceof ApiError && error.status === 403) {
         // Only said after the password matched, so it doesn't reveal accounts to strangers
         setUnconfirmed(email.trim().toLowerCase());
-        setFormError('Confirm your email first: open the link we sent when you signed up.');
+        setFormError('Confirm your email first with the code we sent when you signed up.');
         return;
       }
       setFormError(
@@ -113,7 +112,13 @@ export default function LoginScreen() {
           </Link>
 
           <Button label="Log in" loading={formState.isSubmitting} onPress={onSubmit} />
-          {unconfirmed ? <ResendConfirmation email={unconfirmed} label="Send the confirmation link again" /> : null}
+          {unconfirmed ? (
+            <Button
+              label="Enter my code"
+              variant="secondary"
+              onPress={() => router.push({ pathname: '/verify-code', params: { email: unconfirmed } })}
+            />
+          ) : null}
         </View>
       </View>
 

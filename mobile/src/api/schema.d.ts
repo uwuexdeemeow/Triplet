@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/verify-email/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email Code
+         * @description Enter the code from the sign-up email. It confirms the address and signs straight in.
+         */
+        post: operations["verify_email_code_auth_verify_email_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/verify-email/resend": {
         parameters: {
             query?: never;
@@ -174,6 +194,26 @@ export interface paths {
         head?: never;
         /** Update Profile */
         patch: operations["update_profile_users_me_patch"];
+        trace?: never;
+    };
+    "/users/me/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify New Email
+         * @description Enter the code sent to a new email address; the account switches to it.
+         */
+        post: operations["verify_new_email_users_me_email_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/users/me/avatar": {
@@ -1086,6 +1126,11 @@ export interface components {
             /** Balances */
             balances: components["schemas"]["MemberBalance"][];
         };
+        /** CodeRequest */
+        CodeRequest: {
+            /** Code */
+            code: string;
+        };
         /** DayWeather */
         DayWeather: {
             /** Summary */
@@ -1401,8 +1446,12 @@ export interface components {
         };
         /** PasswordResetConfirm */
         PasswordResetConfirm: {
+            /** Email */
+            email?: string | null;
+            /** Code */
+            code?: string | null;
             /** Token */
-            token: string;
+            token?: string | null;
             /** New Password */
             new_password: string;
         };
@@ -1886,6 +1935,16 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** VerifyCodeRequest */
+        VerifyCodeRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Code */
+            code: string;
+        };
         /** VerifyEmailRequest */
         VerifyEmailRequest: {
             /** Token */
@@ -1953,6 +2012,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_code_auth_verify_email_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Token"];
                 };
             };
             /** @description Validation Error */
@@ -2241,6 +2333,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_new_email_users_me_email_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeRequest"];
             };
         };
         responses: {
