@@ -2,12 +2,42 @@
 
 Expo (React Native) app for iOS, Android and the web. It talks to the FastAPI backend in the parent folder.
 
-## Run it
+## Run it on your computer
 
-1. Start the backend from the repo root: `uvicorn main:app --reload`
-   (add `--host 0.0.0.0` when testing on a real phone).
-2. Copy `.env.example` to `.env.local` and set `EXPO_PUBLIC_API_URL` for where you're running the app.
-3. In this folder: `npm install`, then `npm run web`, `npm run android` or `npm run ios`.
+### 1. The backend (FastAPI, in the repo root)
+
+One-time setup, from the repo root (Windows commands; on a Mac use `venv/bin/...` and `cp`):
+
+```bash
+python -m venv venv
+venv\Scripts\pip install -r requirements.txt
+copy .env.example .env
+```
+
+Then fill in `.env`: a PostgreSQL database in `DB_SETTINGS`, a `SECRET_KEY`, and email settings so
+sign-up codes can be sent (`DEPLOY.md` explains each).
+
+Each time you start it:
+
+```bash
+venv\Scripts\alembic upgrade head
+venv\Scripts\uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+- `alembic upgrade head` brings the database up to date. Run it again after pulling changes that add a
+  file to `alembic/versions`.
+- `--host 0.0.0.0` lets a real phone on the same Wi-Fi reach it; leave it off if you only use the
+  simulator or the website.
+- `--reload` restarts it when you save a file. If a restart ever hangs (it can when started from a
+  background shell on Windows), run it without `--reload` and restart it by hand.
+- Check it's up at <http://localhost:8000/docs>.
+
+### 2. The app (this folder)
+
+1. Copy `.env.example` to `.env.local` and set `EXPO_PUBLIC_API_URL` for where you're running the app
+   (the file lists the address for the website, the simulators and a real phone).
+2. `npm install`
+3. `npm run web`, `npm run android` or `npm run ios`.
 
 Expo Go runs everything except **sharing into Triplet** from TikTok, which needs the app's own build (below).
 Because the project includes `expo-dev-client`, `npx expo start` expects that build; start with `npx expo start --go` to keep using Expo Go.
@@ -28,14 +58,97 @@ Builds draw maps with MapLibre and free OpenFreeMap tiles, like the website, so 
 | `development` | Your phone, loading code from `npx expo start` like Expo Go, plus sharing | `npx eas-cli@latest build --profile development --platform android` |
 | `development-simulator` | The iOS simulator | `npx eas-cli@latest build --profile development-simulator --platform ios` |
 | `preview` | A standalone app to hand to testers | `npx eas-cli@latest build --profile preview --platform android` |
-| `production` | The App Store and Google Play | `npx eas-cli@latest build --profile production --platform all` |
+| `production` | The App Store, TestFlight and Google Play | `npx eas-cli@latest build --profile production --platform all` |
 
-- **Android** builds install straight from the link EAS prints.
-- **iPhone** builds need an Apple Developer account, and each test phone registered once with `npx eas-cli@latest device:create`.
 - After installing a development build, run `npx expo start` (add `--dev-client` if it opens Expo Go) and open the project from the Triplet app instead of Expo Go.
-- `preview` and `production` builds have no dev server, so they need the backend online: set `EXPO_PUBLIC_API_URL` for those environments with `eas env:create`.
+- The app ids are `com.uwuexdeemeow.triplet` (iOS and Android). Change them before the first store upload if you want different ones; after that they're fixed.
 
-The app ids are `com.uwuexdeemeow.triplet` (iOS and Android). Change them before the first store upload if you want different ones; after that they're fixed.
+### Point tester builds at the online backend
+
+`preview` and `production` builds have no dev server, and a tester's phone can't reach your computer, so
+they need the backend online (set it up with `DEPLOY.md` in the repo root). Tell each EAS environment
+where it is, once, using your own server's address:
+
+```bash
+npx eas-cli@latest env:create --name EXPO_PUBLIC_API_URL --value https://triplet.onrender.com/api --environment preview --visibility plaintext
+npx eas-cli@latest env:create --name EXPO_PUBLIC_API_URL --value https://triplet.onrender.com/api --environment production --visibility plaintext
+```
+
+The address is baked into each build, so after changing it, rebuild or publish an update (below).
+
+## Android: an APK for testers
+
+The `preview` profile builds an `.apk`, which installs on any Android phone without Google Play.
+
+```bash
+npx eas-cli@latest build --profile preview --platform android
+```
+
+1. The first time, let EAS create the signing key when it asks. EAS keeps it, so always build from the
+   same Expo account; that way new builds install over the old app.
+2. The build takes about 10–20 minutes, then EAS prints a link and a QR code. The `.apk` can also be
+   downloaded from the build's page on [expo.dev](https://expo.dev).
+3. Send testers the link. They open it on the phone, download the file and tap it. Android asks once to
+   allow installing apps from the browser (or the Files app).
+
+Building on your own computer (`--local`) isn't supported on Windows, so use the cloud build.
+
+## iPhone: a test app for chosen people
+
+Apple doesn't allow installing an app file the way Android does, so every option needs a paid
+[Apple Developer account](https://developer.apple.com/programs/) (US$99 a year). When EAS asks, sign in
+with that Apple ID and let it create the certificates and profiles. There are two ways to share a build.
+
+### Option A: TestFlight (recommended)
+
+Testers install Apple's free TestFlight app and get Triplet from there. They don't need to send you
+anything first.
+
+```bash
+npx eas-cli@latest build --profile production --platform ios --auto-submit
+```
+
+1. `--auto-submit` uploads the finished build to App Store Connect. The first time, it also creates the
+   app there (the name can't already be taken on the App Store). Apple then processes the build for
+   10–30 minutes. To upload an existing build instead: `npx eas-cli@latest submit --platform ios --latest`.
+2. In [App Store Connect](https://appstoreconnect.apple.com) → your app → **TestFlight**, add testers:
+   - **Internal testers** (up to 100): people you've added to your team under **Users and Access**.
+     They can test straight away, with no review.
+   - **External testers** (up to 10,000): make a group, then add people by email or turn on a
+     **public link**. The first build for external testers needs a short Beta App Review (usually
+     within a day).
+3. Testers get an email or open the link, install **TestFlight**, and install Triplet from there.
+   TestFlight tells them when there's a new build.
+
+- Each build works for 90 days. `autoIncrement` in `eas.json` gives every production build a new build
+  number, which Apple requires.
+- App Store Connect asks about encryption for each build. Triplet only uses standard HTTPS, so the
+  answer is "None of the algorithms mentioned above". To stop the question, add
+  `"infoPlist": { "ITSAppUsesNonExemptEncryption": false }` under `ios` in `app.json`.
+
+### Option B: Direct install (ad hoc)
+
+Quicker for a few people you can reach directly, and no App Store Connect setup. But each iPhone must be
+registered **before** the build, and a build only installs on the phones registered at the time. The
+limit is 100 iPhones a year.
+
+1. Register each tester's phone:
+   ```bash
+   npx eas-cli@latest device:create
+   ```
+   Choose the website link and send it to the tester. They open it in Safari on their iPhone and install
+   the profile it offers (**Settings** → **Profile Downloaded** → **Install**), which tells EAS their
+   phone's id.
+2. Build, and include the registered phones when EAS asks:
+   ```bash
+   npx eas-cli@latest build --profile preview --platform ios
+   ```
+3. Send testers the link EAS prints. They open it in Safari on the iPhone and tap **Install**.
+4. On iOS 16 and later, testers also turn on **Settings** → **Privacy & Security** → **Developer Mode**
+   once (the phone restarts) before the app will open.
+
+To add a phone after a build, register it, then run `npx eas-cli@latest build:resign` on that build (or
+build again).
 
 ## Shipping updates without a new build (EAS Update)
 
