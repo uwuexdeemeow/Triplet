@@ -11,7 +11,9 @@ COPY mobile/scripts ./scripts
 RUN npm ci
 COPY mobile/ ./
 ENV EXPO_PUBLIC_API_URL=/api
-RUN npx expo export --platform web --output-dir dist
+# Metro starts a bundling worker per CPU and each needs its own memory. Build machines report
+# many CPUs, so the default ran past Render's 8 GB; two workers need about 2 GB.
+RUN npx expo export --platform web --output-dir dist --max-workers 2
 
 # 2. The server
 FROM python:3.12-slim
