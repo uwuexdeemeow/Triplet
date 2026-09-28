@@ -37,6 +37,25 @@ Builds draw maps with MapLibre and free OpenFreeMap tiles, like the website, so 
 
 The app ids are `com.uwuexdeemeow.triplet` (iOS and Android). Change them before the first store upload if you want different ones; after that they're fixed.
 
+## Shipping updates without a new build (EAS Update)
+
+Most changes (screens, text, logic) can reach installed apps without reinstalling. Each build profile has a
+channel of the same name in `eas.json`, and an installed app downloads the newest update on its channel when it
+opens (it takes effect the next time it's opened).
+
+```bash
+# Publish what's in this folder to phones running a preview build
+npx eas-cli@latest update --channel preview --environment preview --message "Fix the pull-down on the trips list"
+```
+
+- **A new build is still needed** after adding or upgrading a package with native code (like `expo-image-picker`),
+  or changing `app.json` plugins or permissions. `runtimeVersion` uses the `fingerprint` policy, so an update is
+  only offered to builds with the same native code; the rest keep what they have until they're rebuilt.
+- The first build with `expo-updates` has to be made and installed once before updates can reach it.
+- Updates use the same `EXPO_PUBLIC_*` variables as builds, from the EAS environment you name with
+  `--environment` (set them with `eas env:create`), so point `EXPO_PUBLIC_API_URL` at the online backend.
+- A bad update can be undone from the Expo dashboard or with `npx eas-cli@latest update:rollback`.
+
 ## Sharing into Triplet
 
 In a development or store build, Triplet appears in the share menu: TikTok's **Share** button → **Triplet** (under "More" on iOS the first time) → pick a trip. The post is saved to that trip's Saved tab and its places are looked up as usual. If you're signed out, the share waits until you sign in.

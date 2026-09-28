@@ -3,6 +3,15 @@
     "name": "Triplet",
     "slug": "triplet",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/646bece0-31b6-40a8-af8e-d82e43d63614",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "triplet",
