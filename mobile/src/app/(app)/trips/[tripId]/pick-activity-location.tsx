@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { useTrip } from '@/api/trips';
 import { LocationPicker } from '@/components/location-picker';
+import { mainDestination } from '@/trips/destinations';
 import { setPickedLocation } from '@/utils/picked-location';
 
 // Chooses where an activity happens. Nothing is saved here: the activity form picks the spot up.
@@ -23,7 +24,7 @@ export default function PickActivityLocationScreen() {
       title={title || query || 'Where is it?'}
       initialPin={hasPin ? { latitude: Number(latitude), longitude: Number(longitude) } : null}
       initialQuery={query ?? ''}
-      destination={trip.data?.destination}
+      destination={mainDestination(trip.data)}
       onConfirm={(location) => {
         setPickedLocation(location);
         router.back();

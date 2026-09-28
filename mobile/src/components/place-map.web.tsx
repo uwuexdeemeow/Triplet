@@ -5,6 +5,7 @@ import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 import { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { areaKey } from '@/utils/map-area';
 
 // react-native-maps only draws native maps, so the website uses MapLibre instead.
 // OpenFreeMap serves the map free with no key; its style credits OpenStreetMap and OpenMapTiles.
@@ -166,13 +167,15 @@ export type TripMapProps = {
   places: MapPlace[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  // Where to look when there are no pins yet, e.g. the trip's destination
-  fallbackCenter?: Coordinates | null;
+  // Where to look when there are no pins yet, e.g. the trip's destinations
+  fallbackArea?: Coordinates[];
   // A spot the user right-clicked or long-pressed, shown as its own pin
   droppedPin?: Coordinates | null;
   onLongPress?: (coordinates: Coordinates) => void;
   // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
   bottomInset?: number;
+  // A small preview with nothing floating over it, so it needs less room around the pins
+  compact?: boolean;
 };
 
 /**
@@ -185,12 +188,12 @@ export type TripMapHandle = {
 };
 
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackCenter = null, droppedPin = null, onLongPress, bottomInset = 0 },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false },
   ref,
 ) {
   const { colors } = useTheme();
-  const first = places[0] ?? fallbackCenter ?? { latitude: 20, longitude: 0 };
-  const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : fallbackCenter ? AREA_ZOOM : 1.5, true);
+  const first = places[0] ?? fallbackArea[0] ?? { latitude: 20, longitude: 0 };
+  const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : fallbackArea.length ? AREA_ZOOM : 1.5, true);
   const select = useEffectEvent((id: string | null) => onSelect(id));
   const drop = useEffectEvent((coordinates: Coordinates) => onLongPress?.(coordinates));
 
@@ -262,20 +265,23 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
 
   // Frame the pins whenever the set of pins changes, e.g. after switching the filter
   const pinKey = places.map((place) => place.id).join(',');
-  const fallbackKey = fallbackCenter ? `${fallbackCenter.latitude},${fallbackCenter.longitude}` : '';
+  const fallbackKey = areaKey(fallbackArea);
   useEffect(() => {
     if (!map || !lib) return;
-    if (!places.length) {
-      if (fallbackCenter) map.easeTo({ center: [fallbackCenter.longitude, fallbackCenter.latitude], zoom: AREA_ZOOM, duration: 400 });
-      return;
-    }
-    if (places.length === 1) {
-      map.easeTo({ center: [places[0].longitude, places[0].latitude], zoom: STREET_ZOOM, duration: 400 });
+    // With nothing pinned, show the area instead: one place at city level, or all of them
+    const points: Coordinates[] = places.length ? places : fallbackArea;
+    if (!points.length) return;
+    if (points.length === 1) {
+      map.easeTo({ center: [points[0].longitude, points[0].latitude], zoom: places.length ? STREET_ZOOM : AREA_ZOOM, duration: 400 });
       return;
     }
     const bounds = new lib.LngLatBounds();
-    places.forEach((place) => bounds.extend([place.longitude, place.latitude]));
-    map.fitBounds(bounds, { padding: { top: 70, right: 40, bottom: bottomInset + 40, left: 40 }, maxZoom: STREET_ZOOM, duration: 400 });
+    points.forEach((point) => bounds.extend([point.longitude, point.latitude]));
+    map.fitBounds(bounds, {
+      padding: compact ? 24 : { top: 70, right: 40, bottom: bottomInset + 40, left: 40 },
+      maxZoom: places.length ? STREET_ZOOM : AREA_ZOOM,
+      duration: 400,
+    });
     // Only refit for a different set of pins, not when a pin is selected
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, lib, pinKey, fallbackKey]);

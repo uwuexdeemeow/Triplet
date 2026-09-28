@@ -102,7 +102,8 @@ def search(
         )
 
     # Searching "Menya Itto" should find the one near the trip, not one in another country
-    destination = db.query(Trip.destination).filter(Trip.id == trip_id).scalar()
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    destination = trip.main_destination if trip else None
     query = q if not destination or destination.casefold() in q.casefold() else f"{q}, {destination}"
 
     try:
@@ -127,11 +128,13 @@ def suggest_places(
 ):
     """Suggestions while typing a location. Free OpenStreetMap data, so no daily cap."""
     limit_lookups(db, membership)
-    destination = db.query(Trip.destination).filter(Trip.id == trip_id).scalar()
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
 
     try:
         # Rank places near the trip first, so "Ichiran" finds the one in Tokyo
-        near = locate(destination) if destination else None
+        near = None
+        if trip is not None:
+            near = trip.main_destination_pin or (locate(trip.main_destination) if trip.main_destination else None)
         return suggest(q.strip(), near)
     except PhotonError:
         raise HTTPException(

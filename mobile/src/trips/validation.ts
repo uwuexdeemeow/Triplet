@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { PickedDestination } from '@/components/destination-field';
 import { CURRENCIES } from '@/utils/currencies';
 
 // Empty means "no budget"; otherwise a positive amount like "150000" or "1,200.50"
@@ -18,7 +19,7 @@ export function parseAmount(value: string): number | null {
 export const tripSchema = z
   .object({
     title: z.string().trim().min(1, 'Give the trip a name').max(255),
-    destination: z.string().trim().min(1, 'Where are you going?').max(255),
+    destinations: z.array(z.custom<PickedDestination>()).min(1, 'Where are you going?').max(10),
     startDate: z.string(),
     endDate: z.string(),
     budget: optionalAmount,

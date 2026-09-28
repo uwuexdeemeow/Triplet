@@ -3,9 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import currencies
+import destinations as destination_lookup
 from database import connect_db
 from models import Activity, Expense, SavedLink, User, Trip, TripMembership
-from schemas import CurrencySuggestion, TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
+from photon_lookup import PhotonError
+from schemas import CurrencySuggestion, DestinationSuggestion, TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
 from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
@@ -19,10 +21,12 @@ def create_trip(
     db: Session = Depends(connect_db),
     current_user: User = Depends(get_current_user)
 ):
+    places = destination_lookup.fill_in([place.model_dump() for place in trip_create.destinations])
     trip = Trip(
         title=trip_create.title,
         description=trip_create.description,
-        destination=trip_create.destination,
+        destination=destination_lookup.summary(places) if places else trip_create.destination.strip(),
+        destinations=places,
         start_date=trip_create.start_date,
         end_date=trip_create.end_date,
         budget=trip_create.budget,
@@ -107,7 +111,21 @@ def summarise(db: Session, trips: list[Trip]) -> list[TripSummaryResponse]:
         for trip in trips
     ]
 
-# Declared before /{trip_id} so "currency" isn't read as a trip id
+# Declared before /{trip_id} so "destinations" and "currency" aren't read as trip ids
+@router.get("/destinations", response_model=list[DestinationSuggestion])
+def suggest_destinations(
+    q: str = Query(min_length=2, max_length=120),
+    current_user: User = Depends(get_current_user)
+):
+    """Cities, regions and countries matching what's typed so far, for a new trip's destinations."""
+    try:
+        return destination_lookup.suggest(q)
+    except PhotonError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Place suggestions aren't available right now. Type the name and press Enter."
+        )
+
 @router.get("/currency", response_model=CurrencySuggestion)
 def suggest_currency(
     destination: str = Query(min_length=1, max_length=255),
@@ -174,6 +192,15 @@ def update_trips(
     update_data = trip_update.model_dump(
         exclude_unset=True
     )
+
+    # The places and the one-line name go together
+    if update_data.get("destinations"):
+        update_data["destinations"] = destination_lookup.fill_in(update_data["destinations"])
+        update_data["destination"] = destination_lookup.summary(update_data["destinations"])
+    else:
+        update_data.pop("destinations", None)
+        if update_data.get("destination"):
+            update_data["destinations"] = []
 
     # These columns are NOT NULL, so an explicit null means "leave unchanged"
     required_fields = ["title", "destination", "start_date", "end_date", "currency"]

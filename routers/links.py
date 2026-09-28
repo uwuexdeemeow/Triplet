@@ -125,7 +125,8 @@ def process_link(link_id: int):
         db.commit()
 
         # Show the places straight away, then fill in addresses and opening hours one by one
-        destination = db.query(Trip.destination).filter(Trip.id == link.trip_id).scalar()
+        trip = db.query(Trip).filter(Trip.id == link.trip_id).first()
+        destination = trip.main_destination if trip else None
         for place in link.places:
             # Places kept from an earlier run already have their details
             if place.details_status != "pending":

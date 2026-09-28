@@ -34,10 +34,10 @@ def _cached(key: tuple, fetch) -> list[dict]:
     return value
 
 def photon_request(params: dict, url: str = PHOTON_URL) -> list[dict]:
-    """Raw GeoJSON features from Photon."""
+    """Raw GeoJSON features from Photon. A list value repeats the parameter, e.g. several layers."""
     # English names where OpenStreetMap has them, e.g. "Menya Itto" rather than "麵屋一燈"
     params = {**params, "lang": "en"}
-    request = Request(f"{url}?{urlencode(params)}", headers={"User-Agent": settings.OSM_USER_AGENT})
+    request = Request(f"{url}?{urlencode(params, doseq=True)}", headers={"User-Agent": settings.OSM_USER_AGENT})
     try:
         with urlopen(request, timeout=8) as response:
             data = json.loads(response.read().decode("utf-8"))

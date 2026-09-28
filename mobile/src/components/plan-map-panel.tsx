@@ -44,7 +44,7 @@ export function PlanMapPanel({ tripId, activities }: Props) {
 
   return (
     <View style={styles.panel}>
-      <TripMap places={pins} selectedId={selectedId} onSelect={setSelectedId} fallbackCenter={pins[0] ?? null} />
+      <TripMap places={pins} selectedId={selectedId} onSelect={setSelectedId} />
       <View style={styles.legend} pointerEvents="none">
         {selected ? (
           <Text style={styles.selected} numberOfLines={1}>

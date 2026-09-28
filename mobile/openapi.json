@@ -852,6 +852,60 @@
     }
    }
   },
+  "/trips/destinations": {
+   "get": {
+    "tags": [
+     "Trips"
+    ],
+    "summary": "Suggest Destinations",
+    "description": "Cities, regions and countries matching what's typed so far, for a new trip's destinations.",
+    "operationId": "suggest_destinations_trips_destinations_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 2,
+       "maxLength": 120,
+       "title": "Q"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/DestinationSuggestion"
+         },
+         "title": "Response Suggest Destinations Trips Destinations Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/currency": {
    "get": {
     "tags": [
@@ -4488,6 +4542,150 @@
     ],
     "title": "DayWeather"
    },
+   "Destination": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name"
+     },
+     "address": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     },
+     "country_code": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2,
+        "minLength": 2
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Country Code"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name"
+    ],
+    "title": "Destination",
+    "description": "One place a trip goes. A pin and country are filled in by the server when it can."
+   },
+   "DestinationSuggestion": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name"
+     },
+     "address": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     },
+     "country_code": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2,
+        "minLength": 2
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Country Code"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name"
+    ],
+    "title": "DestinationSuggestion"
+   },
    "ExpenseCreate": {
     "properties": {
      "title": {
@@ -6418,9 +6616,25 @@
       "title": "Description"
      },
      "destination": {
-      "type": "string",
-      "maxLength": 255,
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Destination"
+     },
+     "destinations": {
+      "items": {
+       "$ref": "#/components/schemas/Destination"
+      },
+      "type": "array",
+      "maxItems": 10,
+      "title": "Destinations",
+      "default": []
      },
      "start_date": {
       "type": "string",
@@ -6456,7 +6670,6 @@
     "type": "object",
     "required": [
      "title",
-     "destination",
      "start_date",
      "end_date"
     ],
@@ -6708,6 +6921,14 @@
       "type": "string",
       "title": "Destination"
      },
+     "destinations": {
+      "items": {
+       "$ref": "#/components/schemas/Destination"
+      },
+      "type": "array",
+      "title": "Destinations",
+      "default": []
+     },
      "start_date": {
       "anyOf": [
        {
@@ -6781,6 +7002,14 @@
      "destination": {
       "type": "string",
       "title": "Destination"
+     },
+     "destinations": {
+      "items": {
+       "$ref": "#/components/schemas/Destination"
+      },
+      "type": "array",
+      "title": "Destinations",
+      "default": []
      },
      "start_date": {
       "anyOf": [
@@ -6897,6 +7126,22 @@
        }
       ],
       "title": "Destination"
+     },
+     "destinations": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/Destination"
+        },
+        "type": "array",
+        "maxItems": 10,
+        "minItems": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Destinations"
      },
      "start_date": {
       "anyOf": [

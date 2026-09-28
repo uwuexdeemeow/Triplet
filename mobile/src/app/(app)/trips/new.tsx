@@ -10,10 +10,12 @@ import { tripKeys, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { CurrencyField } from '@/components/currency-field';
 import { DateField } from '@/components/date-time-field';
+import { DestinationField } from '@/components/destination-field';
+import { TripMap } from '@/components/place-map';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { TextField } from '@/components/text-field';
-import { spacing } from '@/theme/tokens';
+import { radii, spacing } from '@/theme/tokens';
 import { addDays, todayString } from '@/utils/dates';
 import { parseAmount, tripSchema, type TripValues } from '@/trips/validation';
 
@@ -25,7 +27,7 @@ export default function NewTripScreen() {
     resolver: zodResolver(tripSchema),
     defaultValues: {
       title: '',
-      destination: '',
+      destinations: [],
       startDate: addDays(today, 7),
       endDate: addDays(today, 11),
       budget: '',
@@ -36,21 +38,26 @@ export default function NewTripScreen() {
   // The end date picker can't go before the chosen start date
   const startDate = useWatch({ control, name: 'startDate' });
 
-  // Look up the destination's currency once typing pauses, e.g. JPY for "Tokyo"
-  const destination = useWatch({ control, name: 'destination' });
-  const [place, setPlace] = useState('');
-  useEffect(() => {
-    const timer = setTimeout(() => setPlace(destination.trim()), 600);
-    return () => clearTimeout(timer);
-  }, [destination]);
+  const destinations = useWatch({ control, name: 'destinations' });
+  // A place typed but not yet turned into a bubble; creating the trip adds it
+  const [destinationText, setDestinationText] = useState('');
+
+  // The first place's currency, e.g. JPY for Tokyo. A picked suggestion comes with it; a place
+  // typed as is gets looked up.
+  const first = destinations[0];
   const localCurrency = useQuery({
-    queryKey: ['trips', 'currency', place.toLowerCase()],
-    queryFn: () => api<Schemas['CurrencySuggestion']>('/trips/currency', { query: { destination: place } }),
-    enabled: place.length >= 2,
+    queryKey: ['trips', 'currency', first?.name.toLowerCase() ?? ''],
+    queryFn: () => api<Schemas['CurrencySuggestion']>('/trips/currency', { query: { destination: first!.name } }),
+    enabled: !!first && !first.currency,
     staleTime: Infinity,
     retry: false,
   });
-  const suggestedCurrency = localCurrency.data?.currency ?? null;
+  const suggestedCurrency = first?.currency ?? localCurrency.data?.currency ?? null;
+
+  // Show every place picked so far on a small map
+  const pins = destinations.flatMap((place) =>
+    place.latitude != null && place.longitude != null ? [{ latitude: place.latitude, longitude: place.longitude }] : [],
+  );
 
   // Follow the destination until the user picks a currency themselves
   const pickedCurrency = useRef(false);
@@ -64,7 +71,13 @@ export default function NewTripScreen() {
         method: 'POST',
         body: {
           title: values.title.trim(),
-          destination: values.destination.trim(),
+          destinations: values.destinations.map(({ name, address, latitude, longitude, country_code }) => ({
+            name,
+            address,
+            latitude,
+            longitude,
+            country_code,
+          })),
           start_date: values.startDate,
           end_date: values.endDate,
           budget: parseAmount(values.budget),
@@ -78,7 +91,14 @@ export default function NewTripScreen() {
     },
   });
 
-  const onSubmit = handleSubmit((values) => createTrip.mutate(values));
+  const onSubmit = () => {
+    const typed = destinationText.trim();
+    if (typed) {
+      setValue('destinations', [...getValues('destinations'), { name: typed }], { shouldValidate: true });
+      setDestinationText('');
+    }
+    handleSubmit((values) => createTrip.mutate(values))();
+  };
 
   return (
     <Screen>
@@ -104,19 +124,26 @@ export default function NewTripScreen() {
 
         <Controller
           control={control}
-          name="destination"
+          name="destinations"
           render={({ field, fieldState }) => (
-            <TextField
-              label="Destination"
-              hint="Also used to find the right places when you save TikToks"
-              placeholder="e.g. Tokyo"
+            <DestinationField
+              label="Destinations"
+              hint="Going to more than one place? Add each one. They help find the right places when you save TikToks."
               value={field.value}
-              onChangeText={field.onChange}
-              onBlur={field.onBlur}
+              onChange={field.onChange}
+              text={destinationText}
+              onChangeText={setDestinationText}
               error={fieldState.error?.message}
             />
           )}
         />
+
+        {pins.length ? (
+          // Just a preview: the trip's own map is the one to explore
+          <View style={styles.map} pointerEvents="none" accessibilityLabel={`Map of ${destinations.map((place) => place.name).join(', ')}`}>
+            <TripMap places={[]} selectedId={null} onSelect={() => {}} fallbackArea={pins} compact />
+          </View>
+        ) : null}
 
         <View style={styles.row}>
           <Controller
@@ -180,7 +207,7 @@ export default function NewTripScreen() {
                     field.onChange(code);
                   }}
                   suggested={suggestedCurrency}
-                  suggestedFor={place}
+                  suggestedFor={first?.name}
                   error={fieldState.error?.message}
                 />
               )}
@@ -208,5 +235,10 @@ const styles = StyleSheet.create({
   },
   currency: {
     flex: 1,
+  },
+  map: {
+    height: 180,
+    borderRadius: radii.card,
+    overflow: 'hidden',
   },
 });

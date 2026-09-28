@@ -1,3 +1,5 @@
+import pytest
+
 def test_create_trip(trip):
     assert trip["title"] == "Tokyo"
     assert trip["currency"] == "JPY"
@@ -120,3 +122,118 @@ def test_no_currency_is_suggested_when_the_place_cant_be_found(client, alice, mo
         raise PhotonError("down")
     monkeypatch.setattr(photon_lookup, "photon_request", unreachable)
     assert client.get("/trips/currency", headers=alice["headers"], params={"destination": "Paris"}).json() == {"currency": None}
+
+KYOTO = {"geometry": {"coordinates": [135.76, 35.01]},
+         "properties": {"name": "Kyoto", "osm_value": "city", "state": "Kyoto Prefecture", "country": "Japan", "countrycode": "JP"}}
+KYOTO_DISTRICT = {"geometry": {"coordinates": [135.75, 35.02]},
+                  "properties": {"name": "Kyoto", "osm_value": "city", "state": "Kyoto Prefecture", "country": "Japan", "countrycode": "JP"}}
+KYOTO_CONDO = {"geometry": {"coordinates": [135.7, 35.0]},
+               "properties": {"name": "Kyoto Heights", "osm_value": "house", "country": "Japan", "countrycode": "JP"}}
+KYOTO_VILLAGE = {"geometry": {"coordinates": [135.6, 35.1]},
+                 "properties": {"name": "Kyomachi", "osm_value": "village", "country": "Japan", "countrycode": "JP"}}
+KYOTANGO = {"geometry": {"coordinates": [135.06, 35.62]},
+            "properties": {"name": "Kyotango", "osm_value": "town", "state": "Kyoto Prefecture", "country": "Japan", "countrycode": "JP"}}
+
+@pytest.fixture
+def photon(monkeypatch):
+    """Answer place lookups with the given features, and remember what was asked."""
+    import photon_lookup
+    photon_lookup._cache.clear()
+    asked = []
+
+    def answer(features):
+        def fake(params, url=None):
+            asked.append(params)
+            return features
+        monkeypatch.setattr(photon_lookup, "photon_request", fake)
+        monkeypatch.setattr("destinations.photon_request", fake)
+    answer.asked = asked
+    return answer
+
+def new_trip(client, user, **fields):
+    return client.post("/trips", headers=user["headers"], json={
+        "title": "Japan", "start_date": "2026-10-01", "end_date": "2026-10-08", **fields
+    })
+
+def test_destination_suggestions_are_places_with_their_currency(client, alice, photon):
+    photon([KYOTO_VILLAGE, KYOTO_CONDO, KYOTANGO, KYOTO, KYOTO_DISTRICT])
+
+    response = client.get("/trips/destinations", headers=alice["headers"], params={"q": "kyo"})
+
+    assert response.status_code == 200
+    names = [(s["name"], s["address"]) for s in response.json()]
+    # Cities before towns before villages, repeats dropped, and no buildings
+    assert names == [("Kyoto", "Kyoto Prefecture, Japan"), ("Kyotango", "Kyoto Prefecture, Japan"), ("Kyomachi", "Japan")]
+    assert response.json()[0] == {"name": "Kyoto", "address": "Kyoto Prefecture, Japan", "latitude": 35.01,
+                                  "longitude": 135.76, "country_code": "JP", "currency": "JPY"}
+    assert photon.asked[0]["osm_tag"] == "place"
+
+def test_a_trip_can_go_to_several_places(client, alice, photon):
+    photon([])
+    tokyo = {"name": "Tokyo", "address": "Japan", "latitude": 35.68, "longitude": 139.76, "country_code": "JP"}
+    kyoto = {"name": "Kyoto", "address": "Kyoto Prefecture, Japan", "latitude": 35.01, "longitude": 135.76, "country_code": "JP"}
+
+    response = new_trip(client, alice, destinations=[tokyo, kyoto], currency="JPY")
+
+    assert response.status_code == 201, response.text
+    trip = response.json()
+    assert trip["destination"] == "Tokyo, Kyoto"
+    assert trip["destinations"] == [tokyo, kyoto]
+    # Places with a pin aren't looked up again
+    assert photon.asked == []
+
+def test_places_typed_without_a_suggestion_get_a_pin(client, alice, photon):
+    photon([KYOTO])
+
+    trip = new_trip(client, alice, destinations=[{"name": "kyoto"}]).json()
+
+    assert trip["destinations"] == [{"name": "kyoto", "address": "Kyoto Prefecture, Japan", "latitude": 35.01,
+                                     "longitude": 135.76, "country_code": "JP"}]
+
+def test_a_place_that_cant_be_found_is_kept_as_typed(client, alice, photon):
+    photon([])
+
+    trip = new_trip(client, alice, destinations=[{"name": "Somewhere nice"}]).json()
+
+    assert trip["destination"] == "Somewhere nice"
+    assert trip["destinations"][0]["latitude"] is None
+
+def test_a_trip_needs_somewhere_to_go(client, alice):
+    assert new_trip(client, alice).status_code == 422
+    assert new_trip(client, alice, destinations=[]).status_code == 422
+    assert new_trip(client, alice, destinations=[{"name": "  "}]).status_code == 422
+    assert new_trip(client, alice, destinations=[{"name": f"Place {i}"} for i in range(11)]).status_code == 422
+
+def test_older_apps_can_still_send_one_name(client, alice):
+    trip = new_trip(client, alice, destination="Tokyo").json()
+
+    assert (trip["destination"], trip["destinations"]) == ("Tokyo", [])
+
+def test_changing_the_places_updates_the_name(client, alice, trip, photon):
+    photon([])
+    url = f"/trips/{trip['id']}"
+    osaka = {"name": "Osaka", "latitude": 34.69, "longitude": 135.5}
+
+    updated = client.patch(url, headers=alice["headers"], json={"destinations": [osaka, {"name": "Nara", "latitude": 34.68, "longitude": 135.8}]}).json()
+    assert updated["destination"] == "Osaka, Nara"
+
+    # Just a name replaces the places, so the two never disagree
+    updated = client.patch(url, headers=alice["headers"], json={"destination": "Hokkaido"}).json()
+    assert (updated["destination"], updated["destinations"]) == ("Hokkaido", [])
+
+def test_long_lists_of_places_fit_the_name_column():
+    from destinations import summary
+
+    text = summary([{"name": "x" * 100} for _ in range(5)])
+
+    assert len(text) <= 255 and text.endswith("…")
+
+def test_place_suggestions_rank_near_the_first_destination(client, alice, photon):
+    import photon_lookup
+    trip = new_trip(client, alice, destinations=[{"name": "Kyoto", "latitude": 35.01, "longitude": 135.76}]).json()
+    photon([])
+
+    client.get(f"/trips/{trip['id']}/places/suggest", headers=alice["headers"], params={"q": "ichiran"})
+
+    # The trip's own pin is used, rather than looking "Kyoto" up again
+    assert photon.asked == [{"q": "ichiran", "limit": 6, "lat": 35.01, "lon": 135.76}]

@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { StyleSheet, View } from 'react-native';
 import MapView, { Marker, type LongPressEvent, type MapPressEvent, type MapStyleElement, type Region } from 'react-native-maps';
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { areaKey } from '@/utils/map-area';
 
 export type Coordinates = { latitude: number; longitude: number };
 
@@ -107,14 +108,19 @@ export type TripMapProps = {
   places: MapPlace[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  // Where to look when there are no pins yet, e.g. the trip's destination
-  fallbackCenter?: Coordinates | null;
+  // Where to look when there are no pins yet, e.g. the trip's destinations
+  fallbackArea?: Coordinates[];
   // A spot the user long-pressed, shown as its own pin
   droppedPin?: Coordinates | null;
   onLongPress?: (coordinates: Coordinates) => void;
   // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
   bottomInset?: number;
+  // A small preview with nothing floating over it, so it needs less room around the pins
+  compact?: boolean;
 };
+
+// Around the pins on a small preview map
+const COMPACT_PADDING = { top: 24, right: 24, bottom: 24, left: 24 };
 
 // A city's worth of map, for when there's nothing pinned yet
 const AREA_ZOOM = { latitudeDelta: 0.18, longitudeDelta: 0.18 };
@@ -129,7 +135,7 @@ export type TripMapHandle = {
 };
 
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackCenter = null, droppedPin = null, onLongPress, bottomInset = 0 },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false },
   ref,
 ) {
   const { colors, scheme } = useTheme();
@@ -142,16 +148,21 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
 
   // Frame the pins whenever the set of pins changes, e.g. after switching the filter
   const pinKey = places.map((place) => place.id).join(',');
-  const fallbackKey = fallbackCenter ? `${fallbackCenter.latitude},${fallbackCenter.longitude}` : '';
+  const fallbackKey = areaKey(fallbackArea);
   useEffect(() => {
     if (!ready) return;
     if (!places.length) {
-      if (fallbackCenter) mapRef.current?.animateToRegion({ ...fallbackCenter, ...AREA_ZOOM }, 400);
+      if (fallbackArea.length === 1) mapRef.current?.animateToRegion({ ...fallbackArea[0], ...AREA_ZOOM }, 400);
+      else if (fallbackArea.length > 1)
+        mapRef.current?.fitToCoordinates(fallbackArea, {
+          edgePadding: compact ? COMPACT_PADDING : { top: 60, right: 40, bottom: bottomInset + 40, left: 40 },
+          animated: true,
+        });
     } else if (places.length === 1) {
       mapRef.current?.animateToRegion({ latitude: places[0].latitude, longitude: places[0].longitude, ...STREET_ZOOM }, 400);
     } else {
       mapRef.current?.fitToCoordinates(places, {
-        edgePadding: { top: 60, right: 40, bottom: bottomInset + 40, left: 40 },
+        edgePadding: compact ? COMPACT_PADDING : { top: 60, right: 40, bottom: bottomInset + 40, left: 40 },
         animated: true,
       });
     }

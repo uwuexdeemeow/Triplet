@@ -6,6 +6,7 @@ import { api } from '@/api/client';
 import { tripKeys, usePlaces, useTrip } from '@/api/trips';
 import { LocationPicker, type PickedLocation } from '@/components/location-picker';
 import { makeStyles, useTheme } from '@/theme/theme';
+import { mainDestination } from '@/trips/destinations';
 
 // Pins a saved place: the chosen spot is saved to the place straight away
 export default function PickLocationScreen() {
@@ -51,7 +52,7 @@ export default function PickLocationScreen() {
       title={place.name}
       initialPin={place.latitude != null && place.longitude != null ? { latitude: place.latitude, longitude: place.longitude } : null}
       initialQuery={place.name}
-      destination={trip.data?.destination}
+      destination={mainDestination(trip.data)}
       saving={save.isPending}
       error={save.error?.message ?? null}
       onConfirm={(location) => save.mutate(location)}

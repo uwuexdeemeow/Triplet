@@ -130,10 +130,28 @@ class CurrencySuggestion(BaseModel):
     # None when the destination couldn't be placed in a country
     currency: str | None
 
+class Destination(BaseModel):
+    """One place a trip goes. A pin and country are filled in by the server when it can."""
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    # e.g. "Kyoto Prefecture, Japan", to tell apart places with the same name
+    address: ShortText | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+
+class DestinationSuggestion(Destination):
+    # The currency used there, e.g. JPY for Kyoto
+    currency: str | None = None
+
+# Up to this many places in one trip
+MAX_DESTINATIONS = 10
+
 class TripCreate(BaseModel):
     title: ShortText
     description: LongText | None = None
-    destination: ShortText
+    # Either the places, or (from older apps) just a name
+    destination: ShortText | None = None
+    destinations: list[Destination] = Field(default=[], max_length=MAX_DESTINATIONS)
     start_date: date
     end_date: date
     budget: float | None = Field(default=None, ge=0, le=9_999_999_999)
@@ -143,6 +161,8 @@ class TripCreate(BaseModel):
     def validate_dates(self):
         if self.end_date < self.start_date:
             raise ValueError("End date cannot be before start date")
+        if not self.destinations and not (self.destination or "").strip():
+            raise ValueError("Add where the trip goes")
 
         return self
 
@@ -151,6 +171,7 @@ class TripResponse(BaseModel):
     title: str
     description: str | None = None
     destination: str
+    destinations: list[Destination] = []
     start_date: date | None = None
     end_date: date | None = None
     budget: float | None = None
@@ -177,7 +198,9 @@ class TripSummaryResponse(TripResponse):
 class TripUpdate(BaseModel):
     title: ShortText | None = None
     description: LongText | None = None
+    # Setting `destination` alone replaces the places with that one name
     destination: ShortText | None = None
+    destinations: list[Destination] | None = Field(default=None, min_length=1, max_length=MAX_DESTINATIONS)
     start_date: date | None = None
     end_date: date | None = None
     budget: float | None = Field(default=None, ge=0, le=9_999_999_999)

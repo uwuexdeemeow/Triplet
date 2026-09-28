@@ -67,9 +67,19 @@ class Trip(Base):
         nullable=True
     )
 
+    # Where the trip goes, for showing: "Tokyo, Kyoto". Kept from `destinations` when they're set.
     destination: Mapped[str] = mapped_column(
         String(255),
         nullable=False
+    )
+
+    # Each place the trip goes, in order: {"name", "address", "latitude", "longitude", "country_code"}.
+    # Empty for trips made before trips had more than one destination.
+    destinations: Mapped[list[dict]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default="[]"
     )
 
     start_date: Mapped[date] = mapped_column(
@@ -106,6 +116,19 @@ class Trip(Base):
         server_default=func.now(),
         onupdate=func.now()
     )
+
+    @property
+    def main_destination(self) -> str:
+        """The first place the trip goes, e.g. "Tokyo" for a Tokyo and Kyoto trip."""
+        return self.destinations[0]["name"] if self.destinations else self.destination
+
+    @property
+    def main_destination_pin(self) -> tuple[float, float] | None:
+        """Where the first place is, if known, as (latitude, longitude)."""
+        first = self.destinations[0] if self.destinations else None
+        if first and first.get("latitude") is not None and first.get("longitude") is not None:
+            return first["latitude"], first["longitude"]
+        return None
 
 class TripMembership(Base):
     __tablename__ = "trip_memberships"

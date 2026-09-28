@@ -116,17 +116,31 @@ export default function TripMapScreen() {
   const shown = items.filter((item) => filter === 'all' || (filter === 'planned') === item.planned);
   const selected = shown.find((item) => item.id === selectedId) ?? null;
 
-  // With nothing pinned, open the map on the trip's destination
+  // With nothing pinned, open the map on the trip's destinations: all of them in view
+  const destinationPins = (trip.data?.destinations ?? [])
+    .filter(hasPin)
+    .map(({ latitude, longitude }) => ({ latitude, longitude }));
+  // Trips from before destinations had pins only have a name, so look that up
   const destination = trip.data?.destination;
   const area = useQuery({
     queryKey: ['trips', id, 'suggest', destination ?? ''],
     queryFn: () => api<SearchResult[]>(`/trips/${id}/places/suggest`, { query: { q: destination ?? '' } }),
-    enabled: !!destination && destination.length >= 2 && !places.isPending && !itinerary.isPending && items.length === 0,
+    enabled:
+      !!destination &&
+      destination.length >= 2 &&
+      !destinationPins.length &&
+      !places.isPending &&
+      !itinerary.isPending &&
+      items.length === 0,
     staleTime: Infinity,
     retry: false,
   });
   const areaResult = area.data?.find(hasPin);
-  const fallbackCenter = areaResult ? { latitude: areaResult.latitude!, longitude: areaResult.longitude! } : null;
+  const fallbackArea = destinationPins.length
+    ? destinationPins
+    : areaResult
+      ? [{ latitude: areaResult.latitude!, longitude: areaResult.longitude! }]
+      : [];
 
   if (places.isPending || itinerary.isPending) return <ActivityIndicator color={colors.accent} style={styles.loading} />;
 
@@ -158,7 +172,7 @@ export default function TripMapScreen() {
         places={shown}
         selectedId={selected?.id ?? null}
         onSelect={select}
-        fallbackCenter={fallbackCenter}
+        fallbackArea={fallbackArea}
         droppedPin={dropped}
         onLongPress={
           canEdit

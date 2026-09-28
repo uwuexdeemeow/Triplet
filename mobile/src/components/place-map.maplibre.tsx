@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import type { Coordinates, MapPlace, PickerMapHandle, TripMapHandle, TripMapProps } from '@/components/place-map.google';
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { areaKey } from '@/utils/map-area';
 
 // Phone maps in the app's own builds: MapLibre with free OpenFreeMap tiles, the same maps the
 // website shows. No Google key or billing needed. (Expo Go uses place-map.google.tsx instead.)
@@ -106,7 +107,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
  * and long-pressing drops a pin to add something there.
  */
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackCenter = null, droppedPin = null, onLongPress, bottomInset = 0 },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false },
   ref,
 ) {
   const { colors, scheme } = useTheme();
@@ -121,21 +122,20 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
 
   // Frame the pins whenever the set of pins changes, e.g. after switching the filter
   const pinKey = places.map((place) => place.id).join(',');
-  const fallbackKey = fallbackCenter ? `${fallbackCenter.latitude},${fallbackCenter.longitude}` : '';
+  const fallbackKey = areaKey(fallbackArea);
   useEffect(() => {
     if (!loaded) return;
-    if (!places.length) {
-      if (fallbackCenter) camera.current?.easeTo({ center: toLngLat(fallbackCenter), zoom: AREA_ZOOM, duration: 400 });
+    // With nothing pinned, show the area instead: one place at city level, or all of them
+    const points: Coordinates[] = places.length ? places : fallbackArea;
+    if (!points.length) return;
+    if (points.length === 1) {
+      camera.current?.easeTo({ center: toLngLat(points[0]), zoom: places.length ? STREET_ZOOM : AREA_ZOOM, duration: 400 });
       return;
     }
-    if (places.length === 1) {
-      camera.current?.easeTo({ center: toLngLat(places[0]), zoom: STREET_ZOOM, duration: 400 });
-      return;
-    }
-    const lngs = places.map((place) => place.longitude);
-    const lats = places.map((place) => place.latitude);
+    const lngs = points.map((point) => point.longitude);
+    const lats = points.map((point) => point.latitude);
     camera.current?.fitBounds([Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)], {
-      padding: { top: 90, right: 40, bottom: bottomInset + 40, left: 40 },
+      padding: compact ? { top: 24, right: 24, bottom: 24, left: 24 } : { top: 90, right: 40, bottom: bottomInset + 40, left: 40 },
       duration: 400,
     });
     // Only refit for a different set of pins, not when a pin is selected

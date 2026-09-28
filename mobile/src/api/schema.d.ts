@@ -290,6 +290,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest Destinations
+         * @description Cities, regions and countries matching what's typed so far, for a new trip's destinations.
+         */
+        get: operations["suggest_destinations_trips_destinations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/currency": {
         parameters: {
             query?: never;
@@ -1171,6 +1191,37 @@ export interface components {
             /** Rain Chance */
             rain_chance?: number | null;
         };
+        /**
+         * Destination
+         * @description One place a trip goes. A pin and country are filled in by the server when it can.
+         */
+        Destination: {
+            /** Name */
+            name: string;
+            /** Address */
+            address?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Country Code */
+            country_code?: string | null;
+        };
+        /** DestinationSuggestion */
+        DestinationSuggestion: {
+            /** Name */
+            name: string;
+            /** Address */
+            address?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Currency */
+            currency?: string | null;
+        };
         /** ExpenseCreate */
         ExpenseCreate: {
             /** Title */
@@ -1738,7 +1789,12 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Destination */
-            destination: string;
+            destination?: string | null;
+            /**
+             * Destinations
+             * @default []
+             */
+            destinations: components["schemas"]["Destination"][];
             /**
              * Start Date
              * Format: date
@@ -1822,6 +1878,11 @@ export interface components {
             description?: string | null;
             /** Destination */
             destination: string;
+            /**
+             * Destinations
+             * @default []
+             */
+            destinations: components["schemas"]["Destination"][];
             /** Start Date */
             start_date?: string | null;
             /** End Date */
@@ -1844,6 +1905,11 @@ export interface components {
             description?: string | null;
             /** Destination */
             destination: string;
+            /**
+             * Destinations
+             * @default []
+             */
+            destinations: components["schemas"]["Destination"][];
             /** Start Date */
             start_date?: string | null;
             /** End Date */
@@ -1886,6 +1952,8 @@ export interface components {
             description?: string | null;
             /** Destination */
             destination?: string | null;
+            /** Destinations */
+            destinations?: components["schemas"]["Destination"][] | null;
             /** Start Date */
             start_date?: string | null;
             /** End Date */
@@ -2588,6 +2656,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggest_destinations_trips_destinations_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DestinationSuggestion"][];
                 };
             };
             /** @description Validation Error */
