@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Keyboard, LayoutAnimation, Platform, ScrollView, Text, View, type KeyboardEvent } from 'react-native';
+import { Dimensions, Keyboard, LayoutAnimation, Platform, ScrollView, Text, View, type KeyboardEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -11,41 +11,45 @@ type ScreenProps = {
   scroll?: boolean;
 };
 
-// How far the keyboard covers the screen, measured on the display when it opens. React Native's
-// KeyboardAvoidingView works this out from the screen's position within its parent, which is wrong
-// on a sheet (like Ask about this trip) that starts partway down: it left the text box covered.
+// How far the keyboard covers the screen. React Native's KeyboardAvoidingView (and measureInWindow)
+// place the screen using React Native's own layout, which doesn't know iOS moved a sheet (like Ask
+// about this trip) partway down the display. So they came up short and the keyboard covered the box.
 function useKeyboardOverlap() {
   const screen = useRef<View>(null);
   const [overlap, setOverlap] = useState(0);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const update = (event: KeyboardEvent, open: boolean) => {
-      const apply = (value: number) => {
-        // iOS: move in step with the keyboard
-        if (Platform.OS === 'ios' && event.duration) {
-          LayoutAnimation.configureNext({ duration: event.duration, update: { type: LayoutAnimation.Types.keyboard } });
-        }
-        setOverlap(value);
-      };
-      if (!open) return apply(0);
-      // Measured now, not when the screen appeared, so a sheet still sliding in doesn't throw it off.
-      // The screen itself never changes size (the padding is inside it), so this stays accurate.
-      screen.current?.measureInWindow((_x, y, _width, height) =>
-        apply(Math.max(0, Math.round(y + height - event.endCoordinates.screenY))),
-      );
+    const apply = (event: KeyboardEvent, value: number) => {
+      // iOS: move in step with the keyboard
+      if (Platform.OS === 'ios' && event.duration) {
+        LayoutAnimation.configureNext({ duration: event.duration, update: { type: LayoutAnimation.Types.keyboard } });
+      }
+      setOverlap(Math.max(0, Math.round(value)));
     };
-    // Android draws edge to edge, so its window doesn't shrink for the keyboard either
-    const subscriptions =
-      Platform.OS === 'ios'
-        ? [
-            Keyboard.addListener('keyboardWillChangeFrame', (event) => update(event, true)),
-            Keyboard.addListener('keyboardWillHide', (event) => update(event, false)),
-          ]
-        : [
-            Keyboard.addListener('keyboardDidShow', (event) => update(event, true)),
-            Keyboard.addListener('keyboardDidHide', (event) => update(event, false)),
-          ];
+
+    if (Platform.OS === 'ios') {
+      // Every screen and sheet reaches the bottom of the display (the safe area only pads the top),
+      // so the keyboard covers everything from its top edge down. No positions needed.
+      const subscriptions = [
+        Keyboard.addListener('keyboardWillChangeFrame', (event) =>
+          apply(event, Dimensions.get('screen').height - event.endCoordinates.screenY),
+        ),
+        Keyboard.addListener('keyboardWillHide', (event) => apply(event, 0)),
+      ];
+      return () => subscriptions.forEach((subscription) => subscription.remove());
+    }
+
+    // Android: modals fill the display, so measuring works. It draws edge to edge, so the window
+    // usually doesn't shrink for the keyboard; if it does, the measured overlap is simply 0.
+    const subscriptions = [
+      Keyboard.addListener('keyboardDidShow', (event) =>
+        screen.current?.measureInWindow((_x, y, _width, height) =>
+          apply(event, y + height - event.endCoordinates.screenY),
+        ),
+      ),
+      Keyboard.addListener('keyboardDidHide', (event) => apply(event, 0)),
+    ];
     return () => subscriptions.forEach((subscription) => subscription.remove());
   }, []);
 
