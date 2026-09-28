@@ -7,6 +7,7 @@ import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Tex
 import { api } from '@/api/client';
 import {
   tripKeys,
+  useBudgetEstimate,
   useExpenses,
   useItinerary,
   useMe,
@@ -26,7 +27,17 @@ import { PressableScale } from '@/components/pressable-scale';
 import { WeatherLine } from '@/components/weather-line';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
-import { activityClock, dayOfMonth, eachDay, formatLongDate, todayString, weekdayShort } from '@/utils/dates';
+import { PlanMapPanel } from '@/components/plan-map-panel';
+import {
+  activityClock,
+  dayOfMonth,
+  eachDay,
+  formatLongDate,
+  formatShortDate,
+  todayString,
+  weekdayShort,
+} from '@/utils/dates';
+import { useShowsMapPanel, useWideLayout } from '@/utils/layout';
 import { formatMoney } from '@/utils/money';
 import { platformLabel } from '@/utils/places';
 import { select, warn } from '@/utils/haptics';
@@ -64,8 +75,118 @@ export default function PlanScreen() {
   const activities = day?.activities ?? [];
   const titles = new Map(activities.map((activity) => [activity.id, activity.title]));
   const currency = trip.data?.currency ?? 'USD';
+  const wide = useWideLayout();
+  const mapPanel = useShowsMapPanel();
 
   if (!trip.data || !selectedDay) return null;
+
+  const openAdd = () => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, day: selectedDay } });
+
+  // The selected day's plans, the same on a phone and in the wide layout
+  const dayPlans = (
+    <>
+      <View style={styles.dayHeader}>
+        <Title>{formatLongDate(selectedDay)}</Title>
+        {day && day.estimated_cost > 0 ? (
+          <Text style={styles.dayCost}>About {formatMoney(day.estimated_cost, currency)}</Text>
+        ) : null}
+      </View>
+      {day?.weather ? <WeatherLine weather={day.weather} /> : null}
+
+      {itinerary.isPending ? (
+        <ActivityIndicator color={colors.accent} style={styles.loading} />
+      ) : itinerary.isError ? (
+        <View style={styles.state}>
+          <FormMessage message={itinerary.error.message} />
+          <Button label="Try again" variant="secondary" onPress={() => itinerary.refetch()} />
+        </View>
+      ) : activities.length === 0 ? (
+        <View style={styles.empty}>
+          <Body style={styles.emptyText}>Nothing planned for this day yet.</Body>
+        </View>
+      ) : (
+        <>
+          {activities.map((activity, index) => (
+            <Enter key={activity.id} index={index}>
+              {activity.travel_from_previous ? <TravelConnector leg={activity.travel_from_previous} /> : null}
+              <ActivityRow
+                tripId={id}
+                activity={activity}
+                titles={titles}
+                currency={currency}
+                canEdit={canEdit}
+                paid={paid.get(activity.id)}
+              />
+            </Enter>
+          ))}
+          {canEdit ? (
+            <Muted style={styles.hint}>
+              {wide
+                ? 'Click a plan to edit it, or press and hold for more.'
+                : `Tap a plan to edit it, or press and hold for more.${Platform.OS === 'web' ? '' : ' Swipe right to delete.'}`}
+            </Muted>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+
+  // Big screens: the days down the left, the day's plans in the middle, and the map on the right
+  if (wide) {
+    return (
+      <View style={styles.wide}>
+        <ScrollView style={styles.rail} contentContainerStyle={styles.railContent}>
+          <Text style={styles.railTitle}>Days</Text>
+          {days.map((date) => {
+            const selected = date === selectedDay;
+            const planned = itinerary.data?.days.find((item) => item.date === date);
+            const count = planned?.activities.length ?? 0;
+            const meta = [
+              count ? `${count} ${count === 1 ? 'plan' : 'plans'}` : 'Nothing planned',
+              planned?.weather?.high != null ? `${Math.round(planned.weather.high)}° ${planned.weather.summary.toLowerCase()}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ');
+            return (
+              <Pressable
+                key={date}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${formatLongDate(date)}, ${meta}`}
+                onPress={() => setPickedDay(date)}
+                style={({ hovered }) => [styles.railDay, selected ? styles.railDaySelected : hovered && styles.railDayHover]}>
+                <Text style={styles.railDayName}>{formatShortDate(date)}</Text>
+                <Text style={[styles.railDayMeta, selected && styles.railDayMetaSelected]}>{meta}</Text>
+              </Pressable>
+            );
+          })}
+          <TripCost tripId={id} />
+        </ScrollView>
+
+        <ScrollView
+          style={styles.center}
+          contentContainerStyle={styles.centerContent}
+          refreshControl={
+            <RefreshControl refreshing={itinerary.isRefetching} onRefresh={itinerary.refetch} tintColor={colors.accent} />
+          }>
+          {dayPlans}
+          <Pressable
+            accessibilityRole="button"
+            onPress={openAdd}
+            style={({ hovered }) => [styles.addPlan, hovered && styles.addPlanHover]}>
+            <Feather name="plus" size={16} color={colors.accent} />
+            <Text style={styles.addPlanLabel}>Add a plan to {formatShortDate(selectedDay)}</Text>
+          </Pressable>
+        </ScrollView>
+
+        {mapPanel ? (
+          <View style={styles.mapColumn}>
+            <PlanMapPanel tripId={id} activities={activities} />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -100,55 +221,35 @@ export default function PlanScreen() {
         refreshControl={
           <RefreshControl refreshing={itinerary.isRefetching} onRefresh={itinerary.refetch} tintColor={colors.accent} />
         }>
-        <View style={styles.dayHeader}>
-          <Title>{formatLongDate(selectedDay)}</Title>
-          {day && day.estimated_cost > 0 ? (
-            <Text style={styles.dayCost}>About {formatMoney(day.estimated_cost, currency)}</Text>
-          ) : null}
-        </View>
-        {day?.weather ? <WeatherLine weather={day.weather} /> : null}
-
-        {itinerary.isPending ? (
-          <ActivityIndicator color={colors.accent} style={styles.loading} />
-        ) : itinerary.isError ? (
-          <View style={styles.state}>
-            <FormMessage message={itinerary.error.message} />
-            <Button label="Try again" variant="secondary" onPress={() => itinerary.refetch()} />
-          </View>
-        ) : activities.length === 0 ? (
-          <View style={styles.empty}>
-            <Body style={styles.emptyText}>Nothing planned for this day yet.</Body>
-          </View>
-        ) : (
-          <>
-            {activities.map((activity, index) => (
-              <Enter key={activity.id} index={index}>
-                {activity.travel_from_previous ? <TravelConnector leg={activity.travel_from_previous} /> : null}
-                <ActivityRow
-                  tripId={id}
-                  activity={activity}
-                  titles={titles}
-                  currency={currency}
-                  canEdit={canEdit}
-                  paid={paid.get(activity.id)}
-                />
-              </Enter>
-            ))}
-            {canEdit ? (
-              <Muted style={styles.hint}>
-                Tap a plan to edit it, or press and hold for more.{Platform.OS === 'web' ? '' : ' Swipe right to delete.'}
-              </Muted>
-            ) : null}
-          </>
-        )}
+        {dayPlans}
       </ScrollView>
 
-      <Fab
-        label="Add activity"
-        bottom={32}
-        onPress={() => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, day: selectedDay } })}
-      />
+      <Fab label="Add activity" bottom={32} onPress={openAdd} />
     </View>
+  );
+}
+
+// Under the days on a big screen: roughly what the whole trip will cost
+function TripCost({ tripId }: { tripId: number }) {
+  const styles = useStyles();
+  const estimate = useBudgetEstimate(tripId);
+  if (!estimate.data) return null;
+  const { total, currency, over_budget_by: over } = estimate.data;
+
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityHint="Opens the Budget tab"
+      onPress={() => router.replace({ pathname: '/trips/[tripId]/budget', params: { tripId: String(tripId) } })}
+      style={({ hovered }) => [styles.cost, hovered && styles.railDayHover]}>
+      <Text style={styles.railTitle}>Trip cost</Text>
+      <Text style={styles.costValue}>≈ {formatMoney(total, currency)}</Text>
+      {over != null ? (
+        <Text style={[styles.railDayMeta, over > 0 && styles.costOver]}>
+          About {formatMoney(Math.abs(over), currency)} {over > 0 ? 'over' : 'under'} budget
+        </Text>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -327,6 +428,107 @@ const useStyles = makeStyles((colors) => ({
   },
   daysScroller: {
     flexGrow: 0,
+  },
+  // Big screens: three columns
+  wide: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  rail: {
+    width: 220,
+    flexGrow: 0,
+    borderRightWidth: 1,
+    borderRightColor: colors.line,
+  },
+  railContent: {
+    padding: spacing.lg,
+    gap: spacing.sm,
+    flexGrow: 1,
+  },
+  railTitle: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xs,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  },
+  railDay: {
+    padding: spacing.md,
+    borderRadius: radii.card,
+    gap: 4,
+  },
+  railDaySelected: {
+    backgroundColor: colors.accentSoft,
+  },
+  railDayHover: {
+    backgroundColor: colors.chip,
+  },
+  railDayName: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  railDayMeta: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  railDayMetaSelected: {
+    color: colors.accentStrong,
+  },
+  cost: {
+    marginTop: 'auto',
+    padding: 14,
+    gap: 4,
+    borderRadius: radii.card,
+    backgroundColor: colors.surface,
+  },
+  costValue: {
+    paddingHorizontal: spacing.sm,
+    fontFamily: fonts.semibold,
+    fontSize: 20,
+    color: colors.ink,
+  },
+  costOver: {
+    color: colors.dangerText,
+  },
+  center: {
+    flex: 1,
+    minWidth: 360,
+  },
+  centerContent: {
+    paddingHorizontal: 32,
+    paddingVertical: spacing.xl,
+    gap: spacing.md,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
+  mapColumn: {
+    width: '38%',
+    maxWidth: 620,
+  },
+  addPlan: {
+    marginLeft: 48 + spacing.md,
+    height: 44,
+    borderRadius: radii.card,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.accentMuted,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  addPlanHover: {
+    backgroundColor: colors.accentSoft,
+  },
+  addPlanLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.accent,
   },
   days: {
     paddingHorizontal: 20,

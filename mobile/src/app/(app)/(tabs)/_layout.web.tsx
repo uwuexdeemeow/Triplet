@@ -5,11 +5,14 @@ import { Tabs } from 'expo-router';
 import { useMyInvitations } from '@/api/trips';
 import { useTheme } from '@/theme/theme';
 import { fonts } from '@/theme/tokens';
+import { useWideLayout } from '@/utils/layout';
 
 export default function TabsLayout() {
   const { colors } = useTheme();
   const invitations = useMyInvitations();
   const pending = invitations.data?.length ?? 0;
+  // A wide window has the sidebar instead (app/(app)/_layout.tsx)
+  const wide = useWideLayout();
 
   return (
     <Tabs
@@ -18,7 +21,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: { fontFamily: fonts.semibold, fontSize: 12 },
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
+        tabBarStyle: wide ? { display: 'none' } : { backgroundColor: colors.surface, borderTopColor: colors.line },
         sceneStyle: { backgroundColor: colors.bg },
       }}>
       <Tabs.Screen

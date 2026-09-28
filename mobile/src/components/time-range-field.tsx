@@ -40,8 +40,8 @@ type TimeRangeFieldProps = {
 };
 
 /**
- * From and to on one track: drag the left handle to move the whole plan (it keeps its length),
- * the right handle to change how long it is. Snaps to 15 minutes, and exact times can still be typed.
+ * From and to on one track: each handle moves on its own, so dragging either one changes how long
+ * the plan is, and the start can't pass the end. Snaps to 15 minutes; exact times can still be typed.
  */
 export function TimeRangeField({ label = 'When', start, end, onChange, error }: TimeRangeFieldProps) {
   const styles = useStyles();
@@ -59,7 +59,6 @@ export function TimeRangeField({ label = 'When', start, end, onChange, error }: 
   const from = useSharedValue(startMinutes);
   const to = useSharedValue(endMinutes);
   const origin = useSharedValue(0);
-  const length = useSharedValue(0);
 
   // Follow changes from outside, like typing an exact time
   useEffect(() => {
@@ -81,19 +80,18 @@ export function TimeRangeField({ label = 'When', start, end, onChange, error }: 
     return Math.round(minutes / STEP) * STEP;
   };
 
-  // Left handle: moves the whole plan
+  // Left handle: moves the start on its own, so the plan gets longer or shorter,
+  // and stops a step before the end so it never crosses it
   const moveStart = Gesture.Pan()
     .hitSlop(12)
     .onBegin(() => {
       origin.set(from.get());
-      length.set(to.get() - from.get());
     })
     .onUpdate((event) => {
-      const next = Math.min(Math.max(snap(origin.get() + (event.translationX / width) * span), low), high - length.get());
+      const next = Math.min(Math.max(snap(origin.get() + (event.translationX / width) * span), low), to.get() - STEP);
       if (next !== from.get()) {
         from.set(next);
-        to.set(next + length.get());
-        runOnJS(step)(next, next + length.get());
+        runOnJS(step)(next, to.get());
       }
     })
     .onFinalize(() => {
@@ -132,9 +130,8 @@ export function TimeRangeField({ label = 'When', start, end, onChange, error }: 
   // Screen readers and keyboards move a handle 15 minutes at a time
   const nudge = (which: 'start' | 'end', direction: 1 | -1) => {
     if (which === 'start') {
-      const length = endMinutes - startMinutes;
-      const next = Math.min(Math.max(startMinutes + direction * STEP, low), high - length);
-      onChange(toTime(next), toTime(next + length));
+      const next = Math.min(Math.max(startMinutes + direction * STEP, low), endMinutes - STEP);
+      onChange(toTime(next), end);
     } else {
       const next = Math.min(Math.max(endMinutes + direction * STEP, startMinutes + STEP), high);
       onChange(start, toTime(next));
@@ -204,10 +201,9 @@ export function TimeRangeField({ label = 'When', start, end, onChange, error }: 
             label="From"
             value={start}
             onChange={(value) => {
-              // Keep the same length when the start moves
+              // The end stays put; only a start typed at or after it pushes the end a step later
               const minutes = toMinutes(value);
-              const kept = Math.min(minutes + (endMinutes - startMinutes || 60), 24 * 60 - 1);
-              onChange(value, toTime(kept));
+              onChange(value, minutes < endMinutes ? end : toTime(Math.min(minutes + STEP, 24 * 60 - 1)));
             }}
           />
           <TimeField label="To" value={end} onChange={(value) => onChange(start, value)} />

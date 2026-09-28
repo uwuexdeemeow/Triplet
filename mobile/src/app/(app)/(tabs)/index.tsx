@@ -13,7 +13,18 @@ import { PressableScale } from '@/components/pressable-scale';
 import { FormMessage } from '@/components/screen';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
-import { activityClock, dayOfMonth, formatDateRange, monthShort, todayString, tripPhase, type TripPhase } from '@/utils/dates';
+import { WeatherLine } from '@/components/weather-line';
+import {
+  activityClock,
+  dayOfMonth,
+  formatDateRange,
+  formatShortDate,
+  monthShort,
+  todayString,
+  tripPhase,
+  type TripPhase,
+} from '@/utils/dates';
+import { useWideLayout } from '@/utils/layout';
 import { tap } from '@/utils/haptics';
 import { formatMoney } from '@/utils/money';
 
@@ -67,20 +78,23 @@ export default function TripsScreen() {
   const [featured, ...others] = [...current, ...upcoming];
 
   const name = me.data?.name;
+  const wide = useWideLayout();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, wide && styles.pageWide]}
         refreshControl={<RefreshControl refreshing={trips.isRefetching} onRefresh={trips.refetch} tintColor={colors.accent} />}>
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.greeting}>{name ? `${greeting()}, ${name}` : greeting()}</Text>
-            <Text style={styles.heading} accessibilityRole="header">
+            <Text style={[styles.heading, wide && styles.headingWide]} accessibilityRole="header">
               Your trips
             </Text>
           </View>
+          {/* The sidebar has "New trip" on a big screen */}
+          {wide ? null : (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="New trip"
@@ -93,6 +107,7 @@ export default function TripsScreen() {
               <Feather name="plus" size={22} color={colors.onAccent} />
             </Glass>
           </Pressable>
+          )}
         </View>
 
         {trips.isPending ? (
@@ -108,29 +123,25 @@ export default function TripsScreen() {
           <>
             {featured ? (
               <Enter index={0}>
-                <FeaturedTrip trip={featured.trip} phase={featured.phase} />
+                {wide ? (
+                  <FeaturedTripWide trip={featured.trip} phase={featured.phase} />
+                ) : (
+                  <FeaturedTrip trip={featured.trip} phase={featured.phase} />
+                )}
               </Enter>
             ) : null}
 
             {others.length > 0 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Coming up</Text>
-                {others.map(({ trip, phase }, index) => (
-                  <Enter key={trip.id} index={index + 1}>
-                    <TripRow trip={trip} phase={phase} />
-                  </Enter>
-                ))}
+                <TripList items={others} wide={wide} firstIndex={1} />
               </View>
             ) : null}
 
             {past.length > 0 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Past trips</Text>
-                {past.map(({ trip, phase }, index) => (
-                  <Enter key={trip.id} index={index + 1 + others.length}>
-                    <TripRow trip={trip} phase={phase} />
-                  </Enter>
-                ))}
+                <TripList items={past} wide={wide} firstIndex={1 + others.length} />
               </View>
             ) : null}
           </>
@@ -199,6 +210,149 @@ function FeaturedTrip({ trip, phase }: { trip: TripSummary; phase: TripPhase }) 
       </View>
     </PressableScale>
   );
+}
+
+// On a big screen the next trip spreads out: the details on the left, its first day (or today) on the right
+function FeaturedTripWide({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
+  const styles = useStyles();
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={`${trip.title}, ${trip.destination}`}
+      onPress={() => openTrip(trip)}
+      scaleTo={0.99}
+      style={[styles.featured, styles.featuredWide]}>
+      <View style={styles.featuredMain}>
+        <FeaturedDetails trip={trip} phase={phase} />
+      </View>
+      <DayPreview trip={trip} day={phase.phase === 'now' ? todayString() : trip.start_date!} />
+    </PressableScale>
+  );
+}
+
+// The parts of the featured card both layouts share
+function FeaturedDetails({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <>
+      <View style={styles.featuredTop}>
+        <View style={styles.pill}>
+          <View style={[styles.pillDot, phase.phase === 'now' && styles.pillDotLive]} />
+          <Text style={styles.pillText}>{phase.phase === 'now' ? 'Happening now' : 'Next trip'}</Text>
+        </View>
+        <Feather name="arrow-up-right" size={20} color={colors.muted} />
+      </View>
+      <View style={styles.featuredTitleBlock}>
+        <Text style={[styles.featuredTitle, styles.featuredTitleWide]} numberOfLines={2}>
+          {trip.title}
+        </Text>
+        <View style={styles.place}>
+          <Feather name="map-pin" size={14} color={colors.muted} />
+          <Text style={styles.placeText} numberOfLines={1}>
+            {trip.destination} · {formatDateRange(trip.start_date!, trip.end_date!)}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.countdown}>
+        {phase.phase === 'now' ? (
+          <>
+            <Text style={[styles.bigNumber, styles.bigNumberWide]}>Day {phase.day}</Text>
+            <Text style={styles.bigLabel}>of {phase.length}</Text>
+          </>
+        ) : phase.phase === 'upcoming' && phase.daysToGo === 1 ? (
+          <Text style={[styles.bigNumber, styles.bigNumberWide]}>Tomorrow</Text>
+        ) : phase.phase === 'upcoming' ? (
+          <>
+            <Text style={[styles.bigNumber, styles.bigNumberWide]}>{phase.daysToGo}</Text>
+            <Text style={styles.bigLabel}>days to go</Text>
+          </>
+        ) : null}
+      </View>
+      <View style={styles.featuredFooter}>
+        <Text style={styles.stats} numberOfLines={2}>
+          {tripStats(trip)}
+        </Text>
+        <AvatarStack people={trip.members} total={trip.member_count} />
+      </View>
+    </>
+  );
+}
+
+// A glance at one day of the featured trip: the weather and its first few plans
+function DayPreview({ trip, day }: { trip: TripSummary; day: string }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const itinerary = useItinerary(trip.id);
+  const plans = itinerary.data?.days.find((item) => item.date === day);
+  const activities = plans?.activities ?? [];
+  const isToday = day === todayString();
+
+  return (
+    <View style={styles.preview}>
+      <Text style={styles.previewTitle}>
+        {isToday ? 'Today' : 'First day'} · {formatShortDate(day)}
+      </Text>
+      {plans?.weather ? <WeatherLine weather={plans.weather} /> : null}
+      {itinerary.isPending ? (
+        <ActivityIndicator color={colors.accent} />
+      ) : activities.length === 0 ? (
+        <Text style={styles.todayEmpty}>Nothing planned yet.</Text>
+      ) : (
+        activities.slice(0, 4).map((plan) => (
+          <View key={plan.id} style={styles.previewRow}>
+            <Text style={styles.todayTime}>{activityClock(plan.start_time)}</Text>
+            <Text style={styles.todayPlan} numberOfLines={1}>
+              {plan.title}
+            </Text>
+            {(plan.warnings?.length ?? 0) > 0 || (plan.conflicts_with?.length ?? 0) > 0 ? (
+              <Text style={styles.previewCheck}>Check</Text>
+            ) : null}
+          </View>
+        ))
+      )}
+      {activities.length > 4 ? <Text style={styles.todayEmpty}>and {activities.length - 4} more</Text> : null}
+    </View>
+  );
+}
+
+// Trips as a list on a phone, and three to a row on a big screen
+function TripList({
+  items,
+  wide,
+  firstIndex,
+}: {
+  items: { trip: TripSummary; phase: TripPhase }[];
+  wide: boolean;
+  firstIndex: number;
+}) {
+  const styles = useStyles();
+  if (!wide) {
+    return items.map(({ trip, phase }, index) => (
+      <Enter key={trip.id} index={index + firstIndex}>
+        <TripRow trip={trip} phase={phase} />
+      </Enter>
+    ));
+  }
+
+  const rows: (typeof items)[] = [];
+  for (let index = 0; index < items.length; index += 3) rows.push(items.slice(index, index + 3));
+  return rows.map((row, rowIndex) => (
+    <View key={row[0].trip.id} style={styles.gridRow}>
+      {[0, 1, 2].map((column) => {
+        const item = row[column];
+        return (
+          <View key={item?.trip.id ?? `empty-${column}`} style={styles.gridCell}>
+            {item ? (
+              <Enter index={rowIndex * 3 + column + firstIndex}>
+                <TripRow trip={item.trip} phase={item.phase} />
+              </Enter>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  ));
 }
 
 // During a trip: what's left on today's plan
@@ -312,6 +466,68 @@ const useStyles = makeStyles((colors) => ({
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
+  },
+  pageWide: {
+    maxWidth: 1180,
+    paddingHorizontal: 56,
+    paddingTop: 40,
+    gap: spacing.xxl,
+  },
+  headingWide: {
+    fontSize: 34,
+    lineHeight: 40,
+  },
+  featuredWide: {
+    flexDirection: 'row',
+    padding: 0,
+    gap: 0,
+    overflow: 'hidden',
+  },
+  featuredMain: {
+    flex: 1.3,
+    padding: 32,
+    gap: spacing.lg,
+  },
+  featuredTitleWide: {
+    fontSize: 30,
+    lineHeight: 36,
+  },
+  bigNumberWide: {
+    fontSize: 60,
+    lineHeight: 64,
+  },
+  preview: {
+    flex: 1,
+    padding: 28,
+    gap: spacing.md,
+    backgroundColor: colors.accentSoft,
+  },
+  previewTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.accentStrong,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: 14,
+    paddingVertical: spacing.md,
+    borderRadius: radii.card,
+    backgroundColor: colors.surface,
+  },
+  previewCheck: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.secondText,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  gridCell: {
+    flex: 1,
+    minWidth: 0,
   },
   header: {
     flexDirection: 'row',

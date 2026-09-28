@@ -3,12 +3,13 @@ import { router, Slot, useLocalSearchParams, usePathname } from 'expo-router';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useMembers, useTrip } from '@/api/trips';
+import { useMe, useMembers, useTrip } from '@/api/trips';
 import { FormMessage } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, spacing, touchTarget } from '@/theme/tokens';
 import { formatDateRange } from '@/utils/dates';
+import { useShowsMapPanel, useWideLayout } from '@/utils/layout';
 
 const SECTIONS = [
   { label: 'Plan', pathname: '/trips/[tripId]', suffix: '' },
@@ -28,6 +29,38 @@ export default function TripSectionsLayout() {
   const members = useMembers(id);
 
   const active = SECTIONS.find((section) => section.suffix && pathname.endsWith(section.suffix)) ?? SECTIONS[0];
+  const wide = useWideLayout();
+  // With the map beside the plan, it doesn't need its own tab (unless you're already on it)
+  const mapPanel = useShowsMapPanel();
+  const sections = SECTIONS.filter((section) => !(mapPanel && section.label === 'Map' && active !== section));
+  const me = useMe();
+  const isOwner = members.data?.some((member) => member.user_id === me.data?.id && member.role === 'owner') ?? false;
+  const openSettings = () => router.push({ pathname: '/trips/[tripId]/settings', params: { tripId } });
+
+  const tabs = (
+    <View accessibilityRole="tablist" style={wide ? styles.segments : styles.tabs}>
+      {sections.map((section) => {
+        const selected = section === active;
+        return (
+          <Pressable
+            key={section.label}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => {
+              // Replace so switching sections doesn't pile up back history
+              if (!selected) router.replace({ pathname: section.pathname, params: { tripId } });
+            }}
+            style={({ hovered }) =>
+              wide
+                ? [styles.segment, selected ? styles.segmentSelected : hovered && styles.segmentHover]
+                : [styles.tab, selected && styles.tabSelected]
+            }>
+            <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{section.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 
   const subtitle = trip.data
     ? [
@@ -37,6 +70,56 @@ export default function TripSectionsLayout() {
         .filter(Boolean)
         .join(' · ')
     : undefined;
+
+  if (wide) {
+    return (
+      <View style={styles.safeArea}>
+        <View style={styles.wideHeader}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to trips"
+            onPress={() => router.replace('/')}
+            style={({ hovered }) => [styles.back, hovered && styles.backHover]}>
+            <Feather name="chevron-left" size={20} color={colors.ink} />
+          </Pressable>
+          <View style={styles.wideTitles}>
+            <Text accessibilityRole="header" style={styles.wideTitle} numberOfLines={1}>
+              {trip.data?.title ?? ' '}
+            </Text>
+            {subtitle ? <Text style={styles.wideSubtitle}>{subtitle}</Text> : null}
+          </View>
+          {tabs}
+          <View style={styles.wideActions}>
+            {isOwner ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityHint="Opens trip settings, where you can turn on a guest code"
+                onPress={openSettings}
+                style={({ hovered }) => [styles.outline, hovered && styles.outlineHover]}>
+                <Text style={styles.outlineLabel}>Share guest code</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Trip settings"
+              onPress={openSettings}
+              style={({ hovered }) => [styles.settings, styles.settingsWide, hovered && styles.backHover]}>
+              <Feather name="settings" size={18} color={colors.ink} />
+            </Pressable>
+          </View>
+        </View>
+        {trip.isPending ? (
+          <ActivityIndicator color={colors.accent} style={styles.loading} />
+        ) : trip.isError ? (
+          <View style={styles.error}>
+            <FormMessage message={trip.error.message} />
+          </View>
+        ) : (
+          <Slot />
+        )}
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -51,7 +134,7 @@ export default function TripSectionsLayout() {
                 accessibilityRole="button"
                 accessibilityLabel="Trip settings"
                 accessibilityHint="Rename the trip, set its budget, share a guest code or delete it"
-                onPress={() => router.push({ pathname: '/trips/[tripId]/settings', params: { tripId } })}
+                onPress={openSettings}
                 style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
                 <Feather name="settings" size={20} color={colors.ink} />
               </Pressable>
@@ -59,24 +142,7 @@ export default function TripSectionsLayout() {
           }
         />
 
-        <View accessibilityRole="tablist" style={styles.tabs}>
-          {SECTIONS.map((section) => {
-            const selected = section === active;
-            return (
-              <Pressable
-                key={section.label}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  // Replace so switching sections doesn't pile up back history
-                  if (!selected) router.replace({ pathname: section.pathname, params: { tripId } });
-                }}
-                style={[styles.tab, selected && styles.tabSelected]}>
-                <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{section.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {tabs}
       </View>
 
       {trip.isPending ? (
@@ -135,6 +201,88 @@ const useStyles = makeStyles((colors) => ({
   },
   loading: {
     marginTop: spacing.xxl,
+  },
+  // Big screens: one header row with the tabs as a segmented control
+  wideHeader: {
+    height: 72,
+    paddingHorizontal: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  back: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backHover: {
+    backgroundColor: colors.line,
+  },
+  wideTitles: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  wideTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 20,
+    letterSpacing: -0.3,
+    color: colors.ink,
+  },
+  wideSubtitle: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.muted,
+  },
+  segments: {
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    marginLeft: spacing.xl,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+  },
+  segment: {
+    height: 36,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 9,
+    justifyContent: 'center',
+  },
+  segmentSelected: {
+    backgroundColor: colors.chip,
+  },
+  segmentHover: {
+    backgroundColor: colors.bg,
+  },
+  wideActions: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  outline: {
+    height: 40,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.accentMuted,
+    justifyContent: 'center',
+  },
+  outlineHover: {
+    backgroundColor: colors.accentSoft,
+  },
+  outlineLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.accent,
+  },
+  settingsWide: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
   },
   settings: {
     width: touchTarget,
