@@ -26,14 +26,9 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: SMTP_HOST
+      # Render's free plan blocks email ports, so email goes through Brevo's API over HTTPS
+      - key: BREVO_API_KEY
         sync: false
-      # Render's free plan blocks the usual email ports (25, 465, 587); Brevo also takes 2525
-      - key: SMTP_PORT
-        value: "2525"
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
+      # The sender, e.g. Triplet <you@example.com>: an address verified in Brevo
       - key: SMTP_FROM
         sync: false

@@ -44,7 +44,11 @@ class Settings(BaseSettings):
     # Six-digit codes emailed for signing up, changing email and resetting a password
     EMAIL_CODE_EXPIRE_MINUTES: int = 15
 
-    # Leave SMTP_HOST empty in development to print emails to the console instead
+    # Sends through Brevo's web API (HTTPS) instead of SMTP when set. Hosts like Render's free plan
+    # block email ports, but never HTTPS. An API key from Brevo's SMTP & API page, not the SMTP key.
+    BREVO_API_KEY: str | None = None
+
+    # Leave SMTP_HOST (and BREVO_API_KEY) empty in development to print emails to the console instead
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None

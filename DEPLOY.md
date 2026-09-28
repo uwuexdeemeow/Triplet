@@ -14,7 +14,7 @@ repository) as you go:
 | Step | You end up with |
 | --- | --- |
 | 1. Database | `DB_SETTINGS` |
-| 2. Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` |
+| 2. Email | `BREVO_API_KEY` and `SMTP_FROM` |
 | 3. Gemini | `GEMINI_API_KEY` |
 | 4. Server | the site's address, e.g. `https://triplet.onrender.com` |
 | 5. Phone app | an APK that talks to the server |
@@ -48,9 +48,10 @@ You don't create any tables: the server does that itself each time it starts (`a
 
 Nobody can finish signing up without receiving their code, so this step matters. Pick one service.
 
-Render's free plan blocks the usual email ports (25, 465 and 587), so on Render the server sends
-on port **2525**. Brevo accepts it; Gmail doesn't, so Gmail only works on your own computer or a
-paid Render plan. If codes don't arrive, Render's **Logs** show `Failed to send email` with the reason.
+Render's free plan blocks email ports (25, 465 and 587, and the connection can time out on others
+too), so on Render send through **Brevo's API**, which uses ordinary HTTPS. Gmail only offers email
+ports, so it only works on your own computer. If codes don't arrive, Render's **Logs** show
+`Failed to send email` with the reason.
 
 ### Option A: Brevo (recommended, 300 emails a day free)
 
@@ -61,18 +62,23 @@ paid Render plan. If codes don't arrive, Render's **Logs** show `Failed to send 
      **Add a sender**
    - **From name:** `Triplet`; **From email:** your email address
    - Brevo emails that address a confirmation link: click it
-3. Get the SMTP login:
-   - Account menu > **SMTP & API** > **SMTP** tab
-   - Click **Generate a new SMTP key**, name it `triplet`, and copy the key (it's shown once)
+3. Get an API key:
+   - Account menu > **SMTP & API** > **API Keys** tab
+   - Click **Generate a new API key**, name it `triplet`, and copy the key (it starts `xkeysib-`
+     and is shown once). It's a different key from the SMTP key on the tab next to it.
 4. Your values:
 
    | Setting | Value |
    | --- | --- |
-   | `SMTP_HOST` | `smtp-relay.brevo.com` |
-   | `SMTP_PORT` | `2525` on Render (`587` works on your own computer) |
-   | `SMTP_USERNAME` | the **Login** shown on that page (looks like `8a1b2c001@smtp-brevo.com`) |
-   | `SMTP_PASSWORD` | the SMTP key from step 3 |
+   | `BREVO_API_KEY` | the API key from step 3 |
    | `SMTP_FROM` | `Triplet <the sender address from step 2>` |
+
+   With `BREVO_API_KEY` set, the `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` and `SMTP_PASSWORD`
+   settings aren't used; leave them empty.
+
+If the log says Brevo refused an **unrecognised IP address**: in Brevo, open the account menu >
+**Security** > **Authorised IPs** and turn off blocking unknown IPs (Render's addresses change, so
+they can't be listed one by one).
 
 Emails from a Gmail or Outlook sender address may land in spam. Adding your own domain (step 6)
 fixes that.
@@ -94,11 +100,11 @@ Gmail only takes ports 465 and 587, which Render's free plan blocks.
    | `SMTP_PASSWORD` | the app password |
    | `SMTP_FROM` | `Triplet <your Gmail address>` |
 
-### Option C: Resend (100 a day free, needs your own domain)
+### Option C: Resend (100 a day free, needs your own domain; not on Render's free plan)
 
 Do step 6 first, then add and verify the domain in Resend. `SMTP_HOST` is `smtp.resend.com`,
 `SMTP_USERNAME` is `resend`, `SMTP_PASSWORD` is an API key, and `SMTP_FROM` is an address on your domain.
-On Render, set `SMTP_PORT` to the STARTTLS port Resend's SMTP settings list besides 587.
+This goes over email ports, so like Gmail it doesn't work on Render's free plan.
 
 ### Try it locally first (optional)
 
@@ -156,9 +162,9 @@ them again below.
    | --- | --- |
    | `DB_SETTINGS` | from step 1 |
    | `GEMINI_API_KEY` | from step 3 |
-   | `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | from step 2 |
+   | `BREVO_API_KEY`, `SMTP_FROM` | from step 2 |
 
-   The rest (`ENVIRONMENT`, `API_PATH_PREFIX`, `TRUSTED_PROXY_HOPS`, `SMTP_PORT`) are already set,
+   The rest (`ENVIRONMENT`, `API_PATH_PREFIX`, `TRUSTED_PROXY_HOPS`) are already set,
    and `SECRET_KEY` is generated for you. Keep that key as it is: changing it signs everyone out.
    The site's address isn't needed: the server reads the one Render gives it, for links in emails.
 6. Click **Deploy Blueprint** (or **Apply**).
@@ -290,12 +296,14 @@ Mail from your own domain is much less likely to land in spam.
 - **`could not translate host name` or `password authentication failed`**: `DB_SETTINGS` is wrong.
   Copy it from Neon again and check it starts `postgresql+psycopg://`.
 - **No code arrives**: check spam first. Then look in the Render logs for `Failed to send email`:
-  - `timed out` or `Network is unreachable`: the port is blocked. Set `SMTP_PORT` to `2525`
-    (Render's free plan blocks 25, 465 and 587)
+  - `timed out` or `Network is unreachable`: Render blocked the email port. Use `BREVO_API_KEY`
+    instead of the `SMTP_*` settings (step 2, Option A)
+  - `Brevo said 401`: the API key is wrong, or Brevo blocked Render's address (see the end of
+    Option A); `Brevo said 400`: usually `SMTP_FROM` isn't a verified sender
   - `Authentication` errors: check `SMTP_USERNAME` and `SMTP_PASSWORD` (a Brevo login is the
     `...@smtp-brevo.com` address, not your own email)
   - `Sender` errors: `SMTP_FROM` must be a sender you verified in Brevo
-  - No error and an `--- Email to` block instead: `SMTP_HOST` isn't set, so the code went to the log
+  - No error and an `--- Email to` block instead: neither `BREVO_API_KEY` nor `SMTP_HOST` is set, so the code went to the log
 - **The website loads but you're signed out on every reload**: check `API_PATH_PREFIX` is `/api`
   (the sign-in cookie only reaches the API at that path). Leave `CORS_ORIGINS` unset: the website
   and API share one address, so it isn't needed.
