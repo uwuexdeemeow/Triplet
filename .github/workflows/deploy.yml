@@ -1,0 +1,62 @@
+# Builds the server image (website included) and deploys it on Render.
+#
+# Render's free build machine runs out of memory bundling the website, so the image is built here
+# instead and Render only runs it. See DEPLOY.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# A newer push replaces a deploy that hasn't finished
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/triplet
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          # Reuse unchanged layers (like the npm and pip installs) from the last build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Skipped until the RENDER_DEPLOY_HOOK_URL secret is added (DEPLOY.md, step 4)
+      - name: Deploy on Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          REF: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "No RENDER_DEPLOY_HOOK_URL secret yet, so the image was built but not deployed"
+            exit 0
+          fi
+          # Deploy exactly the image just built
+          curl -fsS -X POST "$HOOK&imgURL=$(jq -rn --arg ref "$REF" '$ref|@uri')" > /dev/null
+          echo "Render is deploying $REF"

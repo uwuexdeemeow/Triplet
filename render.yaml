@@ -4,10 +4,13 @@
 services:
   - type: web
     name: triplet
-    runtime: docker
+    # Render's free build machine runs out of memory bundling the website, so GitHub Actions builds
+    # the image (.github/workflows/deploy.yml) and Render only runs it
+    runtime: image
+    image:
+      url: ghcr.io/uwuexdeemeow/triplet:latest
     plan: free
     healthCheckPath: /api/
-    autoDeploy: true
     envVars:
       - key: ENVIRONMENT
         value: production

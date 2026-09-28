@@ -109,23 +109,39 @@ You can reuse the key from your local `.env`.
 
 ## 4. Server (Render)
 
-### 4a. Check the code is on GitHub
+Render's free build machine doesn't have enough memory to bundle the website, so GitHub builds the
+server image instead (`.github/workflows/deploy.yml`, free for public repositories) and Render only
+runs it. Every push to `main` builds a new image and tells Render to deploy it.
 
-Render builds from GitHub, so the version you want online must be on the `main` branch there. In
-`D:\Triplet`:
+### 4a. Build the image on GitHub
 
-```
-git status
-git pull
-git push
-```
+1. Make sure what you want online is on `main` on GitHub. In `D:\Triplet`: `git pull`, then `git push`.
+2. On GitHub, open the repository's **Actions** tab. A **Deploy** run starts for each push to
+   `main`; if none has run yet, click **Deploy** > **Run workflow**.
+3. Wait for the green tick: about 10 minutes the first time, a few minutes after that. The last
+   step says `No RENDER_DEPLOY_HOOK_URL secret yet`: that's expected until 4d.
+4. Make the image public, so Render can download it without a password (it contains only what's
+   already in this public repository; `.env` files are never included):
+   - On your GitHub profile, open **Packages** > **triplet** > **Package settings**
+   - Under **Danger Zone**, click **Change visibility** > **Public**, and type the name to confirm
 
-### 4b. Create the service
+### 4b. If you already created a service that failed
+
+A service that builds from the repository can't be switched to running an image, so remove it:
+
+1. In Render, open the old `triplet` service > **Settings** > **Delete Web Service** (at the bottom).
+2. If you made it with a Blueprint, open **Blueprints** and delete that one too.
+
+Copy your settings from its **Environment** page first if you don't have them noted: you enter
+them again below.
+
+### 4c. Create the service
 
 1. Sign up at [render.com](https://render.com) with **GitHub**, and allow it access to the Triplet
    repository (all repositories, or just this one).
 2. In the dashboard, click **New** > **Blueprint**.
-3. Pick the **Triplet** repository. Render reads `render.yaml` and shows one web service, `triplet`.
+3. Pick the **Triplet** repository. Render reads `render.yaml` and shows one web service, `triplet`,
+   that runs `ghcr.io/uwuexdeemeow/triplet:latest`.
 4. **Blueprint name:** `triplet`. **Branch:** `main`.
 5. It asks for each setting marked `sync: false`. Fill them in:
 
@@ -136,15 +152,26 @@ git push
    | `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | from step 2 |
 
    The rest (`ENVIRONMENT`, `API_PATH_PREFIX`, `TRUSTED_PROXY_HOPS`, `SMTP_PORT`) are already set,
-   and `SECRET_KEY` is generated for you. The site's address isn't needed: the server reads the
-   one Render gives it, for the links in emails. Keep that key as it is: changing it signs everyone out.
+   and `SECRET_KEY` is generated for you. Keep that key as it is: changing it signs everyone out.
+   The site's address isn't needed: the server reads the one Render gives it, for links in emails.
 6. Click **Deploy Blueprint** (or **Apply**).
 
-### 4c. Watch the first build
+### 4d. Let GitHub deploy new versions
 
-1. Open the `triplet` service and its **Logs** (or **Events**) tab. The first build takes about
-   5–10 minutes: it builds the website, then installs the server.
-2. When it's done, the log ends with lines like:
+1. In Render: the `triplet` service > **Settings** > **Deploy Hook**. Copy the address (it starts
+   `https://api.render.com/deploy/`). Treat it like a password: anyone with it can redeploy the site.
+2. On GitHub: the repository's **Settings** > **Secrets and variables** > **Actions** >
+   **New repository secret**.
+   - **Name:** `RENDER_DEPLOY_HOOK_URL`
+   - **Secret:** the address
+3. From now on, every push to `main` builds and deploys by itself. To redeploy without changes:
+   **Actions** > **Deploy** > **Run workflow**.
+
+### 4e. Watch it start
+
+1. Open the `triplet` service's **Logs**. Starting takes a minute or two: Render downloads the
+   image, then the server updates the database and starts.
+2. When it's ready, the log shows lines like:
 
    ```
    INFO  [alembic.runtime.migration] Running upgrade ... -> e6b3c1d8f027, email codes
@@ -153,13 +180,13 @@ git push
 
    and the service shows **Live**.
 
-### 4d. Find the address
+### 4f. Find the address
 
 The site's address is at the top of the service page, under its name. If `triplet` was taken, it
 has something added, like `https://triplet-a1b2.onrender.com`. You need it for the checks below and
 for the phone app in step 5.
 
-### 4e. Check it works
+### 4g. Check it works
 
 1. Open `https://<your address>/api/` and you should see `{"message":"Triplet API is running"}`.
 2. Open `https://<your address>/`: the sign-in screen.
@@ -167,8 +194,6 @@ for the phone app in step 5.
    signed in.
 4. Save a TikTok or YouTube link to a trip, to check Gemini works.
 5. Reload the page on a trip (e.g. `/trips/1`): you stay signed in and on that page.
-
-From now on, every push to `main` redeploys automatically.
 
 ## 5. The phone app
 
@@ -249,8 +274,10 @@ Mail from your own domain is much less likely to land in spam.
 
 ## If something goes wrong
 
-- **The build fails.** The log shows which step. A problem in the `web` stage is the website
-  build; try `npx expo export --platform web` in `mobile/` on your computer to see the same error.
+- **The build fails**: it runs on GitHub, under **Actions** > **Deploy**; the log shows which step.
+  A problem in the `web` stage is the website build: try `npx expo export --platform web` in
+  `mobile/` on your computer to see the same error.
+- **Render says it can't pull the image**: the package isn't public yet (step 4a.4).
 - **The log says `SECRET_KEY must be at least 32 random characters`** or another setting is
   missing or invalid: fix it under **Environment**.
 - **`could not translate host name` or `password authentication failed`**: `DB_SETTINGS` is wrong.
