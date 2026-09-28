@@ -1,11 +1,13 @@
 import hashlib
-from datetime import datetime, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, UploadFile, status
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
 from models import Trip, TripMembership, User, UserAvatar
-from schemas import AccountDelete, UserResponse, UserPublic, UserUpdate
+from schemas import AccountDelete, CodeRequest, UserResponse, UserPublic, UserUpdate
+import rate_limit
+from rate_limit import client_ip
 from security import hash_password, verify_password
 from validators import password_strength, clean_name, NAME_ERROR
 from dependencies import get_current_user, Pagination
@@ -101,6 +103,20 @@ def update_profile(
 
     db.refresh(current_user)
     return current_user
+
+@router.post("/me/email/verify", response_model=UserResponse)
+def verify_new_email(
+    code_request: CodeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(connect_db)
+):
+    """Enter the code sent to a new email address; the account switches to it."""
+    rate_limit.hit(db, f"token-ip:{client_ip(request)}", 60, timedelta(minutes=5),
+                   "Too many requests. Wait a moment and try again.")
+    user = verification.confirm_new_email_code(db, current_user, code_request.code)
+    db.refresh(user)
+    return user
 
 @router.delete("/me", status_code=204)
 def delete_user(

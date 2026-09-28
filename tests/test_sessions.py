@@ -76,7 +76,7 @@ def test_password_change_signs_out_other_devices(client, alice):
     assert client.post("/auth/refresh", json={"refresh_token": other_device}).status_code == 401
 
 def request_reset(client, email) -> str | None:
-    """Request a password reset and return the token from the email, if one was sent."""
+    """Request a password reset and return the code from the email, if one was sent."""
     with patch("routers.auth.send_email") as send_email:
         response = client.post("/auth/password-reset/request", json={"email": email})
 
@@ -85,13 +85,16 @@ def request_reset(client, email) -> str | None:
         return None
 
     body = send_email.call_args.args[2]
-    return re.search(r"token=([\w-]+)", body).group(1)
+    return re.search(r"^\s+(\d{6})\s*$", body, re.MULTILINE).group(1)
+
+def reset(client, email, code, new_password):
+    return client.post("/auth/password-reset/confirm", json={"email": email, "code": code, "new_password": new_password})
 
 def test_password_reset_flow(client, alice):
     other_device = login(client, alice["email"]).json()["refresh_token"]
-    token = request_reset(client, alice["email"])
+    code = request_reset(client, alice["email"])
 
-    response = client.post("/auth/password-reset/confirm", json={"token": token, "new_password": NEW_PASSWORD})
+    response = reset(client, alice["email"], code, NEW_PASSWORD)
 
     assert response.status_code == 200
     assert login(client, alice["email"]).status_code == 401
@@ -103,38 +106,40 @@ def test_password_reset_does_not_reveal_unknown_emails(client):
         response = client.post("/auth/password-reset/request", json={"email": "nobody@example.com"})
 
     assert response.status_code == 202
-    assert response.json()["detail"] == "If that email is registered, a reset link has been sent"
+    assert response.json()["detail"] == "If that email is registered, a reset code has been sent"
     send_email.assert_not_called()
 
-def test_reset_token_only_works_once(client, alice):
-    token = request_reset(client, alice["email"])
-    client.post("/auth/password-reset/confirm", json={"token": token, "new_password": NEW_PASSWORD})
+def test_reset_code_only_works_once(client, alice):
+    code = request_reset(client, alice["email"])
+    reset(client, alice["email"], code, NEW_PASSWORD)
 
-    response = client.post("/auth/password-reset/confirm", json={"token": token, "new_password": "Another-Strong-Pass-99"})
-
-    assert response.status_code == 400
-
-def test_new_reset_request_invalidates_older_link(client, alice):
-    old_token = request_reset(client, alice["email"])
-    request_reset(client, alice["email"])
-
-    response = client.post("/auth/password-reset/confirm", json={"token": old_token, "new_password": NEW_PASSWORD})
+    response = reset(client, alice["email"], code, "Another-Strong-Pass-99")
 
     assert response.status_code == 400
 
-def test_expired_reset_token_is_rejected(client, alice):
-    token = request_reset(client, alice["email"])
+def test_new_reset_request_invalidates_older_code(client, alice):
+    old_code = request_reset(client, alice["email"])
+    new_code = request_reset(client, alice["email"])
+    if old_code == new_code:
+        pytest.skip("Both codes happened to be the same number")
 
-    with patch("routers.auth.datetime") as mock_datetime:
+    response = reset(client, alice["email"], old_code, NEW_PASSWORD)
+
+    assert response.status_code == 400
+
+def test_expired_reset_code_is_rejected(client, alice):
+    code = request_reset(client, alice["email"])
+
+    with patch("verification.datetime") as mock_datetime:
         mock_datetime.now.return_value = datetime.now(timezone.utc) + timedelta(hours=1)
-        response = client.post("/auth/password-reset/confirm", json={"token": token, "new_password": NEW_PASSWORD})
+        response = reset(client, alice["email"], code, NEW_PASSWORD)
 
     assert response.status_code == 400
 
 def test_reset_rejects_weak_password(client, alice):
-    token = request_reset(client, alice["email"])
+    code = request_reset(client, alice["email"])
 
-    response = client.post("/auth/password-reset/confirm", json={"token": token, "new_password": "password"})
+    response = reset(client, alice["email"], code, "password")
 
     assert response.status_code == 422
     assert login(client, alice["email"]).status_code == 200

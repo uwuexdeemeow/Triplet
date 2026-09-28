@@ -30,13 +30,13 @@ def outbox(monkeypatch):
         monkeypatch.setattr(place, capture)
     return sent
 
-def link_token(outbox, to: str, path: str) -> str:
-    """The token from the newest email to `to` with a link to `path`, e.g. "/verify-email"."""
+def emailed_code(outbox, to: str) -> str:
+    """The six-digit code from the newest email to `to` that has one."""
     for recipient, _, body in reversed(outbox):
-        match = re.search(re.escape(path) + r"\?token=([\w-]+)", body)
+        match = re.search(r"^\s+(\d{6})\s*$", body, re.MULTILINE)
         if recipient == to and match:
             return match.group(1)
-    raise AssertionError(f"No {path} link was emailed to {to}")
+    raise AssertionError(f"No code was emailed to {to}")
 
 @pytest.fixture(autouse=True)
 def no_external_calls(monkeypatch):
@@ -106,11 +106,8 @@ def make_user(client, outbox):
         response = client.post("/auth/signup", json={"name": name, "email": email, "password": PASSWORD})
         assert response.status_code == 202, response.text
 
-        # Open the confirmation link from the email, like a person would
-        response = client.post("/auth/verify-email", json={"token": link_token(outbox, email, "/verify-email")})
-        assert response.status_code == 200, response.text
-
-        response = client.post("/auth/login", json={"email": email, "password": PASSWORD})
+        # Enter the code from the email, like a person would; that signs them in
+        response = client.post("/auth/verify-email/code", json={"email": email, "code": emailed_code(outbox, email)})
         assert response.status_code == 200, response.text
 
         headers = {"Authorization": f"Bearer {response.json()['access_token']}"}

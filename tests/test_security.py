@@ -3,7 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from config import Settings, settings
-from tests.conftest import PASSWORD, link_token
+from tests.conftest import PASSWORD, emailed_code
 
 @pytest.fixture
 def limits_on(monkeypatch):
@@ -98,7 +98,8 @@ def test_emails_ignore_case(client, alice, outbox):
 
 def test_new_accounts_are_stored_lowercase(client, outbox):
     client.post("/auth/signup", json={"name": "sam", "email": "Sam@Example.COM", "password": PASSWORD})
-    client.post("/auth/verify-email", json={"token": link_token(outbox, "sam@example.com", "/verify-email")})
+    code = emailed_code(outbox, "sam@example.com")
+    assert client.post("/auth/verify-email/code", json={"email": "sam@example.com", "code": code}).status_code == 200
     token = login(client, "sam@example.com", PASSWORD).json()["access_token"]
 
     me = client.get("/users/me", headers={"Authorization": f"Bearer {token}"}).json()

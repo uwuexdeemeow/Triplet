@@ -706,7 +706,7 @@ class EmailVerificationToken(Base):
         nullable=False
     )
 
-    # Only a hash is stored so a database leak doesn't leak usable links
+    # Only a hash is stored so a database leak doesn't leak usable links or codes
     token_hash: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
@@ -721,6 +721,14 @@ class EmailVerificationToken(Base):
     used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True
+    )
+
+    # Wrong codes entered; the code stops working after a few (see codes.py)
+    attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0"
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -755,6 +763,14 @@ class PasswordResetToken(Base):
     used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True
+    )
+
+    # Wrong codes entered; the code stops working after a few (see codes.py)
+    attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0"
     )
 
     created_at: Mapped[datetime] = mapped_column(

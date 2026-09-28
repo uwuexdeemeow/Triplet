@@ -4,7 +4,11 @@ from sqlalchemy.orm import Session
 from config import settings
 from database import connect_db
 from models import User, RefreshToken, PasswordResetToken
-from schemas import UserCreate, UserLogin, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse, VerifyEmailRequest, ResendVerificationRequest
+from schemas import (
+    UserCreate, UserLogin, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse,
+    VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest
+)
+import codes
 from security import hash_password, verify_password, create_access_token, generate_token, hash_token
 from validators import password_strength, as_utc, clean_name, NAME_ERROR
 from dependencies import get_current_user
@@ -33,7 +37,9 @@ TOKEN_WINDOW = timedelta(minutes=5)
 VERIFY_EMAIL_LIMIT = 3         # confirmation or "you already have an account" emails per address
 VERIFY_WINDOW = timedelta(hours=1)
 
-TOO_MANY_LOGINS = "Too many sign-in attempts. Wait a few minutes and try again."
+RESET_CODE_PURPOSE = "reset-password"
+
+TOO_MANY_LOGINS ="Too many sign-in attempts. Wait a few minutes and try again."
 # The same answer whether or not the email already has an account, so sign-up can't be used to find accounts
 CHECK_EMAIL = {"detail": "Check your email to finish signing up"}
 
@@ -178,6 +184,19 @@ def verify_email(
     verification.confirm(db, verify_request.token)
     return {"detail": "Email confirmed"}
 
+@router.post("/verify-email/code", response_model=Token)
+def verify_email_code(
+    verify_request: VerifyCodeRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(connect_db)
+):
+    """Enter the code from the sign-up email. It confirms the address and signs straight in."""
+    rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
+                   "Too many requests. Wait a moment and try again.")
+    user = verification.confirm_signup_code(db, verify_request.email, verify_request.code)
+    return issue_tokens(db, user, request, response)
+
 @router.post("/verify-email/resend", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
 def resend_verification(
     resend_request: ResendVerificationRequest,
@@ -185,7 +204,7 @@ def resend_verification(
     background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
-    response = {"detail": "If that email needs confirming, a new link is on its way"}
+    response = {"detail": "If that email needs confirming, a new code is on its way"}
 
     rate_limit.hit(db, f"reset-ip:{client_ip(request)}", RESET_IP_LIMIT, RESET_WINDOW,
                    "Too many requests. Try again later.")
@@ -229,7 +248,7 @@ def login(
     if user_detail.email_verified_at is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Confirm your email first: open the link we sent you, or ask for a new one"
+            detail="Confirm your email first: enter the code we sent you, or ask for a new one"
         )
 
     return issue_tokens(db, user_detail, request, response)
@@ -322,7 +341,7 @@ def request_password_reset(
     db: Session = Depends(connect_db)
 ):
     # Same response whether or not the email exists, so it can't be used to find accounts
-    response = {"detail": "If that email is registered, a reset link has been sent"}
+    response = {"detail": "If that email is registered, a reset code has been sent"}
 
     rate_limit.hit(db, f"reset-ip:{client_ip(request)}", RESET_IP_LIMIT, RESET_WINDOW,
                    "Too many reset requests. Try again later.")
@@ -339,28 +358,32 @@ def request_password_reset(
     if user is None:
         return response
 
-    # Only the most recent link should work
+    # Only the most recent code should work
     db.query(PasswordResetToken).filter(
         PasswordResetToken.user_id == user.id,
         PasswordResetToken.used_at.is_(None)
     ).update({"used_at": datetime.now(timezone.utc)})
 
-    token = generate_token()
-    db.add(PasswordResetToken(
+    code = codes.new_code()
+    row = PasswordResetToken(
         user_id=user.id,
-        token_hash=hash_token(token),
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES)
-    ))
+        # A random placeholder until the row has the id its code's hash is keyed on
+        token_hash=hash_token(generate_token()),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.EMAIL_CODE_EXPIRE_MINUTES)
+    )
+    db.add(row)
+    db.flush()
+    row.token_hash = codes.code_hash(RESET_CODE_PURPOSE, row.id, code)
     db.commit()
 
     background_tasks.add_task(
         send_email,
         user.email,
-        "Reset your Triplet password",
+        f"{code} is your Triplet password reset code",
         f"Hi {user.name},\n\n"
-        f"Use this link to reset your password:\n{settings.PASSWORD_RESET_URL}?token={token}\n\n"
-        f"The link expires in {settings.PASSWORD_RESET_EXPIRE_MINUTES} minutes. "
-        "If you didn't ask for this, you can ignore this email."
+        f"Enter this code in Triplet to choose a new password:\n\n    {code}\n\n"
+        f"It works for {settings.EMAIL_CODE_EXPIRE_MINUTES} minutes. "
+        "If you didn't ask for this, you can ignore this email; your password won't change."
     )
 
     return response
@@ -374,19 +397,31 @@ def confirm_password_reset(
     rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
                    "Too many requests. Wait a moment and try again.")
 
-    reset_token = db.query(PasswordResetToken).filter(
-        PasswordResetToken.token_hash == hash_token(reset_confirm.token)
-    ).first()
+    if reset_confirm.token is not None:
+        # A link emailed before codes replaced them
+        reset_token = db.query(PasswordResetToken).filter(
+            PasswordResetToken.token_hash == hash_token(reset_confirm.token)
+        ).first()
 
-    if (
-        reset_token is None
-        or reset_token.used_at is not None
-        or as_utc(reset_token.expires_at) <= datetime.now(timezone.utc)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset link"
-        )
+        if (
+            reset_token is None
+            or reset_token.used_at is not None
+            or as_utc(reset_token.expires_at) <= datetime.now(timezone.utc)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset link"
+            )
+    else:
+        owner = db.query(User).filter(User.email == reset_confirm.email).first()
+        reset_token = (
+            db.query(PasswordResetToken)
+            .filter(PasswordResetToken.user_id == owner.id, PasswordResetToken.used_at.is_(None))
+            .order_by(PasswordResetToken.id.desc())
+            .first()
+        ) if owner is not None else None
+        # Wrong codes count against the code; an unknown email looks like an expired code
+        verification.check_code(db, reset_token, RESET_CODE_PURPOSE, reset_confirm.code)
 
     user = db.query(User).filter(User.id == reset_token.user_id).first()
 
@@ -400,7 +435,7 @@ def confirm_password_reset(
 
     user.password = hash_password(reset_confirm.new_password)
     reset_token.used_at = datetime.now(timezone.utc)
-    # Opening the emailed link proves they own the inbox, which is all confirming would do
+    # The emailed code proves they own the inbox, which is all confirming would do
     verification.mark_verified(db, user)
     revoke_refresh_tokens(db, user.id)
     db.commit()

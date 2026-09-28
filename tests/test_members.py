@@ -1,6 +1,6 @@
 import pytest
 
-from tests.conftest import PASSWORD, link_token
+from tests.conftest import PASSWORD, emailed_code
 
 def invite(client, trip, inviter, invitee):
     return client.post(f"/trips/{trip['id']}/invitations", headers=inviter["headers"], json={"email": invitee["email"]})
@@ -106,8 +106,8 @@ def test_unconfirmed_accounts_get_the_invite_after_confirming(client, alice, tri
     client.post("/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD})
     client.post(f"/trips/{trip['id']}/invitations", headers=alice["headers"], json={"email": "sam@example.com"})
 
-    client.post("/auth/verify-email", json={"token": link_token(outbox, "sam@example.com", "/verify-email")})
-    token = client.post("/auth/login", json={"email": "sam@example.com", "password": PASSWORD}).json()["access_token"]
+    code = emailed_code(outbox, "sam@example.com")
+    token = client.post("/auth/verify-email/code", json={"email": "sam@example.com", "code": code}).json()["access_token"]
 
     received = client.get("/invitations", headers={"Authorization": f"Bearer {token}"}).json()
     assert [i["trip_title"] for i in received] == ["Tokyo"]

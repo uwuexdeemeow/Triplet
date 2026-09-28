@@ -1,6 +1,6 @@
 import pytest
 
-from tests.conftest import PASSWORD, link_token
+from tests.conftest import PASSWORD, emailed_code
 
 def test_update_name_and_avatar(client, alice):
     response = client.patch("/users/me", headers=alice["headers"], json={
@@ -226,9 +226,21 @@ def test_new_email_takes_effect_once_confirmed(client, alice, outbox):
     # Nothing changes until the new inbox confirms it
     assert client.get("/users/me", headers=headers).json()["email"] == alice["email"]
 
-    token = link_token(outbox, "new@example.com", "/verify-email")
-    assert client.post("/auth/verify-email", json={"token": token}).status_code == 200
+    code = emailed_code(outbox, "new@example.com")
+    # The code can't be used to sign up or sign in; it only confirms the change for the signed-in owner
+    assert client.post("/auth/verify-email/code", json={"email": "new@example.com", "code": code}).status_code == 400
+    response = client.post("/users/me/email/verify", headers=headers, json={"code": code})
+    assert response.status_code == 200, response.text
 
-    me = client.get("/users/me", headers=headers).json()
+    me = response.json()
     assert (me["email"], me["pending_email"]) == ("new@example.com", None)
     assert client.post("/auth/login", json={"email": "new@example.com", "password": PASSWORD}).status_code == 200
+
+def test_a_wrong_new_email_code_changes_nothing(client, alice, outbox):
+    headers = alice["headers"]
+    client.patch("/users/me", headers=headers, json={"email": "new@example.com", "current_password": PASSWORD})
+    code = emailed_code(outbox, "new@example.com")
+    wrong = "000000" if code != "000000" else "111111"
+
+    assert client.post("/users/me/email/verify", headers=headers, json={"code": wrong}).status_code == 400
+    assert client.get("/users/me", headers=headers).json()["email"] == alice["email"]

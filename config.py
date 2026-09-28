@@ -29,7 +29,10 @@ class Settings(BaseSettings):
     PASSWORD_RESET_URL: str = "http://localhost:8081/reset-password"
     # The website, for links in emails: confirming an address, and joining from an invite
     APP_URL: str = "http://localhost:8081"
+    # Links already emailed before codes replaced them keep working this long
     EMAIL_VERIFY_EXPIRE_HOURS: int = 48
+    # Six-digit codes emailed for signing up, changing email and resetting a password
+    EMAIL_CODE_EXPIRE_MINUTES: int = 15
 
     # Leave SMTP_HOST empty in development to print emails to the console instead
     SMTP_HOST: str | None = None

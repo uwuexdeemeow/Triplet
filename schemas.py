@@ -70,9 +70,28 @@ class RefreshRequest(BaseModel):
 class PasswordResetRequest(BaseModel):
     email: Email
 
+# A six-digit code from an email; a little longer allowed so pasted spaces or dashes still fit
+EmailCode = Annotated[str, StringConstraints(max_length=12)]
+
 class PasswordResetConfirm(BaseModel):
-    token: OpaqueToken
+    # The emailed code with its email address, or (from before codes) the link's token
+    email: Email | None = None
+    code: EmailCode | None = None
+    token: OpaqueToken | None = None
     new_password: Password
+
+    @model_validator(mode="after")
+    def code_or_link(self):
+        if self.token is None and (self.email is None or self.code is None):
+            raise ValueError("Send the email and code from the reset email")
+        return self
+
+class VerifyCodeRequest(BaseModel):
+    email: Email
+    code: EmailCode
+
+class CodeRequest(BaseModel):
+    code: EmailCode
 
 class MessageResponse(BaseModel):
     detail: str
