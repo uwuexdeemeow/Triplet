@@ -231,14 +231,22 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
 
             point = coordinates(activity, place)
             if previous is not None and point is not None and previous_point is not None:
-                minutes, mode, km = scheduling.travel_estimate(*previous_point, *point)
-                activity.travel_from_previous = TravelLeg(minutes=minutes, mode=mode, km=km)
+                # Leaving when the plan before ends, so rush hour and late nights count
+                travel = scheduling.travel_between(*previous_point, *point, depart=previous.end_time)
+                minutes = travel.minutes
                 gap = (activity.start_time - previous.end_time).total_seconds() / 60
+                activity.travel_from_previous = TravelLeg(
+                    minutes=minutes, mode=travel.mode, km=travel.km, note=travel.note,
+                    # When to set off to arrive on time, if there's room for the trip
+                    leave_by=activity.start_time - timedelta(minutes=minutes) if gap >= minutes else None
+                )
                 # Overlaps are already flagged as conflicts
                 if 0 <= gap < minutes:
+                    how = "walk" if travel.mode == "walk" else "by transit"
+                    when = f" in {travel.note}" if travel.note == "rush hour" else ""
                     activity.warnings.append(ScheduleWarning(
                         kind="tight_travel",
-                        message=f"About {minutes} min {'walk' if mode == 'walk' else 'by transit'} from {previous.title}, "
+                        message=f"About {minutes} min {how}{when} from {previous.title}, "
                                 f"but only {int(gap)} min between them"
                     ))
             # A plan without a pin breaks the chain, since we can't tell where it is
@@ -328,7 +336,7 @@ def suggest_time(
 
     ranges = scheduling.hours_on(place.opening_hours, day) if place else None
     lat, lon = (place.latitude, place.longitude) if place else (None, None)
-    slot = scheduling.suggest_slot(duration, busy, ranges, lat, lon)
+    slot = scheduling.suggest_slot(duration, busy, ranges, lat, lon, day)
     if slot is None:
         return None
 

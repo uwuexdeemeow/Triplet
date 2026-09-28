@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -46,6 +46,53 @@ def test_travel_estimate_walks_short_hops_and_rides_longer_ones():
     assert mode == "transit"
     assert 30 <= minutes <= 60
     assert km > 10
+
+def test_short_hops_are_walked_and_long_ones_ride():
+    # About 1.3 km by street is a comfortable walk (under 20 minutes)
+    assert scheduling.travel_between(35.6595, 139.7005, 35.6680, 139.7030).mode == "walk"
+    # About 1.9 km is a 25-minute walk, and a train is quicker
+    assert scheduling.travel_between(35.6595, 139.7005, 35.6717, 139.7070).mode == "transit"
+    ride = scheduling.travel_between(35.6595, 139.7005, 35.7148, 139.7967)
+    assert ride.mode == "transit"
+    assert ride.note is None
+
+def test_rush_hour_is_slower():
+    # Shibuya to Asakusa, leaving on a Thursday
+    shibuya, asakusa = (35.6595, 139.7005), (35.7148, 139.7967)
+    midday = scheduling.travel_between(*shibuya, *asakusa, depart=datetime(2026, 10, 1, 13, 0))
+    rush = scheduling.travel_between(*shibuya, *asakusa, depart=datetime(2026, 10, 1, 18, 0))
+    saturday_evening = scheduling.travel_between(*shibuya, *asakusa, depart=datetime(2026, 10, 3, 18, 0))
+
+    assert rush.minutes > midday.minutes
+    assert rush.note == "rush hour"
+    # Weekends have no rush hour
+    assert saturday_evening.minutes == midday.minutes
+    assert saturday_evening.note is None
+
+def test_late_at_night_is_a_taxi():
+    trip = scheduling.travel_between(35.6595, 139.7005, 35.7148, 139.7967, depart=datetime(2026, 10, 2, 1, 30))
+
+    assert trip.note == "late at night, likely a taxi"
+
+def test_itinerary_says_when_to_leave(client, alice, trip):
+    plan(client, alice, trip, "Shibuya Crossing", "10:00", "11:00", lat=35.6595, lon=139.7005)
+    plan(client, alice, trip, "Senso-ji", "13:00", "14:00", lat=35.7148, lon=139.7967)
+
+    leg = itinerary_day(client, alice, trip)["activities"][1]["travel_from_previous"]
+
+    assert leg["leave_by"].startswith("2026-10-01T12:")
+    leave = datetime.fromisoformat(leg["leave_by"].replace("Z", ""))
+    assert (datetime(2026, 10, 1, 13) - leave).total_seconds() / 60 == leg["minutes"]
+
+def test_tight_travel_in_rush_hour_says_so(client, alice, trip):
+    plan(client, alice, trip, "Shibuya Crossing", "17:00", "18:00", lat=35.6595, lon=139.7005)
+    plan(client, alice, trip, "Senso-ji", "18:15", "19:00", lat=35.7148, lon=139.7967)
+
+    second = itinerary_day(client, alice, trip)["activities"][1]
+
+    assert second["travel_from_previous"]["note"] == "rush hour"
+    assert second["travel_from_previous"]["leave_by"] is None
+    assert "in rush hour" in second["warnings"][0]["message"]
 
 def test_suggest_slot_uses_opening_hours_and_skips_busy_times():
     # Lunch 11:00-12:00 is taken, at the same spot, so the next free hour inside 11-15 is 12:00

@@ -110,7 +110,9 @@ export default function PlanScreen() {
         <>
           {activities.map((activity, index) => (
             <Enter key={activity.id} index={index}>
-              {activity.travel_from_previous ? <TravelConnector leg={activity.travel_from_previous} /> : null}
+              {activity.travel_from_previous ? (
+                <TravelConnector leg={activity.travel_from_previous} from={activities[index - 1]?.title} />
+              ) : null}
               <ActivityRow
                 tripId={id}
                 activity={activity}
@@ -255,17 +257,23 @@ function TripCost({ tripId }: { tripId: number }) {
   );
 }
 
-// Between two plans: roughly how long it takes to get from one to the next
-function TravelConnector({ leg }: { leg: TravelLeg }) {
+// Between two plans: roughly how long the trip takes at that time of day, and when to set off
+function TravelConnector({ leg, from }: { leg: TravelLeg; from?: string }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const how = leg.mode === 'walk' ? 'walk' : 'by train or taxi';
+  const parts = [
+    `~${leg.minutes} min ${how}`,
+    `${leg.km} km`,
+    leg.note,
+    leg.leave_by ? `leave${from ? ` ${from}` : ''} by ${activityClock(leg.leave_by)}` : null,
+  ].filter(Boolean);
   return (
-    <View style={styles.travel} accessibilityLabel={`About ${leg.minutes} minutes ${how}, ${leg.km} kilometres`}>
+    <View style={styles.travel} accessibilityLabel={`About ${leg.minutes} minutes ${how}, ${leg.km} kilometres${leg.note ? `, ${leg.note}` : ''}${leg.leave_by ? `. Leave by ${activityClock(leg.leave_by)}` : ''}`}>
       <View style={styles.travelLine} />
-      <Feather name={leg.mode === 'walk' ? 'user' : 'navigation'} size={12} color={colors.muted} />
-      <Text style={styles.travelText}>
-        ~{leg.minutes} min {how} · {leg.km} km
+      <Feather name={leg.mode === 'walk' ? 'user' : 'navigation'} size={12} color={leg.note ? colors.secondText : colors.muted} />
+      <Text style={[styles.travelText, leg.note ? styles.travelBusy : null]} numberOfLines={2}>
+        {parts.join(' · ')}
       </Text>
     </View>
   );
@@ -714,8 +722,13 @@ const useStyles = makeStyles((colors) => ({
     backgroundColor: colors.chip,
   },
   travelText: {
+    flexShrink: 1,
     fontFamily: fonts.medium,
     fontSize: 12,
     color: colors.muted,
+  },
+  // Rush hour or a late taxi: the trip takes longer than usual
+  travelBusy: {
+    color: colors.secondText,
   },
 }));

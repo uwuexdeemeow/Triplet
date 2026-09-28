@@ -201,10 +201,10 @@ def draft_plan(days: list[date], candidates: list[Candidate], planned: list[Busy
             if preferred:
                 slot = scheduling.suggest_slot(
                     duration, busy_slots, _intersect(preferred, ranges) if ranges else preferred,
-                    place.latitude, place.longitude
+                    place.latitude, place.longitude, day
                 )
             if slot is None:
-                slot = scheduling.suggest_slot(duration, busy_slots, ranges, place.latitude, place.longitude)
+                slot = scheduling.suggest_slot(duration, busy_slots, ranges, place.latitude, place.longitude, day)
             if slot is None:
                 continue
 

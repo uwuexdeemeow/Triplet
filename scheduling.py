@@ -7,6 +7,7 @@ too, so the two compare directly as minutes since midnight.
 """
 import math
 import re
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 DAY_MINUTES = 24 * 60
@@ -95,24 +96,65 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # Streets aren't straight lines, so real routes run about a third longer
 ROUTE_FACTOR = 1.3
 WALK_KMH = 4.5
-TRANSIT_KMH = 25
-# Waiting for a train or taxi, and walking to it
-TRANSIT_OVERHEAD_MINUTES = 10
-MAX_WALK_KM = 1.2
+# Anything this short on foot is walked, even if a train might be a little quicker
+COMFORTABLE_WALK_MINUTES = 20
+# Average door-to-door speed on trains and buses, by trip length: short hops stop more often and
+# spend more of their time getting to the station; long ones can take express lines
+TRANSIT_SPEEDS = [(4, 18), (12, 25), (math.inf, 32)]
+# Walking to the station and waiting
+TRANSIT_WAIT_MINUTES = 8
+# Weekday rush hours, when trains are packed and roads jammed
+RUSH_HOURS = [(7 * 60 + 30, 9 * 60 + 30), (17 * 60, 19 * 60 + 30)]
+RUSH_SLOWDOWN = 1.35
+RUSH_WAIT_MINUTES = 12
+# Most trains stop running overnight, so late trips are a taxi
+NIGHT = (0, 5 * 60)
+TAXI_KMH = 30
+TAXI_WAIT_MINUTES = 5
 
-def travel_estimate(lat1: float, lon1: float, lat2: float, lon2: float) -> tuple[int, str, float]:
+@dataclass
+class Travel:
+    minutes: int
+    mode: str               # "walk" or "transit"
+    km: float
+    # Why it's slower or different than usual, e.g. "rush hour"
+    note: str | None = None
+
+def travel_between(lat1: float, lon1: float, lat2: float, lon2: float, depart: datetime | None = None) -> Travel:
+    """
+    Roughly how long it takes to get between two points in a city, leaving at a given time.
+
+    Walks short hops; otherwise estimates a train or bus ride from the distance, slower in weekday
+    rush hours and by taxi late at night. Without a time, it assumes a normal daytime trip.
+    """
+    km = distance_km(lat1, lon1, lat2, lon2) * ROUTE_FACTOR
+    walk = km / WALK_KMH * 60
+
+    speed = next(kmh for up_to, kmh in TRANSIT_SPEEDS if km < up_to)
+    wait, note = TRANSIT_WAIT_MINUTES, None
+    if depart is not None:
+        clock = depart.hour * 60 + depart.minute
+        if NIGHT[0] <= clock < NIGHT[1]:
+            speed, wait, note = TAXI_KMH, TAXI_WAIT_MINUTES, "late at night, likely a taxi"
+        elif depart.weekday() < 5 and any(start <= clock < end for start, end in RUSH_HOURS):
+            speed, wait, note = speed / RUSH_SLOWDOWN, RUSH_WAIT_MINUTES, "rush hour"
+    ride = km / speed * 60 + wait
+
+    if walk <= COMFORTABLE_WALK_MINUTES or walk <= ride:
+        return Travel(max(5, math.ceil(walk / 5) * 5), "walk", round(km, 1))
+    return Travel(max(5, math.ceil(ride / 5) * 5), "transit", round(km, 1), note)
+
+def travel_estimate(
+    lat1: float, lon1: float, lat2: float, lon2: float, depart: datetime | None = None
+) -> tuple[int, str, float]:
     """
     Roughly how long it takes to get between two points in a city.
 
     Returns:
         tuple[int, str, float]: minutes (rounded up to 5), "walk" or "transit", and route km.
     """
-    km = distance_km(lat1, lon1, lat2, lon2) * ROUTE_FACTOR
-    if km <= MAX_WALK_KM:
-        minutes, mode = km / WALK_KMH * 60, "walk"
-    else:
-        minutes, mode = km / TRANSIT_KMH * 60 + TRANSIT_OVERHEAD_MINUTES, "transit"
-    return max(5, math.ceil(minutes / 5) * 5), mode, round(km, 1)
+    travel = travel_between(lat1, lon1, lat2, lon2, depart)
+    return travel.minutes, travel.mode, travel.km
 
 # Plans are suggested between these times when the place has no hours
 DAY_START = 9 * 60
@@ -124,7 +166,8 @@ def suggest_slot(
     busy: list[tuple[int, int, float | None, float | None]],
     open_ranges: list[tuple[int, int]] | None,
     lat: float | None,
-    lon: float | None
+    lon: float | None,
+    day: date | None = None
 ) -> tuple[int, int] | None:
     """
     The earliest start on a day that is open, free, and leaves time to travel from and to
@@ -135,6 +178,7 @@ def suggest_slot(
         busy (list): The day's other plans as (start, end, latitude, longitude).
         open_ranges (list | None): Opening hours that day, or None if unknown.
         lat, lon: Where the new plan is, if known.
+        day: The date, so travel in rush hour or late at night takes its real time.
 
     Returns:
         tuple[int, int] | None: start and end minutes, or None if nothing fits.
@@ -144,10 +188,11 @@ def suggest_slot(
     windows = sorted(windows, key=lambda window: (window[1] <= DAY_START, window[0]))
     busy = sorted(busy)
 
-    def travel(other_lat, other_lon) -> int:
+    def travel(other_lat, other_lon, leaving: int) -> int:
         if None in (lat, lon, other_lat, other_lon):
             return 0
-        return travel_estimate(lat, lon, other_lat, other_lon)[0]
+        depart = at(day, min(leaving, DAY_MINUTES - 1)) if day else None
+        return travel_estimate(lat, lon, other_lat, other_lon, depart)[0]
 
     for open_at, close_at in windows:
         # Don't suggest the small hours for a place open round the clock
@@ -157,7 +202,7 @@ def suggest_slot(
             end = start + duration
             clash = None
             for b_start, b_end, b_lat, b_lon in busy:
-                gap = travel(b_lat, b_lon)
+                gap = travel(b_lat, b_lon, b_end)
                 if start < b_end + gap and b_start < end + gap:
                     clash = b_end + gap
                     break

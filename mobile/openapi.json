@@ -6142,6 +6142,29 @@
      "km": {
       "type": "number",
       "title": "Km"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "leave_by": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Leave By"
      }
     },
     "type": "object",
@@ -6151,7 +6174,7 @@
      "km"
     ],
     "title": "TravelLeg",
-    "description": "Rough travel from the plan before, from the straight-line distance."
+    "description": "Rough travel from the plan before, from the distance and the time of day."
    },
    "TripCreate": {
     "properties": {

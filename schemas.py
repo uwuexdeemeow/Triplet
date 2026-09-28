@@ -264,10 +264,14 @@ class ScheduleWarning(BaseModel):
     message: str
 
 class TravelLeg(BaseModel):
-    """Rough travel from the plan before, from the straight-line distance."""
+    """Rough travel from the plan before, from the distance and the time of day."""
     minutes: int
     mode: Literal["walk", "transit"]
     km: float
+    # Why it takes longer than usual, e.g. "rush hour" or "late at night, likely a taxi"
+    note: str | None = None
+    # When to leave the plan before to arrive on time; unset when there isn't enough time
+    leave_by: datetime | None = None
 
 class ItineraryActivity(ActivityResponse):
     conflicts_with: list[int] = []

@@ -1632,7 +1632,7 @@ export interface components {
         };
         /**
          * TravelLeg
-         * @description Rough travel from the plan before, from the straight-line distance.
+         * @description Rough travel from the plan before, from the distance and the time of day.
          */
         TravelLeg: {
             /** Minutes */
@@ -1644,6 +1644,10 @@ export interface components {
             mode: "walk" | "transit";
             /** Km */
             km: number;
+            /** Note */
+            note?: string | null;
+            /** Leave By */
+            leave_by?: string | null;
         };
         /** TripCreate */
         TripCreate: {
