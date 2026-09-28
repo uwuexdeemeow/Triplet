@@ -27,6 +27,7 @@ import { Body, Muted, Title } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { warn } from '@/utils/haptics';
+import { useWideLayout } from '@/utils/layout';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
 
 export default function SavedScreen() {
@@ -46,6 +47,9 @@ export default function SavedScreen() {
   const canEdit = role === 'owner' || role === 'member';
   // Cards start collapsed. Kept here so polling refetches don't close them again.
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+  // Big screens: which post is open on the right
+  const [pickedId, setPickedId] = useState<number | null>(null);
+  const wide = useWideLayout();
 
   const toggle = (linkId: number) =>
     setExpanded((current) => {
@@ -84,6 +88,71 @@ export default function SavedScreen() {
     places.refetch();
     itinerary.refetch();
   };
+
+  const placesFor = (link: SavedLink) =>
+    // Prefer the places list, which knows what's planned, then fall back to the link's own copy
+    places.data?.filter((place) => place.link_id === link.id) ?? (link.places as TripPlace[]);
+
+  // Big screens: the posts down the left, the one you picked open on the right
+  if (wide && links.data && links.data.length > 0) {
+    const picked = links.data.find((link) => link.id === pickedId) ?? links.data[0];
+    return (
+      <View style={styles.wide}>
+        <ScrollView
+          style={styles.wideList}
+          contentContainerStyle={styles.wideListContent}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={links.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
+          <SaveLinkForm tripId={id} onSaved={() => queryClient.invalidateQueries({ queryKey: tripKeys.links(id) })} />
+          {canEdit && unplanned > 0 ? (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityHint="Suggests a day and time for each saved place, for you to check before adding"
+              onPress={() => router.push({ pathname: '/trips/[tripId]/plan-draft', params: { tripId } })}
+              scaleTo={0.98}
+              style={styles.planAll}>
+              <Feather name="zap" size={20} color={colors.onAccent} />
+              <View style={styles.planAllText}>
+                <Text style={styles.planAllTitle}>Plan everyone’s saves</Text>
+                <Text style={styles.planAllDetail}>
+                  {unplanned} saved {unplanned === 1 ? 'place isn’t' : 'places aren’t'} in the plan yet
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.onAccent} />
+            </PressableScale>
+          ) : null}
+          <Muted style={styles.hint}>
+            {links.data.length} {links.data.length === 1 ? 'post' : 'posts'}. Click one to see its places.
+          </Muted>
+          {links.data.map((link) => (
+            <View key={link.id} style={[styles.pickable, link.id === picked.id && styles.picked]}>
+              <LinkCard
+                tripId={id}
+                link={link}
+                places={placesFor(link)}
+                activityDays={activityDays}
+                expanded={false}
+                onToggle={() => setPickedId(link.id)}
+                canEdit={canEdit}
+              />
+            </View>
+          ))}
+        </ScrollView>
+        <ScrollView style={styles.wideDetail} contentContainerStyle={styles.wideDetailContent}>
+          <LinkCard
+            key={picked.id}
+            tripId={id}
+            link={picked}
+            places={placesFor(picked)}
+            activityDays={activityDays}
+            expanded
+            onToggle={() => {}}
+            canEdit={canEdit}
+          />
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -133,8 +202,7 @@ export default function SavedScreen() {
               <LinkCard
                 tripId={id}
                 link={link}
-                // Prefer the places list, which knows what's planned, then fall back to the link's own copy
-                places={places.data?.filter((place) => place.link_id === link.id) ?? (link.places as TripPlace[])}
+                places={placesFor(link)}
                 activityDays={activityDays}
                 expanded={expanded.has(link.id)}
                 onToggle={() => toggle(link.id)}
@@ -442,6 +510,37 @@ function PlaceRow({ tripId, place, activityDays }: { tripId: number; place: Trip
 }
 
 const useStyles = makeStyles((colors) => ({
+  // Big screens: list and detail side by side
+  wide: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  wideList: {
+    width: 440,
+    flexGrow: 0,
+    borderRightWidth: 1,
+    borderRightColor: colors.line,
+  },
+  wideListContent: {
+    padding: 20,
+    gap: spacing.md,
+  },
+  pickable: {
+    borderRadius: radii.card + 2,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  picked: {
+    borderColor: colors.accent,
+  },
+  wideDetail: {
+    flex: 1,
+  },
+  wideDetailContent: {
+    padding: 36,
+    width: '100%',
+    maxWidth: 760,
+  },
   planAll: {
     flexDirection: 'row',
     alignItems: 'center',

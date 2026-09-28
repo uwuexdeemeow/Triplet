@@ -20,6 +20,7 @@ import { FormMessage } from '@/components/screen';
 import { Muted } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
+import { useWideLayout } from '@/utils/layout';
 
 type Role = 'owner' | 'member' | 'viewer';
 
@@ -35,6 +36,7 @@ function roleLabel(role: string): string {
 
 export default function PeopleScreen() {
   const styles = useStyles();
+  const wide = useWideLayout();
   const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
@@ -66,7 +68,7 @@ export default function PeopleScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.list}
+      contentContainerStyle={[styles.list, wide && styles.listWide]}
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={members.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
       {isOwner ? <InviteForm tripId={id} /> : null}
@@ -471,6 +473,10 @@ function LeaveTrip({ tripId, myId, isLastOwner }: { tripId: number; myId: number
 }
 
 const useStyles = makeStyles((colors) => ({
+  listWide: {
+    maxWidth: 760,
+    paddingTop: spacing.xl,
+  },
   list: {
     paddingHorizontal: 20,
     paddingTop: spacing.xs,

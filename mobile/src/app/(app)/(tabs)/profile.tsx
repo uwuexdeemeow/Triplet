@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, type ComponentProps } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { api } from '@/api/client';
 import { tripKeys, useMe, type User } from '@/api/trips';
@@ -16,6 +16,7 @@ import { TextField } from '@/components/text-field';
 import type { ThemePreference } from '@/theme/preference';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
+import { useWideLayout } from '@/utils/layout';
 import { pickAndUploadProfilePhoto } from '@/utils/profile-photo';
 
 export default function ProfileScreen() {
@@ -23,12 +24,92 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const { signOut } = useSession();
   const me = useMe();
+  const wide = useWideLayout();
+  const scrollRef = useRef<ScrollView>(null);
+  // Where each section starts, so the list on the left can jump to it
+  const offsets = useRef<Record<string, number>>({});
 
   // Revokes every refresh token for the account, then signs out here too
   const signOutEverywhere = useMutation({
     mutationFn: () => api('/auth/logout-all', { method: 'POST' }),
     onSuccess: () => signOut(),
   });
+
+  if (wide) {
+    const sections: { key: string; label: string; content: ReactNode }[] = [
+      {
+        key: 'profile',
+        label: 'Profile',
+        content: (
+          <View style={styles.card}>
+            {me.isPending ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : me.isError ? (
+              <FormMessage message={me.error.message} />
+            ) : (
+              <>
+                <PhotoEditor user={me.data} />
+                <NameEditor user={me.data} />
+              </>
+            )}
+          </View>
+        ),
+      },
+      { key: 'account', label: 'Account', content: me.data ? <AccountSettings user={me.data} /> : null },
+      { key: 'appearance', label: 'Appearance', content: <AppearancePicker /> },
+      {
+        key: 'devices',
+        label: 'Signed-in devices',
+        content: (
+          <View style={[styles.card, styles.devices]}>
+            <View style={styles.devicesText}>
+              <Title>Signed-in devices</Title>
+              <Muted>Log out here, or everywhere at once if you’ve lost a phone.</Muted>
+            </View>
+            <View style={styles.devicesButtons}>
+              <Button label="Log out" variant="secondary" onPress={signOut} />
+              <Button
+                label="Log out everywhere"
+                variant="text"
+                loading={signOutEverywhere.isPending}
+                onPress={() => signOutEverywhere.mutate()}
+              />
+            </View>
+            <FormMessage message={signOutEverywhere.error?.message ?? null} />
+          </View>
+        ),
+      },
+      { key: 'delete', label: 'Delete account', content: me.data ? <DeleteAccount /> : null },
+    ];
+
+    return (
+      <ScrollView ref={scrollRef} style={styles.widePage} contentContainerStyle={styles.wideContent}>
+        <View style={styles.wideNav}>
+          <Heading style={styles.wideHeading}>Settings</Heading>
+          {sections.map((section) => (
+            <Pressable
+              key={section.key}
+              accessibilityRole="link"
+              onPress={() => scrollRef.current?.scrollTo({ y: offsets.current[section.key] ?? 0, animated: true })}
+              style={({ hovered }) => [styles.navItem, hovered && styles.navItemHover]}>
+              <Text style={[styles.navLabel, section.key === 'delete' && styles.navLabelDanger]}>{section.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.wideSections}>
+          {sections.map((section) => (
+            <View
+              key={section.key}
+              onLayout={(event) => {
+                offsets.current[section.key] = event.nativeEvent.layout.y;
+              }}>
+              {section.content}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <Screen>
@@ -192,7 +273,10 @@ function NameEditor({ user }: { user: User }) {
 }
 
 const APPEARANCES: { value: ThemePreference; label: string; icon: ComponentProps<typeof Feather>['name'] }[] = [
-  { value: 'system', label: 'Match phone', icon: 'smartphone' },
+  // On the website "system" means the computer's own light or dark setting
+  Platform.OS === 'web'
+    ? { value: 'system', label: 'Match system', icon: 'monitor' }
+    : { value: 'system', label: 'Match phone', icon: 'smartphone' },
   { value: 'light', label: 'Light', icon: 'sun' },
   { value: 'dark', label: 'Dark', icon: 'moon' },
 ];
@@ -226,6 +310,57 @@ function AppearancePicker() {
 }
 
 const useStyles = makeStyles((colors) => ({
+  // Big screens: a settings page with its sections listed on the left
+  widePage: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  wideContent: {
+    flexDirection: 'row',
+    gap: 48,
+    paddingHorizontal: 56,
+    paddingVertical: 40,
+  },
+  wideNav: {
+    width: 200,
+    gap: spacing.xs,
+  },
+  wideHeading: {
+    marginBottom: spacing.lg,
+  },
+  navItem: {
+    height: 36,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.input - 2,
+    justifyContent: 'center',
+  },
+  navItemHover: {
+    backgroundColor: colors.chip,
+  },
+  navLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.muted,
+  },
+  navLabelDanger: {
+    color: colors.dangerText,
+  },
+  wideSections: {
+    flex: 1,
+    maxWidth: 720,
+    gap: spacing.xl,
+  },
+  devices: {
+    gap: spacing.md,
+  },
+  devicesText: {
+    gap: 4,
+  },
+  devicesButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
   appearance: {
     gap: spacing.sm,
   },

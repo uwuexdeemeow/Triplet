@@ -28,10 +28,12 @@ import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { categoryMeta, EXPENSE_CATEGORIES, CATEGORY_META, settleUp } from '@/utils/budget';
 import { formatShortDate } from '@/utils/dates';
+import { useWideLayout } from '@/utils/layout';
 import { formatMoney } from '@/utils/money';
 
 export default function BudgetScreen() {
   const styles = useStyles();
+  const wide = useWideLayout();
   const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
@@ -77,7 +79,7 @@ export default function BudgetScreen() {
   const names = new Map(members.data?.map((member) => [member.user_id, member.user_id === me.data?.id ? 'you' : member.name]));
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, wide && styles.screenWide]}>
       <ScrollView
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={budget.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}>
@@ -466,6 +468,10 @@ const useStyles = makeStyles((colors) => ({
     fontSize: 12,
     lineHeight: 17,
     color: colors.muted,
+  },
+  screenWide: {
+    maxWidth: 760,
+    paddingTop: spacing.lg,
   },
   screen: {
     flex: 1,

@@ -12,11 +12,13 @@ import { Body, Heading, Muted, Title } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, spacing } from '@/theme/tokens';
 import { formatDateRange } from '@/utils/dates';
+import { useWideLayout } from '@/utils/layout';
 
 export default function InvitesScreen() {
   const styles = useStyles();
   const { colors } = useTheme();
   const invitations = useMyInvitations();
+  const wide = useWideLayout();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -24,7 +26,7 @@ export default function InvitesScreen() {
         contentInsetAdjustmentBehavior="automatic"
         data={invitations.data ?? []}
         keyExtractor={(invitation) => String(invitation.id)}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, wide && styles.listWide]}
         refreshControl={
           <RefreshControl refreshing={invitations.isRefetching} onRefresh={invitations.refetch} tintColor={colors.accent} />
         }
@@ -123,6 +125,11 @@ const useStyles = makeStyles((colors) => ({
   safeArea: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  listWide: {
+    maxWidth: 760,
+    paddingHorizontal: 56,
+    paddingTop: 40,
   },
   list: {
     paddingHorizontal: 20,
