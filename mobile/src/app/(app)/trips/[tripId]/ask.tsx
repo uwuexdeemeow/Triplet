@@ -69,7 +69,9 @@ export default function AskScreen() {
           style={styles.flex}
           contentContainerStyle={styles.turns}
           keyboardShouldPersistTaps="handled"
-          onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}>
+          onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
+          // The keyboard opening shrinks the list: keep the latest answer in view above it
+          onLayout={() => scroll.current?.scrollToEnd({ animated: false })}>
           {turns.length === 0 ? (
             <View style={styles.intro}>
               <Muted>

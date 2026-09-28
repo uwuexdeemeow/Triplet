@@ -27,7 +27,9 @@ export function Screen({ children, scroll = true }: ScreenProps) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Android draws edge to edge, so the window no longer shrinks for the keyboard: pad on both.
+          The padding is only what the keyboard overlaps, so it's never added twice. */}
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
         {content}
       </KeyboardAvoidingView>
     </SafeAreaView>
