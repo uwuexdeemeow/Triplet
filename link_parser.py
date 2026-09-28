@@ -11,6 +11,10 @@ PLATFORM_DOMAINS = {
 
 # Platforms whose links point at a video that can be downloaded and analysed
 VIDEO_PLATFORMS = ["tiktok", "youtube", "instagram"]
+# Any other web page, like a blog post or travel article: its text is read for places
+ARTICLE = "other"
+# An image someone uploaded instead of a link
+SCREENSHOT = "screenshot"
 
 # Public oEmbed endpoints that don't need an API key
 OEMBED_ENDPOINTS = {

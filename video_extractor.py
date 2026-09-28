@@ -44,9 +44,10 @@ logger = logging.getLogger("triplet.extractor")
 
 PROMPT = """You are helping a traveller turn a short travel post into trip plans.
 
-The post is either a video or a photo slideshow. Watch the video and listen to the audio, or look at
-every slide in order. Use the speech, the on-screen text and the caption below to list every real place the post
-recommends or shows that someone could visit, e.g. restaurants, cafes, attractions, shops, hotels or viewpoints.
+The post is a video, a photo slideshow, a screenshot, or a web article. Watch the video and listen to the
+audio, look at every image in order, or read the article. Use the speech, the on-screen text and the caption or
+article text below to list every real place the post recommends or shows that someone could visit, e.g.
+restaurants, cafes, attractions, shops, hotels or viewpoints.
 
 Rules:
 - Only include places that are actually named or clearly identifiable. Never invent places or addresses.
@@ -59,7 +60,7 @@ Rules:
 - summary is one or two sentences describing the post.
 - If the post doesn't mention any places, return an empty list.
 
-Caption:
+Caption or article text:
 {caption}
 """
 
@@ -392,6 +393,35 @@ def _generate_with_retry(client: genai.Client, contents: list):
                 logger.warning("Gemini model %s returned %s, retrying in %ss (attempt %s)", model, e.code, wait, attempt + 1)
                 time.sleep(wait)
 
+def _analyse(post: DownloadedPost, label: str) -> VideoExtraction:
+    """Ask Gemini about a post, turning its failures into messages safe to show."""
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    try:
+        return analyse_post(client, post)
+    except ExtractionError:
+        raise
+    except Exception as e:
+        # Quota errors, network problems, blocked content etc. Keep the real cause in the logs.
+        logger.exception("Gemini could not process %s", label)
+        if isinstance(e, genai_errors.APIError) and e.code in RETRYABLE_CODES:
+            raise ExtractionError("The AI service is busy right now. Try again in a few minutes.") from e
+        raise ExtractionError("The AI service could not process this post") from e
+
+def extract_from_images(images: list[bytes], caption: str | None = None) -> ExtractionResult:
+    """Extract the places in a screenshot (or a few), like a photo slideshow."""
+    if not settings.GEMINI_API_KEY:
+        raise ExtractionError("Screenshot reading is not configured")
+    post = DownloadedPost(info={"description": caption} if caption else {}, images=images)
+    extraction = _analyse(post, "a screenshot")
+    return ExtractionResult(caption=caption, summary=extraction.summary, places=extraction.places)
+
+def extract_from_text(text: str, label: str) -> ExtractionResult:
+    """Extract the places an article or blog post recommends, from its text."""
+    if not settings.GEMINI_API_KEY:
+        raise ExtractionError("Article reading is not configured")
+    extraction = _analyse(DownloadedPost(info={"description": text}), label)
+    return ExtractionResult(caption=None, summary=extraction.summary, places=extraction.places)
+
 def extract_from_video(url: str) -> ExtractionResult:
     """
     Download a video or photo post and extract the places it mentions.
@@ -405,21 +435,9 @@ def extract_from_video(url: str) -> ExtractionResult:
     if not settings.GEMINI_API_KEY:
         raise ExtractionError("Video extraction is not configured")
 
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
     with tempfile.TemporaryDirectory(prefix="triplet-") as dest_dir:
         post = download_post(url, dest_dir)
-
-        try:
-            extraction = analyse_post(client, post)
-        except ExtractionError:
-            raise
-        except Exception as e:
-            # Quota errors, network problems, blocked content etc. Keep the real cause in the logs.
-            logger.exception("Gemini could not process %s", url)
-            if isinstance(e, genai_errors.APIError) and e.code in RETRYABLE_CODES:
-                raise ExtractionError("The AI service is busy right now. Try again in a few minutes.") from e
-            raise ExtractionError("The AI service could not process this post") from e
+        extraction = _analyse(post, url)
 
     return ExtractionResult(
         caption=post.caption,

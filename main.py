@@ -55,6 +55,7 @@ app.include_router(places.router)
 app.include_router(expenses.router)
 app.include_router(plan_draft.router)
 app.include_router(ask.router)
+app.include_router(links.image_router)
 app.include_router(guest.router)
 app.include_router(guest.setup_router)
 

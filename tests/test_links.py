@@ -5,6 +5,7 @@ import pytest
 from config import settings
 from link_parser import detect_platform
 from video_extractor import ExtractionError, ExtractionResult, Place
+from web_extractor import Article
 
 TIKTOK_URL = "https://www.tiktok.com/@foodie/video/123"
 METADATA = {"title": "Best ramen in Tokyo", "author_name": "foodie", "thumbnail_url": "https://example.com/thumb.jpg"}
@@ -74,12 +75,24 @@ def test_without_gemini_fails_when_metadata_unavailable(client, alice, trip, sav
     assert link["status"] == "failed"
     assert link["error"] == "Could not fetch the post's details"
 
-def test_non_video_link_is_processed_without_extraction(client, alice, trip, save_link, gemini_enabled):
-    with patch("routers.links.extract_from_video") as mock_extract:
+def test_blog_link_is_read_as_an_article_not_a_video(client, alice, trip, save_link, gemini_enabled):
+    article = Article(url="https://example.com/blog", title="Ramen in Tokyo", site_name=None, image_url=None, text="...")
+    with patch("routers.links.extract_from_video") as video, \
+         patch("routers.links.fetch_article", return_value=article), \
+         patch("routers.links.extract_from_text", return_value=EXTRACTION) as text:
         link = get_link(client, alice, trip, save_link(url="https://example.com/blog", metadata=None))
 
     assert link["status"] == "processed"
-    mock_extract.assert_not_called()
+    video.assert_not_called()
+    text.assert_called_once()
+
+def test_google_maps_link_is_processed_without_extraction(client, alice, trip, save_link, gemini_enabled):
+    with patch("routers.links.extract_from_video") as video, patch("routers.links.extract_from_text") as text:
+        link = get_link(client, alice, trip, save_link(url="https://maps.app.goo.gl/abc", metadata=None))
+
+    assert link["status"] == "processed"
+    video.assert_not_called()
+    text.assert_not_called()
 
 def test_video_extraction_saves_places(client, alice, trip, save_link, gemini_enabled):
     link = get_link(client, alice, trip, save_link())

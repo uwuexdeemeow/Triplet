@@ -787,3 +787,22 @@ class UserAvatar(Base):
         nullable=False,
         server_default=func.now()
     )
+
+# A screenshot saved to a trip, kept with its saved link so the places in it can be read
+class LinkImage(Base):
+    __tablename__ = "link_images"
+
+    link_id: Mapped[int] = mapped_column(
+        ForeignKey("saved_links.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    content_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False
+    )
+
+    data: Mapped[bytes] = mapped_column(
+        LargeBinary,
+        nullable=False
+    )

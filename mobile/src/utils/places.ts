@@ -6,6 +6,7 @@ const PLATFORMS: Record<string, string> = {
   youtube: 'YouTube',
   instagram: 'Instagram',
   google_maps: 'Google Maps',
+  screenshot: 'Screenshot',
 };
 
 // For plans, which only know their post's platform: "tiktok" -> "TikTok", anything else -> "a saved post"

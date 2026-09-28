@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { api, ApiError } from '@/api/client';
+import { api, ApiError, resolveApiUrl } from '@/api/client';
 import {
   isProcessing,
   tripKeys,
@@ -30,6 +30,7 @@ import { warn } from '@/utils/haptics';
 import { useLayoutSize, useWideLayout } from '@/utils/layout';
 import { usePullToRefresh } from '@/utils/pull-to-refresh';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
+import { pickAndUploadScreenshot } from '@/utils/screenshot-upload';
 
 export default function SavedScreen() {
   const styles = useStyles();
@@ -248,12 +249,41 @@ function SaveLinkForm({ tripId, onSaved }: { tripId: number; onSaved: () => void
     saveLink.mutate(value);
   };
 
+  const screenshot = useMutation({
+    mutationFn: () => pickAndUploadScreenshot(tripId),
+    onSuccess: (saved) => {
+      if (saved) onSaved();
+    },
+    onError: (err) =>
+      setError(
+        err instanceof ApiError && err.status === 403
+          ? 'Viewers can’t add screenshots. Ask the trip owner to make you a member.'
+          : err.message,
+      ),
+  });
+
   return (
     <View style={styles.form}>
       <View style={styles.formRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add a screenshot"
+          accessibilityHint="Pick a screenshot of a post, a map or a list, and Triplet finds the places in it"
+          disabled={screenshot.isPending}
+          onPress={() => {
+            setError(null);
+            screenshot.mutate();
+          }}
+          style={({ pressed, hovered }) => [styles.shotButton, (pressed || hovered) && styles.shotButtonActive]}>
+          {screenshot.isPending ? (
+            <ActivityIndicator color={colors.accent} />
+          ) : (
+            <Feather name="image" size={20} color={colors.accent} />
+          )}
+        </Pressable>
         <TextInput
-          accessibilityLabel="Paste a TikTok, YouTube or Instagram link"
-          placeholder="Paste a TikTok link"
+          accessibilityLabel="Paste a TikTok, YouTube, Instagram or blog link"
+          placeholder="Paste a TikTok or blog link"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
           autoCorrect={false}
@@ -318,7 +348,13 @@ function LinkCard({
   const top = (
     <View style={styles.cardTop}>
       {link.thumbnail_url ? (
-        <Image source={{ uri: link.thumbnail_url }} style={styles.thumbnail} contentFit="cover" accessibilityIgnoresInvertColors />
+        <Image
+          // Screenshots are served by the API itself, at a path
+          source={{ uri: resolveApiUrl(link.thumbnail_url) ?? undefined }}
+          style={styles.thumbnail}
+          contentFit="cover"
+          accessibilityIgnoresInvertColors
+        />
       ) : (
         <View style={[styles.thumbnail, styles.thumbnailEmpty]} />
       )}
@@ -385,7 +421,11 @@ function LinkCard({
         title={linkTitle(link)}
         subtitle={source}
         actions={[
-          { label: 'Open post', icon: 'external-link', onPress: () => Linking.openURL(link.url) },
+          {
+            label: link.platform === 'screenshot' ? 'Open screenshot' : 'Open post',
+            icon: 'external-link',
+            onPress: () => Linking.openURL(resolveApiUrl(link.url) ?? link.url),
+          },
           ...(canEdit && !isProcessing(link)
             ? [{ label: 'Find places again', icon: 'refresh-cw' as const, onPress: () => retry.mutate() }]
             : []),
@@ -603,6 +643,18 @@ const useStyles = makeStyles((colors) => ({
     minHeight: 48,
     paddingHorizontal: spacing.lg,
     borderRadius: radii.input,
+  },
+  shotButton: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.input,
+    borderWidth: 1.5,
+    borderColor: colors.accentMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shotButtonActive: {
+    backgroundColor: colors.accentSoft,
   },
   error: {
     fontFamily: fonts.semibold,

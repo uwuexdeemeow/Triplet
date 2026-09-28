@@ -478,6 +478,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/links/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Screenshot
+         * @description Save a screenshot, like a post or a map someone sent, and read the places in it.
+         */
+        post: operations["create_screenshot_trips__trip_id__links_screenshot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/links/{link_id}": {
         parameters: {
             query?: never;
@@ -756,6 +776,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/link-images/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Link Image */
+        get: operations["get_link_image_link_images__link_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guest/access": {
         parameters: {
             query?: never;
@@ -973,6 +1010,11 @@ export interface components {
             answer: string;
             /** Mentions */
             mentions: components["schemas"]["AskMention"][];
+        };
+        /** Body_create_screenshot_trips__trip_id__links_screenshot_post */
+        Body_create_screenshot_trips__trip_id__links_screenshot_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_avatar_users_me_avatar_put */
         Body_upload_avatar_users_me_avatar_put: {
@@ -3091,6 +3133,41 @@ export interface operations {
             };
         };
     };
+    create_screenshot_trips__trip_id__links_screenshot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_screenshot_trips__trip_id__links_screenshot_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedLinkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_link_trips__trip_id__links__link_id__get: {
         parameters: {
             query?: never;
@@ -3803,6 +3880,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AskResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_link_image_link_images__link_id__get: {
+        parameters: {
+            query: {
+                sig: string;
+            };
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

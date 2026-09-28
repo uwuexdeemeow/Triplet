@@ -2008,6 +2008,64 @@
     }
    }
   },
+  "/trips/{trip_id}/links/screenshot": {
+   "post": {
+    "tags": [
+     "Saved Links"
+    ],
+    "summary": "Create Screenshot",
+    "description": "Save a screenshot, like a post or a map someone sent, and read the places in it.",
+    "operationId": "create_screenshot_trips__trip_id__links_screenshot_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_create_screenshot_trips__trip_id__links_screenshot_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SavedLinkResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/links/{link_id}": {
    "get": {
     "tags": [
@@ -3276,6 +3334,55 @@
     }
    }
   },
+  "/link-images/{link_id}": {
+   "get": {
+    "tags": [
+     "Saved Links"
+    ],
+    "summary": "Get Link Image",
+    "operationId": "get_link_image_link_images__link_id__get",
+    "parameters": [
+     {
+      "name": "link_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Link Id"
+      }
+     },
+     {
+      "name": "sig",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Sig"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/guest/access": {
    "post": {
     "tags": [
@@ -3950,6 +4057,20 @@
      "mentions"
     ],
     "title": "AskResponse"
+   },
+   "Body_create_screenshot_trips__trip_id__links_screenshot_post": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_create_screenshot_trips__trip_id__links_screenshot_post"
    },
    "Body_upload_avatar_users_me_avatar_put": {
     "properties": {

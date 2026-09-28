@@ -1,17 +1,21 @@
+import hashlib
+import hmac
 import logging
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session, selectinload
 from config import settings
 from database import connect_db, SessionLocal
-from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity
+from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, LinkImage
 from schemas import SavedLinkCreate, SavedLinkUpdate, SavedLinkResponse, LinkToActivity, ActivityResponse
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 import rate_limit
-from link_parser import detect_platform, fetch_metadata, VIDEO_PLATFORMS
-from video_extractor import extract_from_video, ExtractionError
+from link_parser import detect_platform, fetch_metadata, ARTICLE, SCREENSHOT, VIDEO_PLATFORMS
+from video_extractor import extract_from_images, extract_from_text, extract_from_video, ExtractionError, ExtractionResult
+from web_extractor import fetch_article, ArticleError
 from places_lookup import enrich_place
 from routers.activities import validate_activity
+from routers.users import avatar_content_type
 
 logger = logging.getLogger("triplet.links")
 
@@ -43,6 +47,23 @@ def get_link_or_404(db: Session, trip_id: int, link_id: int) -> SavedLink:
 
     return link
 
+def read_places(db: Session, link: SavedLink) -> ExtractionResult:
+    """Find the places in a saved post, however it was saved: a video post, a screenshot or an article."""
+    if link.platform == SCREENSHOT:
+        image = db.get(LinkImage, link.id)
+        if image is None:
+            raise ExtractionError("The screenshot is missing. Try adding it again.")
+        return extract_from_images([image.data])
+    if link.platform == ARTICLE:
+        article = fetch_article(link.url)
+        # Articles have no oEmbed details, so take them from the page itself
+        link.title = link.title or (article.title or "")[:500] or None
+        link.author_name = link.author_name or (article.site_name or "")[:255] or None
+        link.thumbnail_url = link.thumbnail_url or (article.image_url or "")[:2048] or None
+        text = f"{article.title}\n\n{article.text}" if article.title else article.text
+        return extract_from_text(text, link.url)
+    return extract_from_video(link.url)
+
 def process_link(link_id: int):
     """
     Fetch a link's details and extract the places from its video.
@@ -65,10 +86,11 @@ def process_link(link_id: int):
             for field, value in metadata.items():
                 setattr(link, field, value)
 
-        if link.platform in VIDEO_PLATFORMS and settings.GEMINI_API_KEY:
+        reads_places = settings.GEMINI_API_KEY and link.platform in (*VIDEO_PLATFORMS, SCREENSHOT, ARTICLE)
+        if reads_places:
             try:
-                result = extract_from_video(link.url)
-            except ExtractionError as e:
+                result = read_places(db, link)
+            except (ExtractionError, ArticleError) as e:
                 link.status = "failed"
                 link.error = str(e)[:500]
             else:
@@ -168,6 +190,87 @@ def create_link(
     background_tasks.add_task(process_link, link.id)
 
     return link
+
+# Under the API's 1 MB request limit; the app shrinks screenshots well below this
+SCREENSHOT_MAX_BYTES = 900 * 1024
+
+def image_signature(link_id: int) -> str:
+    """Screenshots are private to a trip; this signs their address so only people given it can open it."""
+    return hmac.new(settings.SECRET_KEY.encode(), f"link-image:{link_id}".encode(), hashlib.sha256).hexdigest()[:32]
+
+def image_path(link_id: int) -> str:
+    return f"/link-images/{link_id}?sig={image_signature(link_id)}"
+
+@router.post("/screenshot", response_model=SavedLinkResponse, status_code=201)
+async def create_screenshot(
+    trip_id: int,
+    file: UploadFile,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """Save a screenshot, like a post or a map someone sent, and read the places in it."""
+    require_role(membership, EDITOR_ROLES)
+
+    data = await file.read(SCREENSHOT_MAX_BYTES + 1)
+    if len(data) > SCREENSHOT_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="That screenshot is too big. Try a smaller one."
+        )
+    content_type = avatar_content_type(data)
+    if content_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Use a JPEG, PNG or WebP image"
+        )
+    limit_link_processing(db, membership)
+
+    link = SavedLink(
+        trip_id=trip_id,
+        added_by_id=membership.user_id,
+        # Filled in below, once the link has its id
+        url="",
+        platform=SCREENSHOT,
+        title="Screenshot",
+        status="pending"
+    )
+    db.add(link)
+    db.flush()
+    link.url = image_path(link.id)
+    link.thumbnail_url = link.url
+    db.add(LinkImage(link_id=link.id, content_type=content_type, data=data))
+    db.commit()
+    db.refresh(link)
+
+    background_tasks.add_task(process_link, link.id)
+
+    return link
+
+# Screenshots are served outside the trip's routes so image views can load them without a token
+image_router = APIRouter(
+    prefix="/link-images",
+    tags=["Saved Links"]
+)
+
+@image_router.get("/{link_id}")
+def get_link_image(
+    link_id: int,
+    sig: str,
+    db: Session = Depends(connect_db)
+):
+    image = db.get(LinkImage, link_id)
+    if image is None or not hmac.compare_digest(sig, image_signature(link_id)):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found"
+        )
+
+    return Response(
+        content=image.data,
+        media_type=image.content_type,
+        headers={"Cache-Control": "private, max-age=31536000, immutable"}
+    )
 
 @router.get("", response_model=list[SavedLinkResponse])
 def get_links(
