@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Example keys from docs and tutorials; anyone could forge sign-in tokens with them
@@ -35,8 +35,10 @@ class Settings(BaseSettings):
 
     # Link sent in password reset emails, the token is appended as ?token=...
     PASSWORD_RESET_URL: str = "http://localhost:8081/reset-password"
-    # The website, for links in emails: confirming an address, and joining from an invite
+    # The website, for links in emails: signing in, and joining from an invite. On Render it defaults
+    # to the address Render gives the site (RENDER_EXTERNAL_URL, which Render sets itself)
     APP_URL: str = "http://localhost:8081"
+    RENDER_EXTERNAL_URL: str | None = None
     # Links already emailed before codes replaced them keep working this long
     EMAIL_VERIFY_EXPIRE_HOURS: int = 48
     # Six-digit codes emailed for signing up, changing email and resetting a password
@@ -95,6 +97,12 @@ class Settings(BaseSettings):
         if any("*" in origin for origin in value):
             raise ValueError("CORS_ORIGINS must list exact origins, like https://triplet.app, not *")
         return value
+
+    @model_validator(mode="after")
+    def app_url_from_host(self) -> "Settings":
+        if "APP_URL" not in self.model_fields_set and self.RENDER_EXTERNAL_URL:
+            self.APP_URL = self.RENDER_EXTERNAL_URL.rstrip("/")
+        return self
 
     @property
     def is_production(self) -> bool:

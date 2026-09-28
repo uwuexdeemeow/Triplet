@@ -85,3 +85,14 @@ def test_visitor_address_without_a_proxy_ignores_the_header(monkeypatch):
     monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 0)
 
     assert rate_limit.client_ip(request_from("198.51.100.4", "6.6.6.6")) == "198.51.100.4"
+
+def test_links_in_emails_use_the_hosts_address_by_default():
+    from config import Settings
+
+    hosted = Settings(DB_SETTINGS="sqlite://", SECRET_KEY="x" * 40, RENDER_EXTERNAL_URL="https://triplet.onrender.com/")
+    assert hosted.APP_URL == "https://triplet.onrender.com"
+
+    # A domain of your own wins
+    own = Settings(DB_SETTINGS="sqlite://", SECRET_KEY="x" * 40, RENDER_EXTERNAL_URL="https://triplet.onrender.com",
+                   APP_URL="https://triplet.me")
+    assert own.APP_URL == "https://triplet.me"

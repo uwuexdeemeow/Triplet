@@ -1,5 +1,6 @@
 # Render Blueprint: New > Blueprint in the Render dashboard, pick this repository.
 # Render asks for each "sync: false" value when it creates the service. See DEPLOY.md.
+# APP_URL (for links in emails) defaults to the address Render gives the site; set it for your own domain.
 services:
   - type: web
     name: triplet
@@ -19,12 +20,6 @@ services:
         generateValue: true
       # Postgres connection string, e.g. from Neon: postgresql+psycopg://user:password@host/db?sslmode=require
       - key: DB_SETTINGS
-        sync: false
-      # The site's address, e.g. https://triplet.onrender.com
-      - key: APP_URL
-        sync: false
-      # JSON list with the same address, e.g. ["https://triplet.onrender.com"]
-      - key: CORS_ORIGINS
         sync: false
       - key: GEMINI_API_KEY
         sync: false

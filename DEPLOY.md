@@ -132,13 +132,12 @@ git push
    | Setting | Value |
    | --- | --- |
    | `DB_SETTINGS` | from step 1 |
-   | `APP_URL` | `https://triplet.onrender.com` (a guess for now: fixed in 4d) |
-   | `CORS_ORIGINS` | `["https://triplet.onrender.com"]` (with the brackets and quotes) |
    | `GEMINI_API_KEY` | from step 3 |
    | `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | from step 2 |
 
    The rest (`ENVIRONMENT`, `API_PATH_PREFIX`, `TRUSTED_PROXY_HOPS`, `SMTP_PORT`) are already set,
-   and `SECRET_KEY` is generated for you. Keep that key as it is: changing it signs everyone out.
+   and `SECRET_KEY` is generated for you. The site's address isn't needed: the server reads the
+   one Render gives it, for the links in emails. Keep that key as it is: changing it signs everyone out.
 6. Click **Deploy Blueprint** (or **Apply**).
 
 ### 4c. Watch the first build
@@ -154,12 +153,11 @@ git push
 
    and the service shows **Live**.
 
-### 4d. Fix the address
+### 4d. Find the address
 
-1. The site's real address is at the top of the service page, under its name. If `triplet` was
-   taken, it has something added, like `https://triplet-a1b2.onrender.com`.
-2. If it differs from your guess: open **Environment**, change `APP_URL` and `CORS_ORIGINS` to the
-   real address, and click **Save, rebuild, and deploy** (or **Save and deploy**).
+The site's address is at the top of the service page, under its name. If `triplet` was taken, it
+has something added, like `https://triplet-a1b2.onrender.com`. You need it for the checks below and
+for the phone app in step 5.
 
 ### 4e. Check it works
 
@@ -225,8 +223,8 @@ get.tech (`.tech`) or Name.com. After the first year it costs roughly $10–20 a
 
 ### 6c. Switch everything to the new address
 
-1. Render > **Environment**: set `APP_URL` to `https://triplet.me` and `CORS_ORIGINS` to
-   `["https://triplet.me"]`, and save (it redeploys).
+1. Render > **Environment**: add `APP_URL` with the value `https://triplet.me`, so links in emails
+   use the new address, and save (it redeploys).
 2. Point the app at it, then ship an update (no new build needed, since only the address changed):
 
    ```
@@ -259,8 +257,9 @@ Mail from your own domain is much less likely to land in spam.
   Copy it from Neon again and check it starts `postgresql+psycopg://`.
 - **No code arrives**: check spam first. Then look in the Render logs for an email error, and check
   the `SMTP_*` values (a Brevo login is the `...@smtp-brevo.com` address, not your own email).
-- **The website loads but signing in fails or you're signed out on reload**: `APP_URL` and
-  `CORS_ORIGINS` must match the address in the browser exactly, with `https://` and no `/` at the end.
+- **The website loads but you're signed out on every reload**: check `API_PATH_PREFIX` is `/api`
+  (the sign-in cookie only reaches the API at that path). Leave `CORS_ORIGINS` unset: the website
+  and API share one address, so it isn't needed.
 - **The app says it can't reach the server**: the APK was built before step 5.2, or with the wrong
   address. Check with `npx eas-cli@latest env:list --environment preview`, then rebuild.
 - **The first request after a while is slow**: the free server was asleep; it wakes in about a minute.
