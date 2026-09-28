@@ -27,7 +27,7 @@ import { Body, Muted, Title } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { warn } from '@/utils/haptics';
-import { useWideLayout } from '@/utils/layout';
+import { useLayoutSize, useWideLayout } from '@/utils/layout';
 import { usePullToRefresh } from '@/utils/pull-to-refresh';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
 
@@ -51,6 +51,7 @@ export default function SavedScreen() {
   // Big screens: which post is open on the right
   const [pickedId, setPickedId] = useState<number | null>(null);
   const wide = useWideLayout();
+  const size = useLayoutSize();
 
   const toggle = (linkId: number) =>
     setExpanded((current) => {
@@ -98,7 +99,7 @@ export default function SavedScreen() {
     return (
       <View style={styles.wide}>
         <ScrollView
-          style={styles.wideList}
+          style={[styles.wideList, size === 'tablet' && styles.wideListTablet]}
           contentContainerStyle={styles.wideListContent}
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />}>
@@ -519,6 +520,9 @@ const useStyles = makeStyles((colors) => ({
     flexGrow: 0,
     borderRightWidth: 1,
     borderRightColor: colors.line,
+  },
+  wideListTablet: {
+    width: 340,
   },
   wideListContent: {
     padding: 20,

@@ -1,19 +1,26 @@
-import { Feather } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from "@expo/vector-icons";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useItinerary, useMe, useTrips, type TripSummary } from '@/api/trips';
-import { AvatarStack } from '@/components/avatar-stack';
-import { Button } from '@/components/button';
-import { Enter } from '@/components/enter';
-import { Glass } from '@/components/glass';
-import { PressableScale } from '@/components/pressable-scale';
-import { FormMessage } from '@/components/screen';
-import { makeStyles, useTheme } from '@/theme/theme';
-import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
-import { WeatherLine } from '@/components/weather-line';
+import { useItinerary, useMe, useTrips, type TripSummary } from "@/api/trips";
+import { AvatarStack } from "@/components/avatar-stack";
+import { Button } from "@/components/button";
+import { Enter } from "@/components/enter";
+import { Glass } from "@/components/glass";
+import { PressableScale } from "@/components/pressable-scale";
+import { FormMessage } from "@/components/screen";
+import { makeStyles, useTheme } from "@/theme/theme";
+import { fonts, headingTracking, radii, spacing } from "@/theme/tokens";
+import { WeatherLine } from "@/components/weather-line";
 import {
   activityClock,
   dayOfMonth,
@@ -23,32 +30,37 @@ import {
   todayString,
   tripPhase,
   type TripPhase,
-} from '@/utils/dates';
-import { useWideLayout } from '@/utils/layout';
-import { usePullToRefresh } from '@/utils/pull-to-refresh';
-import { tap } from '@/utils/haptics';
-import { formatMoney } from '@/utils/money';
+} from "@/utils/dates";
+import { useLayoutSize, useSidebar, useWideLayout } from "@/utils/layout";
+import { usePullToRefresh } from "@/utils/pull-to-refresh";
+import { tap } from "@/utils/haptics";
+import { formatMoney } from "@/utils/money";
 
 function greeting(now = new Date()): string {
   const hour = now.getHours();
-  if (hour < 5) return 'Up late';
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 5) return "Up late";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 // "8 plans · 12 saved · ¥1,980 spent", leaving out what's still zero
 function tripStats(trip: TripSummary): string {
   const parts = [
-    trip.plan_count ? `${trip.plan_count} ${trip.plan_count === 1 ? 'plan' : 'plans'}` : null,
+    trip.plan_count
+      ? `${trip.plan_count} ${trip.plan_count === 1 ? "plan" : "plans"}`
+      : null,
     trip.saved_count ? `${trip.saved_count} saved` : null,
     trip.spent ? `${formatMoney(trip.spent, trip.currency)} spent` : null,
   ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : 'Nothing added yet';
+  return parts.length ? parts.join(" · ") : "Nothing added yet";
 }
 
 function openTrip(trip: TripSummary) {
-  router.push({ pathname: '/trips/[tripId]', params: { tripId: String(trip.id) } });
+  router.push({
+    pathname: "/trips/[tripId]",
+    params: { tripId: String(trip.id) },
+  });
 }
 
 export default function TripsScreen() {
@@ -69,46 +81,68 @@ export default function TripsScreen() {
   // The trip that's on now, otherwise the next one, gets the big card
   const withPhase = (trips.data ?? [])
     .filter((trip) => trip.start_date && trip.end_date)
-    .map((trip) => ({ trip, phase: tripPhase(trip.start_date!, trip.end_date!) }));
-  const current = withPhase.filter((item) => item.phase.phase === 'now');
+    .map((trip) => ({
+      trip,
+      phase: tripPhase(trip.start_date!, trip.end_date!),
+    }));
+  const current = withPhase.filter((item) => item.phase.phase === "now");
   const upcoming = withPhase
-    .filter((item) => item.phase.phase === 'upcoming')
+    .filter((item) => item.phase.phase === "upcoming")
     .sort((a, b) => a.trip.start_date!.localeCompare(b.trip.start_date!));
   const past = withPhase
-    .filter((item) => item.phase.phase === 'past')
+    .filter((item) => item.phase.phase === "past")
     .sort((a, b) => b.trip.end_date!.localeCompare(a.trip.end_date!));
   const [featured, ...others] = [...current, ...upcoming];
 
   const name = me.data?.name;
   const wide = useWideLayout();
+  const columns = useLayoutSize() === "desktop" ? 3 : 2;
+  // The website's sidebar has its own "New trip" button
+  const hasSidebar = useSidebar() !== "none";
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[styles.page, wide && styles.pageWide]}
-        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />}>
+        refreshControl={
+          <RefreshControl
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
+            tintColor={colors.accent}
+          />
+        }
+      >
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.greeting}>{name ? `${greeting()}, ${name}` : greeting()}</Text>
-            <Text style={[styles.heading, wide && styles.headingWide]} accessibilityRole="header">
+            <Text style={styles.greeting}>
+              {name ? `${greeting()}, ${name}` : greeting()}
+            </Text>
+            <Text
+              style={[styles.heading, wide && styles.headingWide]}
+              accessibilityRole="header"
+            >
               Your trips
             </Text>
           </View>
-          {/* The sidebar has "New trip" on a big screen */}
-          {wide ? null : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="New trip"
-            onPress={() => {
-              tap();
-              router.push('/trips/new');
-            }}
-            style={({ pressed }) => [styles.round, pressed && styles.pressed]}>
-            <Glass interactive tintColor={colors.accent} style={styles.addButton}>
-              <Feather name="plus" size={22} color={colors.onAccent} />
-            </Glass>
-          </Pressable>
+          {hasSidebar ? null : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="New trip"
+              onPress={() => {
+                tap();
+                router.push("/trips/new");
+              }}
+              style={({ pressed }) => [styles.round, pressed && styles.pressed]}
+            >
+              <Glass
+                interactive
+                tintColor={colors.accent}
+                style={styles.addButton}
+              >
+                <Feather name="plus" size={22} color={colors.onAccent} />
+              </Glass>
+            </Pressable>
           )}
         </View>
 
@@ -117,7 +151,11 @@ export default function TripsScreen() {
         ) : trips.isError ? (
           <View style={styles.state}>
             <FormMessage message={trips.error.message} />
-            <Button label="Try again" variant="secondary" onPress={() => trips.refetch()} />
+            <Button
+              label="Try again"
+              variant="secondary"
+              onPress={() => trips.refetch()}
+            />
           </View>
         ) : withPhase.length === 0 ? (
           <EmptyState />
@@ -126,7 +164,10 @@ export default function TripsScreen() {
             {featured ? (
               <Enter index={0}>
                 {wide ? (
-                  <FeaturedTripWide trip={featured.trip} phase={featured.phase} />
+                  <FeaturedTripWide
+                    trip={featured.trip}
+                    phase={featured.phase}
+                  />
                 ) : (
                   <FeaturedTrip trip={featured.trip} phase={featured.phase} />
                 )}
@@ -136,14 +177,22 @@ export default function TripsScreen() {
             {others.length > 0 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Coming up</Text>
-                <TripList items={others} wide={wide} firstIndex={1} />
+                <TripList
+                  items={others}
+                  columns={wide ? columns : 1}
+                  firstIndex={1}
+                />
               </View>
             ) : null}
 
             {past.length > 0 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Past trips</Text>
-                <TripList items={past} wide={wide} firstIndex={1 + others.length} />
+                <TripList
+                  items={past}
+                  columns={wide ? columns : 1}
+                  firstIndex={1 + others.length}
+                />
               </View>
             ) : null}
           </>
@@ -154,7 +203,13 @@ export default function TripsScreen() {
 }
 
 // The trip that's on now or coming next: a big countdown, what's in it, and who's going
-function FeaturedTrip({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
+function FeaturedTrip({
+  trip,
+  phase,
+}: {
+  trip: TripSummary;
+  phase: TripPhase;
+}) {
   const styles = useStyles();
   const { colors } = useTheme();
 
@@ -164,11 +219,19 @@ function FeaturedTrip({ trip, phase }: { trip: TripSummary; phase: TripPhase }) 
       accessibilityLabel={`${trip.title}, ${trip.destination}`}
       onPress={() => openTrip(trip)}
       scaleTo={0.98}
-      style={styles.featured}>
+      style={styles.featured}
+    >
       <View style={styles.featuredTop}>
         <View style={styles.pill}>
-          <View style={[styles.pillDot, phase.phase === 'now' && styles.pillDotLive]} />
-          <Text style={styles.pillText}>{phase.phase === 'now' ? 'Happening now' : 'Next trip'}</Text>
+          <View
+            style={[
+              styles.pillDot,
+              phase.phase === "now" && styles.pillDotLive,
+            ]}
+          />
+          <Text style={styles.pillText}>
+            {phase.phase === "now" ? "Happening now" : "Next trip"}
+          </Text>
         </View>
         <Feather name="arrow-up-right" size={20} color={colors.muted} />
       </View>
@@ -186,23 +249,25 @@ function FeaturedTrip({ trip, phase }: { trip: TripSummary; phase: TripPhase }) 
       </View>
 
       <View style={styles.countdown}>
-        {phase.phase === 'now' ? (
+        {phase.phase === "now" ? (
           <>
             <Text style={styles.bigNumber}>Day {phase.day}</Text>
             <Text style={styles.bigLabel}>of {phase.length}</Text>
           </>
-        ) : phase.phase === 'upcoming' && phase.daysToGo === 1 ? (
+        ) : phase.phase === "upcoming" && phase.daysToGo === 1 ? (
           <Text style={styles.bigNumber}>Tomorrow</Text>
-        ) : phase.phase === 'upcoming' ? (
+        ) : phase.phase === "upcoming" ? (
           <>
             <Text style={styles.bigNumber}>{phase.daysToGo}</Text>
             <Text style={styles.bigLabel}>days to go</Text>
           </>
         ) : null}
       </View>
-      <Text style={styles.dates}>{formatDateRange(trip.start_date!, trip.end_date!)}</Text>
+      <Text style={styles.dates}>
+        {formatDateRange(trip.start_date!, trip.end_date!)}
+      </Text>
 
-      {phase.phase === 'now' ? <TodayPlans tripId={trip.id} /> : null}
+      {phase.phase === "now" ? <TodayPlans tripId={trip.id} /> : null}
 
       <View style={styles.featuredFooter}>
         <Text style={styles.stats} numberOfLines={2}>
@@ -215,7 +280,13 @@ function FeaturedTrip({ trip, phase }: { trip: TripSummary; phase: TripPhase }) 
 }
 
 // On a big screen the next trip spreads out: the details on the left, its first day (or today) on the right
-function FeaturedTripWide({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
+function FeaturedTripWide({
+  trip,
+  phase,
+}: {
+  trip: TripSummary;
+  phase: TripPhase;
+}) {
   const styles = useStyles();
   return (
     <PressableScale
@@ -223,50 +294,75 @@ function FeaturedTripWide({ trip, phase }: { trip: TripSummary; phase: TripPhase
       accessibilityLabel={`${trip.title}, ${trip.destination}`}
       onPress={() => openTrip(trip)}
       scaleTo={0.99}
-      style={[styles.featured, styles.featuredWide]}>
+      style={[styles.featured, styles.featuredWide]}
+    >
       <View style={styles.featuredMain}>
         <FeaturedDetails trip={trip} phase={phase} />
       </View>
-      <DayPreview trip={trip} day={phase.phase === 'now' ? todayString() : trip.start_date!} />
+      <DayPreview
+        trip={trip}
+        day={phase.phase === "now" ? todayString() : trip.start_date!}
+      />
     </PressableScale>
   );
 }
 
 // The parts of the featured card both layouts share
-function FeaturedDetails({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
+function FeaturedDetails({
+  trip,
+  phase,
+}: {
+  trip: TripSummary;
+  phase: TripPhase;
+}) {
   const styles = useStyles();
   const { colors } = useTheme();
   return (
     <>
       <View style={styles.featuredTop}>
         <View style={styles.pill}>
-          <View style={[styles.pillDot, phase.phase === 'now' && styles.pillDotLive]} />
-          <Text style={styles.pillText}>{phase.phase === 'now' ? 'Happening now' : 'Next trip'}</Text>
+          <View
+            style={[
+              styles.pillDot,
+              phase.phase === "now" && styles.pillDotLive,
+            ]}
+          />
+          <Text style={styles.pillText}>
+            {phase.phase === "now" ? "Happening now" : "Next trip"}
+          </Text>
         </View>
         <Feather name="arrow-up-right" size={20} color={colors.muted} />
       </View>
       <View style={styles.featuredTitleBlock}>
-        <Text style={[styles.featuredTitle, styles.featuredTitleWide]} numberOfLines={2}>
+        <Text
+          style={[styles.featuredTitle, styles.featuredTitleWide]}
+          numberOfLines={2}
+        >
           {trip.title}
         </Text>
         <View style={styles.place}>
           <Feather name="map-pin" size={14} color={colors.muted} />
           <Text style={styles.placeText} numberOfLines={1}>
-            {trip.destination} · {formatDateRange(trip.start_date!, trip.end_date!)}
+            {trip.destination} ·{" "}
+            {formatDateRange(trip.start_date!, trip.end_date!)}
           </Text>
         </View>
       </View>
       <View style={styles.countdown}>
-        {phase.phase === 'now' ? (
+        {phase.phase === "now" ? (
           <>
-            <Text style={[styles.bigNumber, styles.bigNumberWide]}>Day {phase.day}</Text>
+            <Text style={[styles.bigNumber, styles.bigNumberWide]}>
+              Day {phase.day}
+            </Text>
             <Text style={styles.bigLabel}>of {phase.length}</Text>
           </>
-        ) : phase.phase === 'upcoming' && phase.daysToGo === 1 ? (
+        ) : phase.phase === "upcoming" && phase.daysToGo === 1 ? (
           <Text style={[styles.bigNumber, styles.bigNumberWide]}>Tomorrow</Text>
-        ) : phase.phase === 'upcoming' ? (
+        ) : phase.phase === "upcoming" ? (
           <>
-            <Text style={[styles.bigNumber, styles.bigNumberWide]}>{phase.daysToGo}</Text>
+            <Text style={[styles.bigNumber, styles.bigNumberWide]}>
+              {phase.daysToGo}
+            </Text>
             <Text style={styles.bigLabel}>days to go</Text>
           </>
         ) : null}
@@ -293,7 +389,7 @@ function DayPreview({ trip, day }: { trip: TripSummary; day: string }) {
   return (
     <View style={styles.preview}>
       <Text style={styles.previewTitle}>
-        {isToday ? 'Today' : 'First day'} · {formatShortDate(day)}
+        {isToday ? "Today" : "First day"} · {formatShortDate(day)}
       </Text>
       {plans?.weather ? <WeatherLine weather={plans.weather} /> : null}
       {itinerary.isPending ? (
@@ -303,33 +399,38 @@ function DayPreview({ trip, day }: { trip: TripSummary; day: string }) {
       ) : (
         activities.slice(0, 4).map((plan) => (
           <View key={plan.id} style={styles.previewRow}>
-            <Text style={styles.todayTime}>{activityClock(plan.start_time)}</Text>
+            <Text style={styles.todayTime}>
+              {activityClock(plan.start_time)}
+            </Text>
             <Text style={styles.todayPlan} numberOfLines={1}>
               {plan.title}
             </Text>
-            {(plan.warnings?.length ?? 0) > 0 || (plan.conflicts_with?.length ?? 0) > 0 ? (
+            {(plan.warnings?.length ?? 0) > 0 ||
+            (plan.conflicts_with?.length ?? 0) > 0 ? (
               <Text style={styles.previewCheck}>Check</Text>
             ) : null}
           </View>
         ))
       )}
-      {activities.length > 4 ? <Text style={styles.todayEmpty}>and {activities.length - 4} more</Text> : null}
+      {activities.length > 4 ? (
+        <Text style={styles.todayEmpty}>and {activities.length - 4} more</Text>
+      ) : null}
     </View>
   );
 }
 
-// Trips as a list on a phone, and three to a row on a big screen
+// Trips as a list on a phone, two to a row on a tablet and three on a desktop
 function TripList({
   items,
-  wide,
+  columns,
   firstIndex,
 }: {
   items: { trip: TripSummary; phase: TripPhase }[];
-  wide: boolean;
+  columns: number;
   firstIndex: number;
 }) {
   const styles = useStyles();
-  if (!wide) {
+  if (columns === 1) {
     return items.map(({ trip, phase }, index) => (
       <Enter key={trip.id} index={index + firstIndex}>
         <TripRow trip={trip} phase={phase} />
@@ -338,15 +439,19 @@ function TripList({
   }
 
   const rows: (typeof items)[] = [];
-  for (let index = 0; index < items.length; index += 3) rows.push(items.slice(index, index + 3));
+  for (let index = 0; index < items.length; index += columns)
+    rows.push(items.slice(index, index + columns));
   return rows.map((row, rowIndex) => (
     <View key={row[0].trip.id} style={styles.gridRow}>
-      {[0, 1, 2].map((column) => {
+      {Array.from({ length: columns }, (_, column) => {
         const item = row[column];
         return (
-          <View key={item?.trip.id ?? `empty-${column}`} style={styles.gridCell}>
+          <View
+            key={item?.trip.id ?? `empty-${column}`}
+            style={styles.gridCell}
+          >
             {item ? (
-              <Enter index={rowIndex * 3 + column + firstIndex}>
+              <Enter index={rowIndex * columns + column + firstIndex}>
                 <TripRow trip={item.trip} phase={item.phase} />
               </Enter>
             ) : null}
@@ -362,10 +467,13 @@ function TodayPlans({ tripId }: { tripId: number }) {
   const styles = useStyles();
   const itinerary = useItinerary(tripId);
   const today = todayString();
-  const plans = itinerary.data?.days.find((day) => day.date === today)?.activities ?? [];
+  const plans =
+    itinerary.data?.days.find((day) => day.date === today)?.activities ?? [];
   const now = new Date();
-  const clock = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const later = plans.filter((plan) => activityClock(plan.end_time) >= clock).slice(0, 2);
+  const clock = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const later = plans
+    .filter((plan) => activityClock(plan.end_time) >= clock)
+    .slice(0, 2);
 
   if (itinerary.isPending) return null;
 
@@ -373,11 +481,17 @@ function TodayPlans({ tripId }: { tripId: number }) {
     <View style={styles.today}>
       <Text style={styles.todayTitle}>Today</Text>
       {later.length === 0 ? (
-        <Text style={styles.todayEmpty}>{plans.length ? 'That’s everything for today.' : 'Nothing planned today.'}</Text>
+        <Text style={styles.todayEmpty}>
+          {plans.length
+            ? "That’s everything for today."
+            : "Nothing planned today."}
+        </Text>
       ) : (
         later.map((plan) => (
           <View key={plan.id} style={styles.todayRow}>
-            <Text style={styles.todayTime}>{activityClock(plan.start_time)}</Text>
+            <Text style={styles.todayTime}>
+              {activityClock(plan.start_time)}
+            </Text>
             <Text style={styles.todayPlan} numberOfLines={1}>
               {plan.title}
             </Text>
@@ -391,11 +505,11 @@ function TodayPlans({ tripId }: { tripId: number }) {
 // A smaller card for the other trips: a calendar tile, the basics, and who's going
 function TripRow({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
   const styles = useStyles();
-  const done = phase.phase === 'past';
+  const done = phase.phase === "past";
   const when =
-    phase.phase === 'upcoming'
+    phase.phase === "upcoming"
       ? phase.daysToGo === 1
-        ? 'Tomorrow'
+        ? "Tomorrow"
         : `In ${phase.daysToGo} days`
       : formatDateRange(trip.start_date!, trip.end_date!);
 
@@ -405,10 +519,15 @@ function TripRow({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
       accessibilityLabel={`${trip.title}, ${trip.destination}`}
       onPress={() => openTrip(trip)}
       scaleTo={0.98}
-      style={[styles.row, done && styles.rowPast]}>
+      style={[styles.row, done && styles.rowPast]}
+    >
       <View style={[styles.tile, done && styles.tilePast]}>
-        <Text style={[styles.tileMonth, done && styles.tileTextPast]}>{monthShort(trip.start_date!)}</Text>
-        <Text style={[styles.tileDay, done && styles.tileTextPast]}>{dayOfMonth(trip.start_date!)}</Text>
+        <Text style={[styles.tileMonth, done && styles.tileTextPast]}>
+          {monthShort(trip.start_date!)}
+        </Text>
+        <Text style={[styles.tileDay, done && styles.tileTextPast]}>
+          {dayOfMonth(trip.start_date!)}
+        </Text>
       </View>
       <View style={styles.rowText}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -421,7 +540,11 @@ function TripRow({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
           {tripStats(trip)}
         </Text>
       </View>
-      <AvatarStack people={trip.members.slice(0, 3)} total={trip.member_count} size={24} />
+      <AvatarStack
+        people={trip.members.slice(0, 3)}
+        total={trip.member_count}
+        size={24}
+      />
     </PressableScale>
   );
 }
@@ -429,10 +552,16 @@ function TripRow({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
 function EmptyState() {
   const styles = useStyles();
   const { colors } = useTheme();
-  const steps: { icon: 'plus-circle' | 'film' | 'calendar'; text: string }[] = [
-    { icon: 'plus-circle', text: 'Create a trip and invite your friends' },
-    { icon: 'film', text: 'Save TikToks, and Triplet finds the places in them' },
-    { icon: 'calendar', text: 'Add the ones you like to your plan, day by day' },
+  const steps: { icon: "plus-circle" | "film" | "calendar"; text: string }[] = [
+    { icon: "plus-circle", text: "Create a trip and invite your friends" },
+    {
+      icon: "film",
+      text: "Save TikToks, and Triplet finds the places in them",
+    },
+    {
+      icon: "calendar",
+      text: "Add the ones you like to your plan, day by day",
+    },
   ];
 
   return (
@@ -449,8 +578,10 @@ function EmptyState() {
           </View>
         ))}
       </View>
-      <Button label="Plan a trip" onPress={() => router.push('/trips/new')} />
-      <Text style={styles.emptyNote}>Invited by a friend? Their trip shows up in the Invites tab.</Text>
+      <Button label="Plan a trip" onPress={() => router.push("/trips/new")} />
+      <Text style={styles.emptyNote}>
+        Invited by a friend? Their trip shows up in the Invites tab.
+      </Text>
     </Enter>
   );
 }
@@ -465,9 +596,9 @@ const useStyles = makeStyles((colors) => ({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.xl,
-    width: '100%',
+    width: "100%",
     maxWidth: 560,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   pageWide: {
     maxWidth: 1180,
@@ -480,10 +611,10 @@ const useStyles = makeStyles((colors) => ({
     lineHeight: 40,
   },
   featuredWide: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 0,
     gap: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   featuredMain: {
     flex: 1.3,
@@ -510,8 +641,8 @@ const useStyles = makeStyles((colors) => ({
     color: colors.accentStrong,
   },
   previewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     paddingHorizontal: 14,
     paddingVertical: spacing.md,
@@ -524,7 +655,7 @@ const useStyles = makeStyles((colors) => ({
     color: colors.secondText,
   },
   gridRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 20,
   },
   gridCell: {
@@ -532,9 +663,9 @@ const useStyles = makeStyles((colors) => ({
     minWidth: 0,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
     gap: spacing.md,
   },
   headerText: {
@@ -560,8 +691,8 @@ const useStyles = makeStyles((colors) => ({
     width: 44,
     height: 44,
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   pressed: {
     opacity: 0.85,
@@ -592,13 +723,13 @@ const useStyles = makeStyles((colors) => ({
     boxShadow: colors.cardShadow,
   },
   featuredTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -630,8 +761,8 @@ const useStyles = makeStyles((colors) => ({
     color: colors.ink,
   },
   place: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
   },
   placeText: {
@@ -641,8 +772,8 @@ const useStyles = makeStyles((colors) => ({
     color: colors.muted,
   },
   countdown: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    alignItems: "baseline",
     gap: spacing.sm,
     marginTop: spacing.xs,
   },
@@ -652,7 +783,7 @@ const useStyles = makeStyles((colors) => ({
     fontSize: 44,
     lineHeight: 48,
     color: colors.accent,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   bigLabel: {
     fontFamily: fonts.medium,
@@ -677,7 +808,7 @@ const useStyles = makeStyles((colors) => ({
     color: colors.muted,
   },
   todayRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
   },
   todayTime: {
@@ -685,7 +816,7 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.semibold,
     fontSize: 14,
     color: colors.accent,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   todayPlan: {
     flex: 1,
@@ -699,9 +830,9 @@ const useStyles = makeStyles((colors) => ({
     color: colors.muted,
   },
   featuredFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.md,
     paddingTop: spacing.md,
     borderTopWidth: 1,
@@ -716,8 +847,8 @@ const useStyles = makeStyles((colors) => ({
 
   // Other trips
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: radii.card,
@@ -731,8 +862,8 @@ const useStyles = makeStyles((colors) => ({
     width: 50,
     height: 54,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.accentSoft,
   },
   tilePast: {
@@ -742,7 +873,7 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.semibold,
     fontSize: 11,
     letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     color: colors.accentStrong,
   },
   tileDay: {
@@ -787,8 +918,8 @@ const useStyles = makeStyles((colors) => ({
     width: 56,
     height: 56,
     borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.accentSoft,
   },
   emptyTitle: {
@@ -801,8 +932,8 @@ const useStyles = makeStyles((colors) => ({
     gap: spacing.md,
   },
   step: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
   },
   stepText: {
@@ -816,6 +947,6 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.body,
     fontSize: 13.5,
     color: colors.muted,
-    textAlign: 'center',
+    textAlign: "center",
   },
 }));

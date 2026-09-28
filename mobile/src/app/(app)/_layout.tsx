@@ -4,11 +4,11 @@ import { View } from 'react-native';
 import { WebSidebar } from '@/components/web-sidebar';
 import { useShareHandoff } from '@/share/share-intent';
 import { useTheme } from '@/theme/theme';
-import { useWideLayout } from '@/utils/layout';
+import { useSidebar } from '@/utils/layout';
 
 export default function AppLayout() {
   const { colors } = useTheme();
-  const wide = useWideLayout();
+  const sidebar = useSidebar();
   // Something shared to Triplet opens "Save to a trip"; this layout only exists while signed in
   useShareHandoff();
 
@@ -21,12 +21,12 @@ export default function AppLayout() {
     </Stack>
   );
 
-  if (!wide) return stack;
+  if (sidebar === 'none') return stack;
 
-  // On a big screen the website keeps a sidebar beside every page instead of the bottom tabs
+  // On a tablet or bigger the website keeps a sidebar beside every page instead of the bottom tabs
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.bg }}>
-      <WebSidebar />
+      <WebSidebar compact={sidebar === 'compact'} />
       <View style={{ flex: 1, minWidth: 0 }}>{stack}</View>
     </View>
   );

@@ -1,45 +1,54 @@
-import { Feather } from '@expo/vector-icons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Feather } from "@expo/vector-icons";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { api } from '@/api/client';
-import { tripKeys, useMe, type User } from '@/api/trips';
-import { useSession } from '@/auth/session';
-import { nameSchema } from '@/auth/validation';
-import { AccountSettings, DeleteAccount } from '@/components/account-settings';
-import { Avatar } from '@/components/avatar';
-import { Button } from '@/components/button';
-import { FormMessage, Screen } from '@/components/screen';
-import { Heading, Muted, Title } from '@/components/text';
-import { TextField } from '@/components/text-field';
-import type { ThemePreference } from '@/theme/preference';
-import { makeStyles, useTheme } from '@/theme/theme';
-import { fonts, radii, spacing } from '@/theme/tokens';
-import { useWideLayout } from '@/utils/layout';
-import { pickAndUploadProfilePhoto } from '@/utils/profile-photo';
+import { api } from "@/api/client";
+import { tripKeys, useMe, type User } from "@/api/trips";
+import { useSession } from "@/auth/session";
+import { nameSchema } from "@/auth/validation";
+import { AccountSettings, DeleteAccount } from "@/components/account-settings";
+import { Avatar } from "@/components/avatar";
+import { Button } from "@/components/button";
+import { FormMessage, Screen } from "@/components/screen";
+import { Heading, Muted, Title } from "@/components/text";
+import { TextField } from "@/components/text-field";
+import type { ThemePreference } from "@/theme/preference";
+import { makeStyles, useTheme } from "@/theme/theme";
+import { fonts, radii, spacing } from "@/theme/tokens";
+import { useLayoutSize } from "@/utils/layout";
+import { pickAndUploadProfilePhoto } from "@/utils/profile-photo";
 
 export default function ProfileScreen() {
   const styles = useStyles();
   const { colors } = useTheme();
   const { signOut } = useSession();
   const me = useMe();
-  const wide = useWideLayout();
+  // The settings page with its section list needs a desktop's width; tablets keep the single column
+  const wide = useLayoutSize() === "desktop";
   const scrollRef = useRef<ScrollView>(null);
   // Where each section starts, so the list on the left can jump to it
   const offsets = useRef<Record<string, number>>({});
 
   // Revokes every refresh token for the account, then signs out here too
   const signOutEverywhere = useMutation({
-    mutationFn: () => api('/auth/logout-all', { method: 'POST' }),
+    mutationFn: () => api("/auth/logout-all", { method: "POST" }),
     onSuccess: () => signOut(),
   });
 
   if (wide) {
     const sections: { key: string; label: string; content: ReactNode }[] = [
       {
-        key: 'profile',
-        label: 'Profile',
+        key: "profile",
+        label: "Profile",
         content: (
           <View style={styles.card}>
             {me.isPending ? (
@@ -55,16 +64,22 @@ export default function ProfileScreen() {
           </View>
         ),
       },
-      { key: 'account', label: 'Account', content: me.data ? <AccountSettings user={me.data} /> : null },
-      { key: 'appearance', label: 'Appearance', content: <AppearancePicker /> },
       {
-        key: 'devices',
-        label: 'Signed-in devices',
+        key: "account",
+        label: "Account",
+        content: me.data ? <AccountSettings user={me.data} /> : null,
+      },
+      { key: "appearance", label: "Appearance", content: <AppearancePicker /> },
+      {
+        key: "devices",
+        label: "Signed-in devices",
         content: (
           <View style={[styles.card, styles.devices]}>
             <View style={styles.devicesText}>
               <Title>Signed-in devices</Title>
-              <Muted>Log out here, or everywhere at once if you’ve lost a phone.</Muted>
+              <Muted>
+                Log out here, or everywhere at once if you’ve lost a phone.
+              </Muted>
             </View>
             <View style={styles.devicesButtons}>
               <Button label="Log out" variant="secondary" onPress={signOut} />
@@ -79,35 +94,62 @@ export default function ProfileScreen() {
           </View>
         ),
       },
-      { key: 'delete', label: 'Delete account', content: me.data ? <DeleteAccount /> : null },
+      {
+        key: "delete",
+        label: "Delete account",
+        content: me.data ? <DeleteAccount /> : null,
+      },
     ];
 
     return (
-      <ScrollView ref={scrollRef} style={styles.widePage} contentContainerStyle={styles.wideContent}>
-        <View style={styles.wideNav}>
-          <Heading style={styles.wideHeading}>Settings</Heading>
-          {sections.map((section) => (
-            <Pressable
-              key={section.key}
-              accessibilityRole="link"
-              onPress={() => scrollRef.current?.scrollTo({ y: offsets.current[section.key] ?? 0, animated: true })}
-              style={({ hovered }) => [styles.navItem, hovered && styles.navItemHover]}>
-              <Text style={[styles.navLabel, section.key === 'delete' && styles.navLabelDanger]}>{section.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <View style={styles.wideSections}>
-          {sections.map((section) => (
-            <View
-              key={section.key}
-              onLayout={(event) => {
-                offsets.current[section.key] = event.nativeEvent.layout.y;
-              }}>
-              {section.content}
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+      <SafeAreaView style={styles.widePage} edges={["top", "left", "right"]}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.widePage}
+          contentContainerStyle={styles.wideContent}
+        >
+          <View style={styles.wideNav}>
+            <Heading style={styles.wideHeading}>Settings</Heading>
+            {sections.map((section) => (
+              <Pressable
+                key={section.key}
+                accessibilityRole="link"
+                onPress={() =>
+                  scrollRef.current?.scrollTo({
+                    y: offsets.current[section.key] ?? 0,
+                    animated: true,
+                  })
+                }
+                style={({ hovered }) => [
+                  styles.navItem,
+                  hovered && styles.navItemHover,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.navLabel,
+                    section.key === "delete" && styles.navLabelDanger,
+                  ]}
+                >
+                  {section.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.wideSections}>
+            {sections.map((section) => (
+              <View
+                key={section.key}
+                onLayout={(event) => {
+                  offsets.current[section.key] = event.nativeEvent.layout.y;
+                }}
+              >
+                {section.content}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -162,9 +204,12 @@ function PhotoEditor({ user }: { user: User }) {
     queryClient.invalidateQueries({ queryKey: tripKeys.all });
   };
 
-  const change = useMutation({ mutationFn: pickAndUploadProfilePhoto, onSuccess: updated });
+  const change = useMutation({
+    mutationFn: pickAndUploadProfilePhoto,
+    onSuccess: updated,
+  });
   const remove = useMutation({
-    mutationFn: () => api<User>('/users/me/avatar', { method: 'DELETE' }),
+    mutationFn: () => api<User>("/users/me/avatar", { method: "DELETE" }),
     onSuccess: updated,
   });
   const busy = change.isPending || remove.isPending;
@@ -173,10 +218,13 @@ function PhotoEditor({ user }: { user: User }) {
     <View style={styles.photo}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={user.avatar_url ? 'Change your photo' : 'Add a photo'}
+        accessibilityLabel={
+          user.avatar_url ? "Change your photo" : "Add a photo"
+        }
         disabled={busy}
         onPress={() => change.mutate()}
-        style={({ pressed }) => pressed && styles.pressed}>
+        style={({ pressed }) => pressed && styles.pressed}
+      >
         <Avatar name={user.name} url={user.avatar_url} size={72} />
         {busy ? (
           <View style={styles.photoBusy}>
@@ -185,11 +233,23 @@ function PhotoEditor({ user }: { user: User }) {
         ) : null}
       </Pressable>
       <View style={styles.photoActions}>
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => change.mutate()} style={styles.editButton}>
-          <Text style={styles.editLabel}>{user.avatar_url ? 'Change photo' : 'Add a photo'}</Text>
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={() => change.mutate()}
+          style={styles.editButton}
+        >
+          <Text style={styles.editLabel}>
+            {user.avatar_url ? "Change photo" : "Add a photo"}
+          </Text>
         </Pressable>
         {user.avatar_url ? (
-          <Pressable accessibilityRole="button" disabled={busy} onPress={() => remove.mutate()} style={styles.editButton}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => remove.mutate()}
+            style={styles.editButton}
+          >
             <Text style={styles.removeLabel}>Remove</Text>
           </Pressable>
         ) : null}
@@ -208,21 +268,21 @@ function NameEditor({ user }: { user: User }) {
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
-    mutationFn: (value: string) => api<User>('/users/me', { method: 'PATCH', body: { name: value } }),
+    mutationFn: (value: string) =>
+      api<User>("/users/me", { method: "PATCH", body: { name: value } }),
     onSuccess: (updated) => {
       queryClient.setQueryData(tripKeys.me, updated);
       // Member lists show names, so refresh every trip's copy
       queryClient.invalidateQueries({ queryKey: tripKeys.all });
       setEditing(false);
     },
-    onError: (err) =>
-      setError(err.message),
+    onError: (err) => setError(err.message),
   });
 
   const submit = () => {
     const parsed = nameSchema.safeParse(name);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'Check your name');
+      setError(parsed.error.issues[0]?.message ?? "Check your name");
       return;
     }
     setError(null);
@@ -244,7 +304,8 @@ function NameEditor({ user }: { user: User }) {
             setError(null);
             setEditing(true);
           }}
-          style={styles.editButton}>
+          style={styles.editButton}
+        >
           <Text style={styles.editLabel}>Edit</Text>
         </Pressable>
       </View>
@@ -265,20 +326,34 @@ function NameEditor({ user }: { user: User }) {
         error={error ?? undefined}
       />
       <View style={styles.editorButtons}>
-        <Button label="Cancel" variant="secondary" onPress={() => setEditing(false)} style={styles.flex} />
-        <Button label="Save" loading={save.isPending} onPress={submit} style={styles.flex} />
+        <Button
+          label="Cancel"
+          variant="secondary"
+          onPress={() => setEditing(false)}
+          style={styles.flex}
+        />
+        <Button
+          label="Save"
+          loading={save.isPending}
+          onPress={submit}
+          style={styles.flex}
+        />
       </View>
     </View>
   );
 }
 
-const APPEARANCES: { value: ThemePreference; label: string; icon: ComponentProps<typeof Feather>['name'] }[] = [
+const APPEARANCES: {
+  value: ThemePreference;
+  label: string;
+  icon: ComponentProps<typeof Feather>["name"];
+}[] = [
   // On the website "system" means the computer's own light or dark setting
-  Platform.OS === 'web'
-    ? { value: 'system', label: 'Match system', icon: 'monitor' }
-    : { value: 'system', label: 'Match phone', icon: 'smartphone' },
-  { value: 'light', label: 'Light', icon: 'sun' },
-  { value: 'dark', label: 'Dark', icon: 'moon' },
+  Platform.OS === "web"
+    ? { value: "system", label: "Match system", icon: "monitor" }
+    : { value: "system", label: "Match phone", icon: "smartphone" },
+  { value: "light", label: "Light", icon: "sun" },
+  { value: "dark", label: "Dark", icon: "moon" },
 ];
 
 // Light, dark, or whatever the phone (or browser) is set to
@@ -298,9 +373,21 @@ function AppearancePicker() {
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
               onPress={() => setPreference(value)}
-              style={[styles.segment, selected && styles.segmentSelected]}>
-              <Feather name={icon} size={16} color={selected ? colors.ink : colors.muted} />
-              <Text style={[styles.segmentLabel, selected && styles.segmentLabelSelected]}>{label}</Text>
+              style={[styles.segment, selected && styles.segmentSelected]}
+            >
+              <Feather
+                name={icon}
+                size={16}
+                color={selected ? colors.ink : colors.muted}
+              />
+              <Text
+                style={[
+                  styles.segmentLabel,
+                  selected && styles.segmentLabelSelected,
+                ]}
+              >
+                {label}
+              </Text>
             </Pressable>
           );
         })}
@@ -316,7 +403,7 @@ const useStyles = makeStyles((colors) => ({
     backgroundColor: colors.bg,
   },
   wideContent: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 48,
     paddingHorizontal: 56,
     paddingVertical: 40,
@@ -332,7 +419,7 @@ const useStyles = makeStyles((colors) => ({
     height: 36,
     paddingHorizontal: spacing.md,
     borderRadius: radii.input - 2,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   navItemHover: {
     backgroundColor: colors.chip,
@@ -357,9 +444,9 @@ const useStyles = makeStyles((colors) => ({
     gap: 4,
   },
   devicesButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
-    alignItems: 'center',
+    alignItems: "center",
   },
   appearance: {
     gap: spacing.sm,
@@ -370,7 +457,7 @@ const useStyles = makeStyles((colors) => ({
     color: colors.ink,
   },
   segments: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 4,
     padding: 4,
     borderRadius: 12,
@@ -378,9 +465,9 @@ const useStyles = makeStyles((colors) => ({
   },
   segment: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     minHeight: 44,
     borderRadius: radii.input - 2,
@@ -411,8 +498,8 @@ const useStyles = makeStyles((colors) => ({
     gap: spacing.sm,
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
   },
   nameText: {
@@ -422,7 +509,7 @@ const useStyles = makeStyles((colors) => ({
   editButton: {
     minHeight: 44,
     paddingHorizontal: spacing.sm,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   editLabel: {
     fontFamily: fonts.bold,
@@ -437,17 +524,17 @@ const useStyles = makeStyles((colors) => ({
     marginBottom: spacing.md,
   },
   photoBusy: {
-    position: 'absolute',
+    position: "absolute",
     inset: 0,
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   photoActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
     marginLeft: -spacing.sm,
   },
@@ -460,7 +547,7 @@ const useStyles = makeStyles((colors) => ({
     opacity: 0.75,
   },
   editorButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   flex: {

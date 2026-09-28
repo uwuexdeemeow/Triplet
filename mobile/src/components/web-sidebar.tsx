@@ -26,9 +26,10 @@ const ITEMS: Item[] = [
  * The website's navigation on a big screen, in place of the phone's bottom tabs.
  * Inside a trip it folds down to icons so the plan and its map get the room.
  */
-export function WebSidebar() {
+export function WebSidebar({ compact: always = false }: { compact?: boolean }) {
   const pathname = usePathname();
-  const compact = pathname.startsWith('/trips/') && pathname !== '/trips/new';
+  // Slim on a tablet-sized window, and inside a trip so the plan gets the room
+  const compact = always || (pathname.startsWith('/trips/') && pathname !== '/trips/new');
   const styles = useStyles();
   const { colors } = useTheme();
   const me = useMe();
@@ -48,15 +49,18 @@ export function WebSidebar() {
         {compact ? null : <Text style={styles.wordmark}>Triplet</Text>}
       </Pressable>
 
-      {compact ? null : (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/trips/new')}
-          style={({ hovered, pressed }) => [styles.newTrip, (hovered || pressed) && styles.newTripHover]}>
-          <Feather name="plus" size={16} color={colors.onAccent} />
-          <Text style={styles.newTripLabel}>New trip</Text>
-        </Pressable>
-      )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="New trip"
+        onPress={() => router.push('/trips/new')}
+        style={({ hovered, pressed }) => [
+          styles.newTrip,
+          compact && styles.newTripCompact,
+          (hovered || pressed) && styles.newTripHover,
+        ]}>
+        <Feather name="plus" size={compact ? 20 : 16} color={colors.onAccent} />
+        {compact ? null : <Text style={styles.newTripLabel}>New trip</Text>}
+      </Pressable>
 
       <View style={styles.items}>
         {ITEMS.map((item) => {
@@ -157,6 +161,10 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
+  },
+  newTripCompact: {
+    width: 44,
+    borderRadius: 22,
   },
   newTripHover: {
     backgroundColor: colors.accentStrong,

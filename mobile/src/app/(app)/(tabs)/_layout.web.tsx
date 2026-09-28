@@ -5,14 +5,14 @@ import { Tabs } from 'expo-router';
 import { useMyInvitations } from '@/api/trips';
 import { useTheme } from '@/theme/theme';
 import { fonts } from '@/theme/tokens';
-import { useWideLayout } from '@/utils/layout';
+import { useSidebar } from '@/utils/layout';
 
 export default function TabsLayout() {
   const { colors } = useTheme();
   const invitations = useMyInvitations();
   const pending = invitations.data?.length ?? 0;
-  // A wide window has the sidebar instead (app/(app)/_layout.tsx)
-  const wide = useWideLayout();
+  // A tablet-sized window or bigger has the sidebar instead (app/(app)/_layout.tsx)
+  const wide = useSidebar() !== 'none';
 
   return (
     <Tabs

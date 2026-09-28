@@ -9,7 +9,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, spacing, touchTarget } from '@/theme/tokens';
 import { formatDateRange } from '@/utils/dates';
-import { useShowsMapPanel, useWideLayout } from '@/utils/layout';
+import { useLayoutSize, useShowsMapPanel, useWideLayout } from '@/utils/layout';
 
 const SECTIONS = [
   { label: 'Plan', pathname: '/trips/[tripId]', suffix: '' },
@@ -30,6 +30,7 @@ export default function TripSectionsLayout() {
 
   const active = SECTIONS.find((section) => section.suffix && pathname.endsWith(section.suffix)) ?? SECTIONS[0];
   const wide = useWideLayout();
+  const size = useLayoutSize();
   // With the map beside the plan, it doesn't need its own tab (unless you're already on it)
   const mapPanel = useShowsMapPanel();
   const sections = SECTIONS.filter((section) => !(mapPanel && section.label === 'Map' && active !== section));
@@ -73,7 +74,8 @@ export default function TripSectionsLayout() {
 
   if (wide) {
     return (
-      <View style={styles.safeArea}>
+      // Keeps the header clear of the status bar on a real tablet
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.wideHeader}>
           <Pressable
             accessibilityRole="button"
@@ -90,7 +92,8 @@ export default function TripSectionsLayout() {
           </View>
           {tabs}
           <View style={styles.wideActions}>
-            {isOwner ? (
+            {/* Tablets are too narrow for it next to the tabs; it's in trip settings either way */}
+            {isOwner && size === 'desktop' ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityHint="Opens trip settings, where you can turn on a guest code"
@@ -117,7 +120,7 @@ export default function TripSectionsLayout() {
         ) : (
           <Slot />
         )}
-      </View>
+      </SafeAreaView>
     );
   }
 
