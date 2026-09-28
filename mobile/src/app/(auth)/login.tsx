@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Text, View, type TextInput } from 'react-native';
@@ -20,8 +20,6 @@ export default function LoginScreen() {
   const { colors } = useTheme();
   const { signIn } = useSession();
   const [formError, setFormError] = useState<string | null>(null);
-  // The email of an account that still needs confirming, so a new link can be sent
-  const [unconfirmed, setUnconfirmed] = useState<string | null>(null);
   const passwordRef = useRef<TextInput>(null);
 
   const { control, handleSubmit, formState } = useForm<LoginValues>({
@@ -31,17 +29,10 @@ export default function LoginScreen() {
 
   const onSubmit = handleSubmit(async ({ email, password }) => {
     setFormError(null);
-    setUnconfirmed(null);
     try {
       await signIn(email, password);
       // The root layout switches to the app once signed in
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) {
-        // Only said after the password matched, so it doesn't reveal accounts to strangers
-        setUnconfirmed(email.trim().toLowerCase());
-        setFormError('Confirm your email first with the code we sent when you signed up.');
-        return;
-      }
       setFormError(
         error instanceof ApiError && error.status === 401
           ? "That email and password don't match."
@@ -112,13 +103,6 @@ export default function LoginScreen() {
           </Link>
 
           <Button label="Log in" loading={formState.isSubmitting} onPress={onSubmit} />
-          {unconfirmed ? (
-            <Button
-              label="Enter my code"
-              variant="secondary"
-              onPress={() => router.push({ pathname: '/verify-code', params: { email: unconfirmed } })}
-            />
-          ) : null}
         </View>
       </View>
 

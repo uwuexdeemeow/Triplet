@@ -103,11 +103,11 @@ def test_invite_someone_not_on_triplet_yet(client, alice, bob, trip, make_user, 
     assert sam["id"] in [m["user_id"] for m in members]
 
 def test_unconfirmed_accounts_get_the_invite_after_confirming(client, alice, trip, outbox):
-    client.post("/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD})
+    signup_token = client.post("/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD}).json()["signup_token"]
     client.post(f"/trips/{trip['id']}/invitations", headers=alice["headers"], json={"email": "sam@example.com"})
 
     code = emailed_code(outbox, "sam@example.com")
-    token = client.post("/auth/verify-email/code", json={"email": "sam@example.com", "code": code}).json()["access_token"]
+    token = client.post("/auth/verify-email/code", json={"signup_token": signup_token, "code": code}).json()["access_token"]
 
     received = client.get("/invitations", headers={"Authorization": f"Bearer {token}"}).json()
     assert [i["trip_title"] for i in received] == ["Tokyo"]

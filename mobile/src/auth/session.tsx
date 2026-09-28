@@ -12,6 +12,7 @@ import {
   saveGuestToken,
   saveSession,
 } from '@/auth/token-storage';
+import { forgetSignup, pendingSignup, rememberSignup } from '@/auth/verification';
 
 // Guests opened one trip with its code and PIN, and can only look at it
 type Status = 'loading' | 'signedIn' | 'signedOut' | 'guest';
@@ -21,7 +22,7 @@ type Session = {
   status: Status;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
-  confirmSignup: (email: string, code: string) => Promise<void>;
+  confirmSignup: (code: string) => Promise<void>;
   enterAsGuest: (accessCode: string, pin: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -142,23 +143,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [startSession],
   );
 
-  // The code from the sign-up email confirms the address and signs straight in
+  // The code from the sign-up email creates the account and signs straight in
   const confirmSignup = useCallback(
-    async (email: string, code: string) => {
+    async (code: string) => {
+      const pending = pendingSignup();
+      if (!pending) throw new Error('Sign up again to get a new code.');
       const tokens = await api<Tokens>('/auth/verify-email/code', {
         method: 'POST',
-        body: { email, code },
+        body: { signup_token: pending.token, code },
         auth: false,
         refreshCookie: REFRESH_IN_COOKIE,
       });
+      forgetSignup();
       await startSession(tokens);
     },
     [startSession],
   );
 
-  // Signing up doesn't sign in: the account works once the emailed code confirms the address
+  // Signing up doesn't sign in: the account is only created once the emailed code is entered
   const signUp = useCallback(async (name: string, email: string, password: string) => {
-    await api('/auth/signup', { method: 'POST', body: { name, email, password }, auth: false });
+    const { signup_token } = await api<Schemas['SignupResponse']>('/auth/signup', {
+      method: 'POST',
+      body: { name, email, password },
+      auth: false,
+    });
+    rememberSignup(email.trim().toLowerCase(), signup_token);
   }, []);
 
   const enterAsGuest = useCallback(

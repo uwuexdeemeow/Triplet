@@ -1,8 +1,9 @@
-import { Link, Redirect, useLocalSearchParams } from 'expo-router';
+import { Link, Redirect } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { useSession } from '@/auth/session';
+import { pendingSignup } from '@/auth/verification';
 import { Button } from '@/components/button';
 import { CodeField } from '@/components/code-field';
 import { ResendConfirmation } from '@/components/resend-confirmation';
@@ -11,11 +12,11 @@ import { Body, Heading } from '@/components/text';
 import { makeStyles } from '@/theme/theme';
 import { fonts, spacing } from '@/theme/tokens';
 
-// After signing up (or logging in to an unconfirmed account): enter the emailed code to get in
+// After signing up: enter the emailed code to create the account and get in
 export default function VerifyCodeScreen() {
   const styles = useStyles();
   const { confirmSignup } = useSession();
-  const { email = '' } = useLocalSearchParams<{ email?: string }>();
+  const email = pendingSignup()?.email;
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -28,7 +29,7 @@ export default function VerifyCodeScreen() {
     setError(null);
     setChecking(true);
     try {
-      await confirmSignup(email, code);
+      await confirmSignup(code);
       // The root layout switches to the app once signed in
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -36,7 +37,7 @@ export default function VerifyCodeScreen() {
     }
   };
 
-  // Opened without an email (e.g. a bookmarked address): start again from sign-up
+  // Opened without a sign-up waiting (e.g. a bookmarked address, or after a restart): start again
   if (!email) return <Redirect href="/signup" />;
 
   return (

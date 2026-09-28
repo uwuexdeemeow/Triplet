@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { CURRENCIES } from '@/utils/currencies';
+
 // Empty means "no budget"; otherwise a positive amount like "150000" or "1,200.50"
 const optionalAmount = z
   .string()
@@ -20,10 +22,7 @@ export const tripSchema = z
     startDate: z.string(),
     endDate: z.string(),
     budget: optionalAmount,
-    currency: z
-      .string()
-      .trim()
-      .regex(/^[A-Za-z]{3}$/, 'Use a 3-letter code, like JPY or USD'),
+    currency: z.string().refine((code) => Object.hasOwn(CURRENCIES, code), { message: 'Pick a currency' }),
   })
   .refine((values) => values.endDate >= values.startDate, {
     message: 'The trip can’t end before it starts',

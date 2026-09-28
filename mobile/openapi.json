@@ -12,6 +12,7 @@
      "Authentication"
     ],
     "summary": "Signup",
+    "description": "Start signing up: the account is only created once the emailed code is entered\n(see /verify-email/code), so an unconfirmed sign-up never holds the email.",
     "operationId": "signup_auth_signup_post",
     "requestBody": {
      "content": {
@@ -29,7 +30,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/MessageResponse"
+         "$ref": "#/components/schemas/SignupResponse"
         }
        }
       }
@@ -94,7 +95,7 @@
      "Authentication"
     ],
     "summary": "Verify Email Code",
-    "description": "Enter the code from the sign-up email. It confirms the address and signs straight in.",
+    "description": "Enter the code from the sign-up email. It creates the account and signs straight in.",
     "operationId": "verify_email_code_auth_verify_email_code_post",
     "requestBody": {
      "content": {
@@ -834,6 +835,56 @@
           "$ref": "#/components/schemas/TripSummaryResponse"
          },
          "title": "Response Get Trips Trips Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/currency": {
+   "get": {
+    "tags": [
+     "Trips"
+    ],
+    "summary": "Suggest Currency",
+    "description": "The currency a new trip to `destination` most likely uses, e.g. JPY for \"Tokyo\".",
+    "operationId": "suggest_currency_trips_currency_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "destination",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 255,
+       "title": "Destination"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CurrencySuggestion"
         }
        }
       }
@@ -4371,6 +4422,26 @@
     ],
     "title": "CodeRequest"
    },
+   "CurrencySuggestion": {
+    "properties": {
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     }
+    },
+    "type": "object",
+    "required": [
+     "currency"
+    ],
+    "title": "CurrencySuggestion"
+   },
    "DayWeather": {
     "properties": {
      "summary": {
@@ -5918,15 +5989,15 @@
    },
    "ResendVerificationRequest": {
     "properties": {
-     "email": {
+     "signup_token": {
       "type": "string",
-      "format": "email",
-      "title": "Email"
+      "maxLength": 256,
+      "title": "Signup Token"
      }
     },
     "type": "object",
     "required": [
-     "email"
+     "signup_token"
     ],
     "title": "ResendVerificationRequest"
    },
@@ -6203,6 +6274,24 @@
      "message"
     ],
     "title": "ScheduleWarning"
+   },
+   "SignupResponse": {
+    "properties": {
+     "detail": {
+      "type": "string",
+      "title": "Detail"
+     },
+     "signup_token": {
+      "type": "string",
+      "title": "Signup Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "detail",
+     "signup_token"
+    ],
+    "title": "SignupResponse"
    },
    "SlotSuggestion": {
     "properties": {
@@ -7094,10 +7183,10 @@
    },
    "VerifyCodeRequest": {
     "properties": {
-     "email": {
+     "signup_token": {
       "type": "string",
-      "format": "email",
-      "title": "Email"
+      "maxLength": 256,
+      "title": "Signup Token"
      },
      "code": {
       "type": "string",
@@ -7107,7 +7196,7 @@
     },
     "type": "object",
     "required": [
-     "email",
+     "signup_token",
      "code"
     ],
     "title": "VerifyCodeRequest"

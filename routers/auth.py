@@ -7,7 +7,7 @@ from database import connect_db
 from models import User, RefreshToken, PasswordResetToken
 from schemas import (
     UserCreate, UserLogin, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse,
-    VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest
+    VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest, SignupResponse
 )
 import codes
 from security import hash_password, verify_password, create_access_token, generate_token, hash_token
@@ -45,7 +45,7 @@ RESET_CODE_PURPOSE = "reset-password"
 
 TOO_MANY_LOGINS ="Too many sign-in attempts. Wait a few minutes and try again."
 # The same answer whether or not the email already has an account, so sign-up can't be used to find accounts
-CHECK_EMAIL = {"detail": "Check your email to finish signing up"}
+CHECK_EMAIL = "Check your email to finish signing up"
 
 # A real Argon2 hash to check against when the email has no account, so a wrong email takes
 # as long as a wrong password and response times don't reveal who has an account
@@ -112,13 +112,17 @@ def revoke_refresh_tokens(db: Session, user_id: int):
         RefreshToken.revoked_at.is_(None)
     ).update({"revoked_at": datetime.now(timezone.utc)})
 
-@router.post("/signup", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_202_ACCEPTED)
 def signup(
     user: UserCreate,
     request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
+    """
+    Start signing up: the account is only created once the emailed code is entered
+    (see /verify-email/code), so an unconfirmed sign-up never holds the email.
+    """
     rate_limit.hit(db, f"signup-ip:{client_ip(request)}", SIGNUP_IP_LIMIT, SIGNUP_WINDOW,
                    "Too many new accounts from this network. Try again later.")
 
@@ -139,44 +143,34 @@ def signup(
             detail="Invalid credentials"
         )
 
+    # Looks just like a real one, but no sign-up is waiting on it
+    unused_token = {"detail": CHECK_EMAIL, "signup_token": generate_token()}
+
     # A few emails an hour to one address at most, so nobody can flood an inbox
     try:
         rate_limit.hit(db, f"verify-email:{user.email}", VERIFY_EMAIL_LIMIT, VERIFY_WINDOW, "")
     except HTTPException:
         logger.info("Not emailing %s: already sent %d emails there in the last hour", user.email, VERIFY_EMAIL_LIMIT)
-        return CHECK_EMAIL
+        return unused_token
 
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user is not None:
-        if existing_user.email_verified_at is None:
-            # Signed up before but never confirmed: send a fresh link
-            verification.send_verification(db, background_tasks, existing_user, existing_user.email)
-        else:
-            # Tell the real owner rather than the person signing up
-            background_tasks.add_task(
-                send_email,
-                existing_user.email,
-                "You already have a Triplet account",
-                f"Hi {existing_user.name},\n\n"
-                "Someone (hopefully you) tried to sign up to Triplet with this email, "
-                "but you already have an account.\n\n"
-                f"Sign in: {settings.APP_URL}/login\n"
-                f"Forgot your password? {settings.APP_URL}/forgot-password\n\n"
-                "If it wasn't you, you can ignore this email."
-            )
-        return CHECK_EMAIL
+        # Tell the real owner rather than the person signing up
+        background_tasks.add_task(
+            send_email,
+            existing_user.email,
+            "You already have a Triplet account",
+            f"Hi {existing_user.name},\n\n"
+            "Someone (hopefully you) tried to sign up to Triplet with this email, "
+            "but you already have an account.\n\n"
+            f"Sign in: {settings.APP_URL}/login\n"
+            f"Forgot your password? {settings.APP_URL}/forgot-password\n\n"
+            "If it wasn't you, you can ignore this email."
+        )
+        return unused_token
 
-    new_user = User(
-        name=user.name,
-        email=user.email,
-        password=hash_password(user.password)
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    verification.send_verification(db, background_tasks, new_user, new_user.email)
-    return CHECK_EMAIL
+    signup_token = verification.start_signup(db, background_tasks, user.name, user.email, user.password)
+    return {"detail": CHECK_EMAIL, "signup_token": signup_token}
 
 @router.post("/verify-email", response_model=MessageResponse)
 def verify_email(
@@ -196,10 +190,10 @@ def verify_email_code(
     response: Response,
     db: Session = Depends(connect_db)
 ):
-    """Enter the code from the sign-up email. It confirms the address and signs straight in."""
+    """Enter the code from the sign-up email. It creates the account and signs straight in."""
     rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
                    "Too many requests. Wait a moment and try again.")
-    user = verification.confirm_signup_code(db, verify_request.email, verify_request.code)
+    user = verification.confirm_signup(db, verify_request.signup_token, verify_request.code)
     return issue_tokens(db, user, request, response)
 
 @router.post("/verify-email/resend", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -209,22 +203,24 @@ def resend_verification(
     background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
-    response = {"detail": "If that email needs confirming, a new code is on its way"}
+    response = {"detail": "If that sign-up is still waiting, a new code is on its way"}
 
     rate_limit.hit(db, f"reset-ip:{client_ip(request)}", RESET_IP_LIMIT, RESET_WINDOW,
                    "Too many requests. Try again later.")
-    try:
-        rate_limit.hit(db, f"verify-email:{resend_request.email}", VERIFY_EMAIL_LIMIT, VERIFY_WINDOW, "")
-    except HTTPException:
-        logger.info("Not emailing %s: already sent %d emails there in the last hour",
-                    resend_request.email, VERIFY_EMAIL_LIMIT)
+
+    pending = verification.find_signup(db, resend_request.signup_token)
+    if pending is None:
+        logger.info("Not resending a sign-up code: no sign-up is waiting on that token")
         return response
 
-    user = db.query(User).filter(User.email == resend_request.email).first()
-    if user is not None and user.email_verified_at is None:
-        verification.send_verification(db, background_tasks, user, user.email)
-    else:
-        logger.info("Not emailing %s: no unconfirmed account with that email", resend_request.email)
+    try:
+        rate_limit.hit(db, f"verify-email:{pending.email}", VERIFY_EMAIL_LIMIT, VERIFY_WINDOW, "")
+    except HTTPException:
+        logger.info("Not emailing %s: already sent %d emails there in the last hour",
+                    pending.email, VERIFY_EMAIL_LIMIT)
+        return response
+
+    verification.resend_signup_code(db, background_tasks, pending)
     return response
 
 @router.post("/login", response_model=Token)
@@ -252,13 +248,6 @@ def login(
         )
 
     rate_limit.clear(db, email_key)
-
-    # Only said after the right password, so it reveals nothing to someone guessing
-    if user_detail.email_verified_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Confirm your email first: enter the code we sent you, or ask for a new one"
-        )
 
     return issue_tokens(db, user_detail, request, response)
 
@@ -444,8 +433,6 @@ def confirm_password_reset(
 
     user.password = hash_password(reset_confirm.new_password)
     reset_token.used_at = datetime.now(timezone.utc)
-    # The emailed code proves they own the inbox, which is all confirming would do
-    verification.mark_verified(db, user)
     revoke_refresh_tokens(db, user.id)
     db.commit()
 

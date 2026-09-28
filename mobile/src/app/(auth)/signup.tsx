@@ -46,7 +46,7 @@ export default function SignupScreen() {
     try {
       await signUp(name, email, password);
       // Next: the code we just emailed
-      router.push({ pathname: '/verify-code', params: { email: email.trim().toLowerCase() } });
+      router.push('/verify-code');
     } catch (error) {
       setFormError(signupError(error));
     }

@@ -32,7 +32,7 @@ class User(Base):
         nullable=True
     )
 
-    # Set once the user clicks the link we emailed; they can't sign in before that
+    # When the email was confirmed; accounts are only created once it is (see verification.py)
     email_verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True
@@ -724,6 +724,71 @@ class EmailVerificationToken(Base):
     )
 
     # Wrong codes entered; the code stops working after a few (see codes.py)
+    attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+class PendingSignup(Base):
+    """
+    A sign-up waiting for its emailed code. The account itself is only created once the code
+    proves the person controls the inbox, so an unconfirmed sign-up never holds an email.
+    """
+    __tablename__ = "pending_signups"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    # Already hashed, like users.password
+    password: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    # Hash of the token the sign-up screen keeps; the code only works alongside it, so a code
+    # emailed for someone else's sign-up with the same address can't finish yours
+    signup_token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True
+    )
+
+    # Hash of the current code (see codes.py); the fields below work like EmailVerificationToken's
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
     attempts: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

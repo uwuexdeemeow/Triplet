@@ -8,7 +8,7 @@ import { FormMessage } from '@/components/screen';
 // Long enough that a code which is just slow to arrive isn't replaced by a second one
 const WAIT_SECONDS = 30;
 
-// A button that emails a fresh confirmation code, then waits a little before it can again
+// A button that emails a fresh code for the waiting sign-up, then waits a little before it can again
 export function ResendConfirmation({ email, label = 'Send a new code' }: { email: string; label?: string }) {
   const [sending, setSending] = useState(false);
   const [wait, setWait] = useState(0);
@@ -24,7 +24,7 @@ export function ResendConfirmation({ email, label = 'Send a new code' }: { email
     setSending(true);
     setMessage(null);
     try {
-      await resendConfirmation(email);
+      await resendConfirmation();
       setMessage({ text: `A new code is on its way to ${email}. Older codes no longer work.`, tone: 'success' });
       setWait(WAIT_SECONDS);
     } catch (error) {

@@ -105,9 +105,10 @@ def make_user(client, outbox):
 
         response = client.post("/auth/signup", json={"name": name, "email": email, "password": PASSWORD})
         assert response.status_code == 202, response.text
+        signup_token = response.json()["signup_token"]
 
         # Enter the code from the email, like a person would; that signs them in
-        response = client.post("/auth/verify-email/code", json={"email": email, "code": emailed_code(outbox, email)})
+        response = client.post("/auth/verify-email/code", json={"signup_token": signup_token, "code": emailed_code(outbox, email)})
         assert response.status_code == 200, response.text
 
         headers = {"Authorization": f"Bearer {response.json()['access_token']}"}

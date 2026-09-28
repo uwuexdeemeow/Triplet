@@ -13,7 +13,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Signup */
+        /**
+         * Signup
+         * @description Start signing up: the account is only created once the emailed code is entered
+         *     (see /verify-email/code), so an unconfirmed sign-up never holds the email.
+         */
         post: operations["signup_auth_signup_post"];
         delete?: never;
         options?: never;
@@ -49,7 +53,7 @@ export interface paths {
         put?: never;
         /**
          * Verify Email Code
-         * @description Enter the code from the sign-up email. It confirms the address and signs straight in.
+         * @description Enter the code from the sign-up email. It creates the account and signs straight in.
          */
         post: operations["verify_email_code_auth_verify_email_code_post"];
         delete?: never;
@@ -280,6 +284,26 @@ export interface paths {
         put?: never;
         /** Create Trip */
         post: operations["create_trip_trips_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/currency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest Currency
+         * @description The currency a new trip to `destination` most likely uses, e.g. JPY for "Tokyo".
+         */
+        get: operations["suggest_currency_trips_currency_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1131,6 +1155,11 @@ export interface components {
             /** Code */
             code: string;
         };
+        /** CurrencySuggestion */
+        CurrencySuggestion: {
+            /** Currency */
+            currency: string | null;
+        };
         /** DayWeather */
         DayWeather: {
             /** Summary */
@@ -1573,11 +1602,8 @@ export interface components {
         };
         /** ResendVerificationRequest */
         ResendVerificationRequest: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
+            /** Signup Token */
+            signup_token: string;
         };
         /** SavedLinkCreate */
         SavedLinkCreate: {
@@ -1654,6 +1680,13 @@ export interface components {
             kind: "closed" | "outside_hours" | "tight_travel";
             /** Message */
             message: string;
+        };
+        /** SignupResponse */
+        SignupResponse: {
+            /** Detail */
+            detail: string;
+            /** Signup Token */
+            signup_token: string;
         };
         /** SlotSuggestion */
         SlotSuggestion: {
@@ -1937,11 +1970,8 @@ export interface components {
         };
         /** VerifyCodeRequest */
         VerifyCodeRequest: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
+            /** Signup Token */
+            signup_token: string;
             /** Code */
             code: string;
         };
@@ -1978,7 +2008,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MessageResponse"];
+                    "application/json": components["schemas"]["SignupResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2558,6 +2588,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggest_currency_trips_currency_get: {
+        parameters: {
+            query: {
+                destination: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrencySuggestion"];
                 };
             };
             /** @description Validation Error */

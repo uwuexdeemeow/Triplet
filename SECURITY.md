@@ -7,8 +7,8 @@ How Triplet protects accounts and data, what to set when deploying, and what's s
 **Accounts**
 - Passwords are hashed with Argon2 and must pass a strength check (zxcvbn, score 3+).
 - Access tokens last 30 minutes. Refresh tokens are random, stored only as hashes, single-use, and reusing an old one signs the account out everywhere.
-- New accounts confirm their email before they can sign in (links last 48 hours, work once, and a new one replaces the old). A new email address only takes effect once its inbox confirms it.
-- Nothing reveals whether an email has an account: sign-up, "resend the link" and password reset answer the same either way (the real owner gets an email instead), and invites look the same whether or not the person is on Triplet. Names only show once someone joins a trip.
+- An account is only created once its emailed six-digit code is entered; until then the sign-up waits in `pending_signups` and holds nothing. The code only works together with a token the sign-up screen got back, so someone who signs up first with your address (and a password they know) can't end up owning your account. Codes last 15 minutes, lock after 5 wrong tries, and a new one replaces the old. A new email address only takes effect once its inbox confirms it.
+- Nothing reveals whether an email has an account: sign-up, "send a new code" and password reset answer the same either way (the real owner gets an email instead), and invites look the same whether or not the person is on Triplet. Names only show once someone joins a trip.
 - People search only finds people you already share a trip with, by name.
 - Password reset links expire after 30 minutes and work once.
 - Changing your email or password, or deleting your account, needs your current password.

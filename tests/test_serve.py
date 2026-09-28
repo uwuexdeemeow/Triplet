@@ -59,11 +59,12 @@ def test_missing_files_are_still_missing(site):
 def test_the_api_lives_under_api(site, outbox):
     response = site.post("/api/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD})
     assert response.status_code == 202, response.text
+    signup_token = response.json()["signup_token"]
 
     # The website signs in with a cookie scoped to the API's auth routes
     code = emailed_code(outbox, "sam@example.com")
     response = site.post("/api/auth/verify-email/code", headers={"X-Refresh-Cookie": "1"},
-                         json={"email": "sam@example.com", "code": code})
+                         json={"signup_token": signup_token, "code": code})
     assert response.status_code == 200, response.text
     assert "Path=/api/auth" in response.headers["set-cookie"]
     # API responses keep the API's own headers, not the website's

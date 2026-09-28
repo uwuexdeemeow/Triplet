@@ -97,9 +97,9 @@ def test_emails_ignore_case(client, alice, outbox):
     assert "already have an account" in outbox[-1][2]
 
 def test_new_accounts_are_stored_lowercase(client, outbox):
-    client.post("/auth/signup", json={"name": "sam", "email": "Sam@Example.COM", "password": PASSWORD})
+    signup_token = client.post("/auth/signup", json={"name": "sam", "email": "Sam@Example.COM", "password": PASSWORD}).json()["signup_token"]
     code = emailed_code(outbox, "sam@example.com")
-    assert client.post("/auth/verify-email/code", json={"email": "sam@example.com", "code": code}).status_code == 200
+    assert client.post("/auth/verify-email/code", json={"signup_token": signup_token, "code": code}).status_code == 200
     token = login(client, "sam@example.com", PASSWORD).json()["access_token"]
 
     me = client.get("/users/me", headers={"Authorization": f"Bearer {token}"}).json()
@@ -146,9 +146,10 @@ def test_only_hmac_algorithms_are_allowed():
         Settings(DB_SETTINGS="sqlite://", SECRET_KEY="k" * 40, ALGORITHM="none")
 
 def test_confirmation_emails_are_capped(client, limits_on, outbox):
+    signup_token = client.post("/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD}).json()["signup_token"]
     for _ in range(5):
-        assert client.post("/auth/verify-email/resend", json={"email": "sam@example.com"}).status_code == 202
+        assert client.post("/auth/verify-email/resend", json={"signup_token": signup_token}).status_code == 202
     client.post("/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD})
 
-    # The resends used up this hour's emails for the address, so even sign-up sends nothing more
-    assert not [mail for mail in outbox if mail[0] == "sam@example.com"]
+    # Sign-up and two resends used up this hour's three emails for the address; nothing more goes out
+    assert len([mail for mail in outbox if mail[0] == "sam@example.com"]) == 3

@@ -96,3 +96,27 @@ def test_empty_trip_summary_is_zero(client, alice, trip):
     summary = client.get("/trips", headers=alice["headers"]).json()[0]
 
     assert (summary["plan_count"], summary["saved_count"], summary["spent"], summary["member_count"]) == (0, 0, 0, 1)
+
+def test_currency_is_suggested_from_the_destination(client, alice, monkeypatch):
+    import photon_lookup
+    photon_lookup._cache.clear()
+    monkeypatch.setattr(photon_lookup, "photon_request",
+                        lambda params, url=None: [{"properties": {"name": "Tokyo", "countrycode": "JP"}}])
+
+    response = client.get("/trips/currency", headers=alice["headers"], params={"destination": "Tokyo"})
+
+    assert response.status_code == 200
+    assert response.json() == {"currency": "JPY"}
+
+def test_no_currency_is_suggested_when_the_place_cant_be_found(client, alice, monkeypatch):
+    import photon_lookup
+    from photon_lookup import PhotonError
+    photon_lookup._cache.clear()
+
+    monkeypatch.setattr(photon_lookup, "photon_request", lambda params, url=None: [])
+    assert client.get("/trips/currency", headers=alice["headers"], params={"destination": "Nowhere"}).json() == {"currency": None}
+
+    def unreachable(params, url=None):
+        raise PhotonError("down")
+    monkeypatch.setattr(photon_lookup, "photon_request", unreachable)
+    assert client.get("/trips/currency", headers=alice["headers"], params={"destination": "Paris"}).json() == {"currency": None}

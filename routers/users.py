@@ -99,7 +99,7 @@ def update_profile(
     db.commit()
 
     if new_email is not None:
-        verification.send_verification(db, background_tasks, current_user, new_email, changing=True)
+        verification.send_verification(db, background_tasks, current_user, new_email)
 
     db.refresh(current_user)
     return current_user

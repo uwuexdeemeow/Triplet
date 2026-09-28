@@ -1,12 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { StyleSheet, View } from 'react-native';
 
-import { api } from '@/api/client';
+import { api, type Schemas } from '@/api/client';
 import { tripKeys, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
+import { CurrencyField } from '@/components/currency-field';
 import { DateField } from '@/components/date-time-field';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
@@ -34,6 +36,28 @@ export default function NewTripScreen() {
   // The end date picker can't go before the chosen start date
   const startDate = useWatch({ control, name: 'startDate' });
 
+  // Look up the destination's currency once typing pauses, e.g. JPY for "Tokyo"
+  const destination = useWatch({ control, name: 'destination' });
+  const [place, setPlace] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setPlace(destination.trim()), 600);
+    return () => clearTimeout(timer);
+  }, [destination]);
+  const localCurrency = useQuery({
+    queryKey: ['trips', 'currency', place.toLowerCase()],
+    queryFn: () => api<Schemas['CurrencySuggestion']>('/trips/currency', { query: { destination: place } }),
+    enabled: place.length >= 2,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const suggestedCurrency = localCurrency.data?.currency ?? null;
+
+  // Follow the destination until the user picks a currency themselves
+  const pickedCurrency = useRef(false);
+  useEffect(() => {
+    if (suggestedCurrency && !pickedCurrency.current) setValue('currency', suggestedCurrency, { shouldValidate: true });
+  }, [suggestedCurrency, setValue]);
+
   const createTrip = useMutation({
     mutationFn: (values: TripValues) =>
       api<Trip>('/trips', {
@@ -44,7 +68,7 @@ export default function NewTripScreen() {
           start_date: values.startDate,
           end_date: values.endDate,
           budget: parseAmount(values.budget),
-          currency: values.currency.trim().toUpperCase(),
+          currency: values.currency,
         },
       }),
     onSuccess: (trip) => {
@@ -148,13 +172,15 @@ export default function NewTripScreen() {
               control={control}
               name="currency"
               render={({ field, fieldState }) => (
-                <TextField
+                <CurrencyField
                   label="Currency"
-                  autoCapitalize="characters"
-                  maxLength={3}
                   value={field.value}
-                  onChangeText={field.onChange}
-                  onBlur={field.onBlur}
+                  onChange={(code) => {
+                    pickedCurrency.current = true;
+                    field.onChange(code);
+                  }}
+                  suggested={suggestedCurrency}
+                  suggestedFor={place}
                   error={fieldState.error?.message}
                 />
               )}

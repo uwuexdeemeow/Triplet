@@ -1,10 +1,11 @@
 from collections import defaultdict
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+import currencies
 from database import connect_db
 from models import Activity, Expense, SavedLink, User, Trip, TripMembership
-from schemas import TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
+from schemas import CurrencySuggestion, TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
 from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
@@ -105,6 +106,15 @@ def summarise(db: Session, trips: list[Trip]) -> list[TripSummaryResponse]:
         )
         for trip in trips
     ]
+
+# Declared before /{trip_id} so "currency" isn't read as a trip id
+@router.get("/currency", response_model=CurrencySuggestion)
+def suggest_currency(
+    destination: str = Query(min_length=1, max_length=255),
+    current_user: User = Depends(get_current_user)
+):
+    """The currency a new trip to `destination` most likely uses, e.g. JPY for "Tokyo"."""
+    return {"currency": currencies.for_destination(destination)}
 
 @router.get("/{trip_id}", response_model=TripResponse)
 def get_trip(

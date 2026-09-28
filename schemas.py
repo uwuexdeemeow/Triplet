@@ -87,7 +87,8 @@ class PasswordResetConfirm(BaseModel):
         return self
 
 class VerifyCodeRequest(BaseModel):
-    email: Email
+    # From the sign-up response: the code only finishes the sign-up it was emailed for
+    signup_token: OpaqueToken
     code: EmailCode
 
 class CodeRequest(BaseModel):
@@ -100,7 +101,13 @@ class VerifyEmailRequest(BaseModel):
     token: OpaqueToken
 
 class ResendVerificationRequest(BaseModel):
-    email: Email
+    signup_token: OpaqueToken
+
+class SignupResponse(BaseModel):
+    detail: str
+    # Sent back with the emailed code. Every sign-up gets one, even for a taken email, so the
+    # answer doesn't reveal who has an account; those tokens just never match a code.
+    signup_token: str
 
 class GuestAccessCreate(BaseModel):
     access_code: Annotated[str, StringConstraints(max_length=16)]
@@ -118,6 +125,10 @@ class GuestAccessResponse(BaseModel):
     model_config={
         "from_attributes": True
     }
+
+class CurrencySuggestion(BaseModel):
+    # None when the destination couldn't be placed in a country
+    currency: str | None
 
 class TripCreate(BaseModel):
     title: ShortText

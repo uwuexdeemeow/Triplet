@@ -58,6 +58,16 @@ def locate(text: str) -> tuple[float, float] | None:
     features = _cached(("locate", text.strip().casefold()), fetch)
     return _coordinates(features[0]) if features else None
 
+def country_code(text: str) -> str | None:
+    """The country a destination like "Tokyo" is in, as a code like "JP"."""
+    def fetch():
+        features = photon_request({"q": text, "limit": 1})
+        code = (features[0].get("properties") or {}).get("countrycode") if features else None
+        return [code] if isinstance(code, str) and len(code) == 2 else []
+
+    found = _cached(("country", text.strip().casefold()), fetch)
+    return found[0] if found else None
+
 def suggest(query: str, near: tuple[float, float] | None = None, limit: int = 6) -> list[dict]:
     """
     Places whose name starts like the query, nearest to `near` first.

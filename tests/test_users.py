@@ -44,7 +44,7 @@ def test_rejects_names_without_letters_or_with_symbols(client, alice, name):
     assert response.json()["detail"].startswith("Names can use letters")
 
 def test_signup_accepts_a_full_name(client, db):
-    from models import User
+    from models import PendingSignup
 
     response = client.post("/auth/signup", json={
         "name": " Alex  Smith ", "email": "alex@example.com", "password": "Tr0ub4dor&3-horse-battery"
@@ -52,7 +52,7 @@ def test_signup_accepts_a_full_name(client, db):
 
     # Sign-up only says to check the inbox, so look at what was saved
     assert response.status_code < 300, response.text
-    assert db.query(User).filter(User.email == "alex@example.com").one().name == "Alex Smith"
+    assert db.query(PendingSignup).filter(PendingSignup.email == "alex@example.com").one().name == "Alex Smith"
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -228,7 +228,7 @@ def test_new_email_takes_effect_once_confirmed(client, alice, outbox):
 
     code = emailed_code(outbox, "new@example.com")
     # The code can't be used to sign up or sign in; it only confirms the change for the signed-in owner
-    assert client.post("/auth/verify-email/code", json={"email": "new@example.com", "code": code}).status_code == 400
+    assert client.post("/auth/verify-email/code", json={"signup_token": "made-up", "code": code}).status_code == 400
     response = client.post("/users/me/email/verify", headers=headers, json={"code": code})
     assert response.status_code == 200, response.text
 
