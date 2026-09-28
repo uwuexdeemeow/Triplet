@@ -26,6 +26,29 @@ def test_sends_through_brevo_when_it_has_a_key(monkeypatch):
     # Never touches the email ports hosts block
     smtp.assert_not_called()
 
+def test_brevo_sends_are_logged(monkeypatch, caplog):
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-test")
+    monkeypatch.setattr(settings, "SMTP_FROM", "Triplet <codes@example.com>")
+    reply = MagicMock()
+    reply.__enter__.return_value.read.return_value = b'{"messageId":"<abc@smtp-relay.mailin.fr>"}'
+
+    with patch("mailer.urllib.request.urlopen", return_value=reply), caplog.at_level(logging.INFO, "triplet"):
+        mailer.send_email("sam@example.com", "subject", "body")
+
+    assert "Sent email to sam@example.com through Brevo from codes@example.com" in caplog.text
+    assert "abc@smtp-relay.mailin.fr" in caplog.text
+
+def test_says_how_it_sends(monkeypatch):
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-test")
+    monkeypatch.setattr(settings, "SMTP_FROM", "Triplet <codes@example.com>")
+    assert mailer.describe() == "sending through Brevo's API from codes@example.com"
+    # Never the key itself
+    assert "xkeysib" not in mailer.describe()
+
+    monkeypatch.setattr(settings, "BREVO_API_KEY", None)
+    monkeypatch.setattr(settings, "SMTP_HOST", None)
+    assert mailer.describe().startswith("not configured")
+
 def test_brevo_errors_are_logged_not_raised(monkeypatch, caplog):
     monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-test")
     refused = urllib.error.HTTPError(

@@ -2,8 +2,21 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import logging
 from config import settings
+import mailer
 from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses, plan_draft, ask
+
+# Show the app's own log lines (triplet.*) next to uvicorn's, including info like "email sent".
+# Other libraries stay at their defaults, so their chatter doesn't flood the log.
+app_logger = logging.getLogger("triplet")
+if not app_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s: %(message)s"))
+    app_logger.addHandler(handler)
+    app_logger.setLevel(logging.INFO)
+    app_logger.propagate = False
+app_logger.info("Email: %s", mailer.describe())
 
 app = FastAPI(
     title="Triplet API",

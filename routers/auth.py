@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
@@ -16,6 +17,9 @@ from mailer import send_email
 import verification
 import rate_limit
 from rate_limit import client_ip
+
+# Says why an email wasn't sent; the API can't, since it never reveals which emails have accounts
+logger = logging.getLogger("triplet.auth")
 
 router = APIRouter(
     prefix="/auth",
@@ -139,6 +143,7 @@ def signup(
     try:
         rate_limit.hit(db, f"verify-email:{user.email}", VERIFY_EMAIL_LIMIT, VERIFY_WINDOW, "")
     except HTTPException:
+        logger.info("Not emailing %s: already sent %d emails there in the last hour", user.email, VERIFY_EMAIL_LIMIT)
         return CHECK_EMAIL
 
     existing_user = db.query(User).filter(User.email == user.email).first()
@@ -211,11 +216,15 @@ def resend_verification(
     try:
         rate_limit.hit(db, f"verify-email:{resend_request.email}", VERIFY_EMAIL_LIMIT, VERIFY_WINDOW, "")
     except HTTPException:
+        logger.info("Not emailing %s: already sent %d emails there in the last hour",
+                    resend_request.email, VERIFY_EMAIL_LIMIT)
         return response
 
     user = db.query(User).filter(User.email == resend_request.email).first()
     if user is not None and user.email_verified_at is None:
         verification.send_verification(db, background_tasks, user, user.email)
+    else:
+        logger.info("Not emailing %s: no unconfirmed account with that email", resend_request.email)
     return response
 
 @router.post("/login", response_model=Token)

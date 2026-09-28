@@ -11,6 +11,14 @@ logger = logging.getLogger("triplet.mailer")
 
 BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
 
+def describe() -> str:
+    """How emails will be sent, for the log when the server starts (no secrets)."""
+    if settings.BREVO_API_KEY:
+        return f"sending through Brevo's API from {parseaddr(settings.SMTP_FROM)[1] or '(no SMTP_FROM)'}"
+    if settings.SMTP_HOST:
+        return f"sending over SMTP through {settings.SMTP_HOST}:{settings.SMTP_PORT}"
+    return "not configured (no BREVO_API_KEY or SMTP_HOST), so emails are printed to this log instead"
+
 def send_email(to: str, subject: str, body: str):
     """
     Send a plain text email: through Brevo's web API when BREVO_API_KEY is set, otherwise over SMTP,
@@ -42,6 +50,7 @@ def send_email(to: str, subject: str, body: str):
             if settings.SMTP_USERNAME:
                 smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD or "")
             smtp.send_message(message)
+        logger.info("Sent email to %s through %s", to, settings.SMTP_HOST)
     except (OSError, smtplib.SMTPException):
         # Never let a mail failure leak into the API response
         logger.exception("Failed to send email to %s", to)
@@ -58,8 +67,10 @@ def send_with_brevo(to: str, subject: str, body: str):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=10):
-            pass
+        with urllib.request.urlopen(request, timeout=10) as response:
+            reply = response.read().decode(errors="replace")[:200]
+        # Brevo has it now: its Transactional > Logs page shows whether it was delivered
+        logger.info("Sent email to %s through Brevo from %s: %s", to, address, reply)
     except urllib.error.HTTPError as error:
         # Brevo explains what's wrong (bad key, unverified sender, blocked IP) in the response
         detail = error.read().decode(errors="replace")[:500]
