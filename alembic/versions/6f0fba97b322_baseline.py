@@ -20,9 +20,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    pass
+    # The users table predates migrations, so the next ones change it rather than create it. Make it
+    # here, as it was then, so a new database can be built from nothing. Databases that already had
+    # it are past this migration and never run it.
+    op.create_table(
+        'users',
+        sa.Column('id', sa.Integer(), primary_key=True),
+        sa.Column('name', sa.Text(), nullable=False),
+        sa.Column('email', sa.Text(), nullable=False),
+        sa.Column('password', sa.Text(), nullable=False),
+        sa.Column('avatar_url', sa.Text(), nullable=True),
+        sa.Column('created_at', sa.Time(timezone=True), nullable=False),
+        sa.UniqueConstraint('email', name='email'),
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    pass
+    op.drop_table('users')

@@ -36,6 +36,8 @@ def upgrade() -> None:
         )
 
     """)
+    # Databases from before migrations already had this default
+    op.execute("ALTER TABLE users ALTER COLUMN created_at SET DEFAULT now()")
     # ### end Alembic commands ###
 
 
