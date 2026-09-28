@@ -736,6 +736,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask About Trip
+         * @description Answer a question about the trip's saved places and plans. Anyone on the trip can ask.
+         */
+        post: operations["ask_about_trip_trips__trip_id__ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guest/access": {
         parameters: {
             query?: never;
@@ -929,6 +949,30 @@ export interface components {
             latitude?: number | null;
             /** Longitude */
             longitude?: number | null;
+        };
+        /** AskMention */
+        AskMention: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "place" | "plan";
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
+        /** AskRequest */
+        AskRequest: {
+            /** Question */
+            question: string;
+        };
+        /** AskResponse */
+        AskResponse: {
+            /** Answer */
+            answer: string;
+            /** Mentions */
+            mentions: components["schemas"]["AskMention"][];
         };
         /** Body_upload_avatar_users_me_avatar_put */
         Body_upload_avatar_users_me_avatar_put: {
@@ -3724,6 +3768,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_about_trip_trips__trip_id__ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskResponse"];
                 };
             };
             /** @description Validation Error */

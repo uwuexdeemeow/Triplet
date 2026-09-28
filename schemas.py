@@ -324,6 +324,19 @@ class PlanDraftApplyItem(BaseModel):
 class PlanDraftApply(BaseModel):
     items: list[PlanDraftApplyItem] = Field(min_length=1, max_length=100)
 
+class AskRequest(BaseModel):
+    question: str = Field(min_length=2, max_length=500)
+
+class AskMention(BaseModel):
+    kind: Literal["place", "plan"]
+    id: int
+    name: str
+
+class AskResponse(BaseModel):
+    answer: str
+    # Places and plans the answer names, for the app to link
+    mentions: list[AskMention]
+
 class SlotSuggestion(BaseModel):
     start_time: datetime
     end_time: datetime

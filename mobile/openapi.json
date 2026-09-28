@@ -3218,6 +3218,64 @@
     }
    }
   },
+  "/trips/{trip_id}/ask": {
+   "post": {
+    "tags": [
+     "Ask"
+    ],
+    "summary": "Ask About Trip",
+    "description": "Answer a question about the trip's saved places and plans. Anyone on the trip can ask.",
+    "operationId": "ask_about_trip_trips__trip_id__ask_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AskRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AskResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/guest/access": {
    "post": {
     "tags": [
@@ -3829,6 +3887,69 @@
     },
     "type": "object",
     "title": "ActivityUpdate"
+   },
+   "AskMention": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "place",
+       "plan"
+      ],
+      "title": "Kind"
+     },
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "id",
+     "name"
+    ],
+    "title": "AskMention"
+   },
+   "AskRequest": {
+    "properties": {
+     "question": {
+      "type": "string",
+      "maxLength": 500,
+      "minLength": 2,
+      "title": "Question"
+     }
+    },
+    "type": "object",
+    "required": [
+     "question"
+    ],
+    "title": "AskRequest"
+   },
+   "AskResponse": {
+    "properties": {
+     "answer": {
+      "type": "string",
+      "title": "Answer"
+     },
+     "mentions": {
+      "items": {
+       "$ref": "#/components/schemas/AskMention"
+      },
+      "type": "array",
+      "title": "Mentions"
+     }
+    },
+    "type": "object",
+    "required": [
+     "answer",
+     "mentions"
+    ],
+    "title": "AskResponse"
    },
    "Body_upload_avatar_users_me_avatar_put": {
     "properties": {

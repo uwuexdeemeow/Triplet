@@ -3,7 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from config import settings
-from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses, plan_draft
+from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses, plan_draft, ask
 
 app = FastAPI(
     title="Triplet API",
@@ -54,6 +54,7 @@ app.include_router(links.router)
 app.include_router(places.router)
 app.include_router(expenses.router)
 app.include_router(plan_draft.router)
+app.include_router(ask.router)
 app.include_router(guest.router)
 app.include_router(guest.setup_router)
 

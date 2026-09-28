@@ -11,6 +11,7 @@ export default function TripLayout() {
       <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
       <Stack.Screen name="expense" options={{ presentation: 'modal' }} />
       <Stack.Screen name="plan-draft" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="ask" options={{ presentation: 'modal' }} />
       <Stack.Screen name="places/[placeId]" />
       {/* Full screen, so swiping down on the map pans it instead of closing the picker */}
       <Stack.Screen name="pick-location" options={{ presentation: 'fullScreenModal' }} />

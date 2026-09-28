@@ -37,6 +37,7 @@ export default function TripSectionsLayout() {
   const me = useMe();
   const isOwner = members.data?.some((member) => member.user_id === me.data?.id && member.role === 'owner') ?? false;
   const openSettings = () => router.push({ pathname: '/trips/[tripId]/settings', params: { tripId } });
+  const openAsk = () => router.push({ pathname: '/trips/[tripId]/ask', params: { tripId } });
 
   const tabs = (
     <View accessibilityRole="tablist" style={wide ? styles.segments : styles.tabs}>
@@ -92,6 +93,14 @@ export default function TripSectionsLayout() {
           </View>
           {tabs}
           <View style={styles.wideActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="Ask questions about your saved places and plans"
+              onPress={openAsk}
+              style={({ hovered }) => [styles.outline, styles.askButton, hovered && styles.outlineHover]}>
+              <Feather name="message-circle" size={16} color={colors.accent} />
+              <Text style={styles.outlineLabel}>Ask</Text>
+            </Pressable>
             {/* Tablets are too narrow for it next to the tabs; it's in trip settings either way */}
             {isOwner && size === 'desktop' ? (
               <Pressable
@@ -133,14 +142,24 @@ export default function TripSectionsLayout() {
           onBack={() => router.replace('/')}
           right={
             trip.data ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Trip settings"
-                accessibilityHint="Rename the trip, set its budget, share a guest code or delete it"
-                onPress={openSettings}
-                style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
-                <Feather name="settings" size={20} color={colors.ink} />
-              </Pressable>
+              <View style={styles.headerButtons}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ask about this trip"
+                  accessibilityHint="Ask questions about your saved places and plans"
+                  onPress={openAsk}
+                  style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
+                  <Feather name="message-circle" size={20} color={colors.ink} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Trip settings"
+                  accessibilityHint="Rename the trip, set its budget, share a guest code or delete it"
+                  onPress={openSettings}
+                  style={({ pressed }) => [styles.settings, pressed && styles.pressed]}>
+                  <Feather name="settings" size={20} color={colors.ink} />
+                </Pressable>
+              </View>
             ) : null
           }
         />
@@ -273,6 +292,15 @@ const useStyles = makeStyles((colors) => ({
     borderWidth: 1.5,
     borderColor: colors.accentMuted,
     justifyContent: 'center',
+  },
+  askButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   outlineHover: {
     backgroundColor: colors.accentSoft,
