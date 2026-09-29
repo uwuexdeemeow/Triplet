@@ -7,6 +7,7 @@ import { api, ApiError, type Schemas } from '@/api/client';
 import type { ShareLink } from '@/api/share';
 import { tripKeys, useMe, useMembers, useTrip, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
+import { CurrencyField } from '@/components/currency-field';
 import { DestinationField, type PickedDestination } from '@/components/destination-field';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
@@ -69,6 +70,12 @@ function sameDestinations(a: PickedDestination[], b: PickedDestination[]) {
 }
 
 // The name, places and budget, which owners and members can change
+// "1 USD = 149.80 JPY", whichever way round reads as more than one
+function rateText(from: string, to: string, rate: number): string {
+  const [one, other, amount] = rate < 1 ? [to, from, 1 / rate] : [from, to, rate];
+  return `1 ${one} = ${amount.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${other}`;
+}
+
 function TripDetails({ trip }: { trip: Trip }) {
   const styles = useStyles();
   const queryClient = useQueryClient();
@@ -78,6 +85,34 @@ function TripDetails({ trip }: { trip: Trip }) {
   const [budget, setBudget] = useState(trip.budget != null ? String(trip.budget) : '');
   const [errors, setErrors] = useState<{ title?: string; destinations?: string; budget?: string; form?: string }>({});
   const [saved, setSaved] = useState(false);
+  // A currency picked but not yet confirmed: changing it converts the trip's money, so it asks first
+  const [pendingCurrency, setPendingCurrency] = useState<string | null>(null);
+  const [convertedAt, setConvertedAt] = useState<string | null>(null);
+
+  // The first place's currency, e.g. JPY for Tokyo, listed first in the picker
+  const firstPlace = startingDestinations(trip)[0];
+  const localCurrency = useQuery({
+    queryKey: ['trips', 'currency', firstPlace?.name.toLowerCase() ?? ''],
+    queryFn: () => api<Schemas['CurrencySuggestion']>('/trips/currency', { query: { destination: firstPlace!.name } }),
+    enabled: !!firstPlace && !firstPlace.currency,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const suggestedCurrency = firstPlace?.currency ?? localCurrency.data?.currency ?? null;
+
+  const convert = useMutation({
+    mutationFn: (currency: string) =>
+      api<Schemas['CurrencyChangeResponse']>(`/trips/${trip.id}/currency`, { method: 'POST', body: { currency } }),
+    onSuccess: ({ trip: updated, rate, old_currency }) => {
+      queryClient.setQueryData(tripKeys.trip(trip.id), updated);
+      // Every amount changed: the budget, expenses, estimate and plan costs
+      queryClient.invalidateQueries({ queryKey: tripKeys.trip(trip.id) });
+      queryClient.invalidateQueries({ queryKey: tripKeys.all, exact: true });
+      setBudget(updated.budget != null ? String(updated.budget) : '');
+      setPendingCurrency(null);
+      setConvertedAt(rateText(old_currency, updated.currency, rate));
+    },
+  });
 
   const save = useMutation({
     mutationFn: (body: { title: string; budget: number | null; destinations?: PickedDestination[] }) =>
@@ -172,6 +207,44 @@ function TripDetails({ trip }: { trip: Trip }) {
       />
       {saved ? <FormMessage tone="success" message="Saved. Everyone on the trip sees the change." /> : null}
       <Button label="Save changes" loading={save.isPending} disabled={unchanged} onPress={submit} />
+
+      <CurrencyField
+        label="Currency"
+        value={pendingCurrency ?? trip.currency}
+        onChange={(code) => {
+          convert.reset();
+          setConvertedAt(null);
+          setPendingCurrency(code === trip.currency ? null : code);
+        }}
+        suggested={suggestedCurrency}
+        suggestedFor={firstPlace?.name}
+      />
+      {pendingCurrency ? (
+        <View style={styles.guestCard}>
+          <Muted>
+            Change to {pendingCurrency}? The budget, expenses, plan costs and paybacks will be converted at today’s rate.
+          </Muted>
+          <FormMessage message={convert.error?.message ?? null} />
+          <View style={styles.buttons}>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={() => {
+                convert.reset();
+                setPendingCurrency(null);
+              }}
+              style={styles.flex}
+            />
+            <Button
+              label="Convert"
+              loading={convert.isPending}
+              onPress={() => convert.mutate(pendingCurrency)}
+              style={styles.flex}
+            />
+          </View>
+        </View>
+      ) : null}
+      {convertedAt ? <FormMessage tone="success" message={`Converted at ${convertedAt}.`} /> : null}
     </View>
   );
 }

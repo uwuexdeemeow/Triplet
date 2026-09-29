@@ -234,6 +234,15 @@ class TripUpdate(BaseModel):
     budget: float | None = Field(default=None, ge=0, le=9_999_999_999)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
 
+class CurrencyChange(BaseModel):
+    currency: str = Field(pattern=r"^[A-Za-z]{3}$")
+
+class CurrencyChangeResponse(BaseModel):
+    trip: TripResponse
+    # 1 unit of `old_currency` is this many units of the trip's new currency
+    rate: float
+    old_currency: str
+
 class MemberResponse(BaseModel):
     user_id: int
     name: str

@@ -3,12 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import currencies
+import currency_change
 import destinations as destination_lookup
+import exchange_rates
 import rate_limit
 from database import connect_db
 from models import Activity, Expense, SavedLink, User, Trip, TripMembership
 from photon_lookup import PhotonError
-from schemas import CurrencySuggestion, DestinationSuggestion, TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
+from schemas import CurrencyChange, CurrencyChangeResponse, CurrencySuggestion, DestinationSuggestion, TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
 from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
@@ -212,20 +214,44 @@ def update_trips(
         if update_data.get("destination"):
             update_data["destinations"] = []
 
+    # A different currency converts the trip's money (older app versions can't just relabel it)
+    new_currency = update_data.pop("currency", None)
+    if new_currency is not None and new_currency.upper() != trip.currency:
+        currency_change.convert_trip(db, trip, new_currency, exchange_rates.usd_rates())
+
     # These columns are NOT NULL, so an explicit null means "leave unchanged"
-    required_fields = ["title", "destination", "start_date", "end_date", "currency"]
+    required_fields = ["title", "destination", "start_date", "end_date"]
 
     for field, value in update_data.items():
         if value is None and field in required_fields:
             continue
-        if field == "currency":
-            value = value.upper()
         setattr(trip, field, value)
 
     db.commit()
     db.refresh(trip)
 
     return trip
+
+@router.post("/{trip_id}/currency", response_model=CurrencyChangeResponse)
+def change_currency(
+    trip_id: int,
+    change: CurrencyChange,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """Switch the trip to another currency, converting its budget, expenses, plan costs and paybacks at today's rate."""
+    require_role(membership, EDITOR_ROLES)
+
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if trip is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
+    old_currency = trip.currency
+    rate = currency_change.convert_trip(db, trip, change.currency, exchange_rates.usd_rates())
+    db.commit()
+    db.refresh(trip)
+
+    return CurrencyChangeResponse(trip=trip, rate=rate, old_currency=old_currency)
 
 @router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_trip(

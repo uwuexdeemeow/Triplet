@@ -1276,6 +1276,64 @@
     }
    }
   },
+  "/trips/{trip_id}/currency": {
+   "post": {
+    "tags": [
+     "Trips"
+    ],
+    "summary": "Change Currency",
+    "description": "Switch the trip to another currency, converting its budget, expenses, plan costs and paybacks at today's rate.",
+    "operationId": "change_currency_trips__trip_id__currency_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CurrencyChange"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CurrencyChangeResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/members": {
    "get": {
     "tags": [
@@ -5003,6 +5061,42 @@
      "code"
     ],
     "title": "CodeRequest"
+   },
+   "CurrencyChange": {
+    "properties": {
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Za-z]{3}$",
+      "title": "Currency"
+     }
+    },
+    "type": "object",
+    "required": [
+     "currency"
+    ],
+    "title": "CurrencyChange"
+   },
+   "CurrencyChangeResponse": {
+    "properties": {
+     "trip": {
+      "$ref": "#/components/schemas/TripResponse"
+     },
+     "rate": {
+      "type": "number",
+      "title": "Rate"
+     },
+     "old_currency": {
+      "type": "string",
+      "title": "Old Currency"
+     }
+    },
+    "type": "object",
+    "required": [
+     "trip",
+     "rate",
+     "old_currency"
+    ],
+    "title": "CurrencyChangeResponse"
    },
    "CurrencySuggestion": {
     "properties": {

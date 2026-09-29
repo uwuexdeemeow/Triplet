@@ -457,6 +457,26 @@ export interface paths {
         patch: operations["update_trips_trips__trip_id__patch"];
         trace?: never;
     };
+    "/trips/{trip_id}/currency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Currency
+         * @description Switch the trip to another currency, converting its budget, expenses, plan costs and paybacks at today's rate.
+         */
+        post: operations["change_currency_trips__trip_id__currency_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/members": {
         parameters: {
             query?: never;
@@ -1413,6 +1433,19 @@ export interface components {
         CodeRequest: {
             /** Code */
             code: string;
+        };
+        /** CurrencyChange */
+        CurrencyChange: {
+            /** Currency */
+            currency: string;
+        };
+        /** CurrencyChangeResponse */
+        CurrencyChangeResponse: {
+            trip: components["schemas"]["TripResponse"];
+            /** Rate */
+            rate: number;
+            /** Old Currency */
+            old_currency: string;
         };
         /** CurrencySuggestion */
         CurrencySuggestion: {
@@ -3370,6 +3403,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_currency_trips__trip_id__currency_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurrencyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrencyChangeResponse"];
                 };
             };
             /** @description Validation Error */
