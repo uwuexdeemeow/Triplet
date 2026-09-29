@@ -1,0 +1,818 @@
+{
+ "year": 2025,
+ "fetched_at": 1790703671.037242,
+ "countries": {
+  "AD": {
+   "level": 0.681,
+   "name": "Andorra"
+  },
+  "AE": {
+   "level": 0.634,
+   "name": "United Arab Emirates"
+  },
+  "AF": {
+   "level": 0.172,
+   "name": "Afghanistan"
+  },
+  "AG": {
+   "level": 0.693,
+   "name": "Antigua and Barbuda"
+  },
+  "AL": {
+   "level": 0.429,
+   "name": "Albania"
+  },
+  "AM": {
+   "level": 0.383,
+   "name": "Armenia"
+  },
+  "AO": {
+   "level": 0.354,
+   "name": "Angola"
+  },
+  "AR": {
+   "level": 0.457,
+   "name": "Argentina"
+  },
+  "AT": {
+   "level": 0.82,
+   "name": "Austria"
+  },
+  "AU": {
+   "level": 0.901,
+   "name": "Australia"
+  },
+  "AW": {
+   "level": 0.746,
+   "name": "Aruba"
+  },
+  "AZ": {
+   "level": 0.284,
+   "name": "Azerbaijan"
+  },
+  "BA": {
+   "level": 0.402,
+   "name": "Bosnia and Herzegovina"
+  },
+  "BB": {
+   "level": 1.095,
+   "name": "Barbados"
+  },
+  "BD": {
+   "level": 0.254,
+   "name": "Bangladesh"
+  },
+  "BE": {
+   "level": 0.814,
+   "name": "Belgium"
+  },
+  "BF": {
+   "level": 0.374,
+   "name": "Burkina Faso"
+  },
+  "BG": {
+   "level": 0.234,
+   "name": "Bulgaria"
+  },
+  "BH": {
+   "level": 0.431,
+   "name": "Bahrain"
+  },
+  "BI": {
+   "level": 0.34,
+   "name": "Burundi"
+  },
+  "BJ": {
+   "level": 0.344,
+   "name": "Benin"
+  },
+  "BM": {
+   "level": 1.198,
+   "name": "Bermuda"
+  },
+  "BN": {
+   "level": 0.349,
+   "name": "Brunei Darussalam"
+  },
+  "BO": {
+   "level": 0.4,
+   "name": "Bolivia"
+  },
+  "BR": {
+   "level": 0.457,
+   "name": "Brazil"
+  },
+  "BS": {
+   "level": 0.956,
+   "name": "Bahamas, The"
+  },
+  "BT": {
+   "level": 0.229,
+   "name": "Bhutan"
+  },
+  "BW": {
+   "level": 0.376,
+   "name": "Botswana"
+  },
+  "BY": {
+   "level": 0.296,
+   "name": "Belarus"
+  },
+  "BZ": {
+   "level": 0.526,
+   "name": "Belize"
+  },
+  "CA": {
+   "level": 0.834,
+   "name": "Canada"
+  },
+  "CD": {
+   "level": 0.418,
+   "name": "Congo, Dem. Rep."
+  },
+  "CF": {
+   "level": 0.423,
+   "name": "Central African Republic"
+  },
+  "CG": {
+   "level": 0.347,
+   "name": "Congo, Rep."
+  },
+  "CH": {
+   "level": 1.12,
+   "name": "Switzerland"
+  },
+  "CI": {
+   "level": 0.372,
+   "name": "Cote d'Ivoire"
+  },
+  "CL": {
+   "level": 0.476,
+   "name": "Chile"
+  },
+  "CM": {
+   "level": 0.341,
+   "name": "Cameroon"
+  },
+  "CN": {
+   "level": 0.473,
+   "name": "China"
+  },
+  "CO": {
+   "level": 0.378,
+   "name": "Colombia"
+  },
+  "CR": {
+   "level": 0.591,
+   "name": "Costa Rica"
+  },
+  "CU": {
+   "level": 0.392,
+   "name": "Cuba"
+  },
+  "CV": {
+   "level": 0.476,
+   "name": "Cabo Verde"
+  },
+  "CW": {
+   "level": 0.697,
+   "name": "Curacao"
+  },
+  "CY": {
+   "level": 0.647,
+   "name": "Cyprus"
+  },
+  "CZ": {
+   "level": 0.594,
+   "name": "Czechia"
+  },
+  "DE": {
+   "level": 0.802,
+   "name": "Germany"
+  },
+  "DJ": {
+   "level": 0.462,
+   "name": "Djibouti"
+  },
+  "DK": {
+   "level": 0.925,
+   "name": "Denmark"
+  },
+  "DM": {
+   "level": 0.484,
+   "name": "Dominica"
+  },
+  "DO": {
+   "level": 0.385,
+   "name": "Dominican Republic"
+  },
+  "DZ": {
+   "level": 0.326,
+   "name": "Algeria"
+  },
+  "EC": {
+   "level": 0.425,
+   "name": "Ecuador"
+  },
+  "EE": {
+   "level": 0.661,
+   "name": "Estonia"
+  },
+  "EG": {
+   "level": 0.154,
+   "name": "Egypt, Arab Rep."
+  },
+  "ER": {
+   "level": 0.328,
+   "name": "Eritrea"
+  },
+  "ES": {
+   "level": 0.645,
+   "name": "Spain"
+  },
+  "ET": {
+   "level": 0.372,
+   "name": "Ethiopia"
+  },
+  "FI": {
+   "level": 0.852,
+   "name": "Finland"
+  },
+  "FJ": {
+   "level": 0.407,
+   "name": "Fiji"
+  },
+  "FM": {
+   "level": 0.959,
+   "name": "Micronesia, Fed. Sts."
+  },
+  "FO": {
+   "level": 0.941,
+   "name": "Faroe Islands"
+  },
+  "FR": {
+   "level": 0.766,
+   "name": "France"
+  },
+  "GA": {
+   "level": 0.372,
+   "name": "Gabon"
+  },
+  "GB": {
+   "level": 0.892,
+   "name": "United Kingdom"
+  },
+  "GD": {
+   "level": 0.567,
+   "name": "Grenada"
+  },
+  "GE": {
+   "level": 0.329,
+   "name": "Georgia"
+  },
+  "GH": {
+   "level": 0.378,
+   "name": "Ghana"
+  },
+  "GL": {
+   "level": 0.771,
+   "name": "Greenland"
+  },
+  "GM": {
+   "level": 0.25,
+   "name": "Gambia, The"
+  },
+  "GN": {
+   "level": 0.344,
+   "name": "Guinea"
+  },
+  "GQ": {
+   "level": 0.41,
+   "name": "Equatorial Guinea"
+  },
+  "GR": {
+   "level": 0.595,
+   "name": "Greece"
+  },
+  "GT": {
+   "level": 0.434,
+   "name": "Guatemala"
+  },
+  "GW": {
+   "level": 0.341,
+   "name": "Guinea-Bissau"
+  },
+  "GY": {
+   "level": 0.331,
+   "name": "Guyana"
+  },
+  "HK": {
+   "level": 0.709,
+   "name": "Hong Kong SAR, China"
+  },
+  "HN": {
+   "level": 0.457,
+   "name": "Honduras"
+  },
+  "HR": {
+   "level": 0.532,
+   "name": "Croatia"
+  },
+  "HT": {
+   "level": 0.86,
+   "name": "Haiti"
+  },
+  "HU": {
+   "level": 0.52,
+   "name": "Hungary"
+  },
+  "ID": {
+   "level": 0.287,
+   "name": "Indonesia"
+  },
+  "IE": {
+   "level": 0.848,
+   "name": "Ireland"
+  },
+  "IL": {
+   "level": 1.01,
+   "name": "Israel"
+  },
+  "IN": {
+   "level": 0.23,
+   "name": "India"
+  },
+  "IQ": {
+   "level": 0.379,
+   "name": "Iraq"
+  },
+  "IR": {
+   "level": 3.522,
+   "name": "Iran, Islamic Rep."
+  },
+  "IS": {
+   "level": 1.178,
+   "name": "Iceland"
+  },
+  "IT": {
+   "level": 0.69,
+   "name": "Italy"
+  },
+  "JM": {
+   "level": 0.602,
+   "name": "Jamaica"
+  },
+  "JO": {
+   "level": 0.423,
+   "name": "Jordan"
+  },
+  "JP": {
+   "level": 0.649,
+   "name": "Japan"
+  },
+  "KE": {
+   "level": 0.337,
+   "name": "Kenya"
+  },
+  "KG": {
+   "level": 0.335,
+   "name": "Kyrgyz Republic"
+  },
+  "KH": {
+   "level": 0.336,
+   "name": "Cambodia"
+  },
+  "KI": {
+   "level": 0.65,
+   "name": "Kiribati"
+  },
+  "KM": {
+   "level": 0.486,
+   "name": "Comoros"
+  },
+  "KN": {
+   "level": 0.686,
+   "name": "St. Kitts and Nevis"
+  },
+  "KR": {
+   "level": 0.574,
+   "name": "Korea, Rep."
+  },
+  "KW": {
+   "level": 0.572,
+   "name": "Kuwait"
+  },
+  "KY": {
+   "level": 1.131,
+   "name": "Cayman Islands"
+  },
+  "KZ": {
+   "level": 0.332,
+   "name": "Kazakhstan"
+  },
+  "LA": {
+   "level": 0.227,
+   "name": "Lao PDR"
+  },
+  "LB": {
+   "level": 0.375,
+   "name": "Lebanon"
+  },
+  "LC": {
+   "level": 0.514,
+   "name": "St. Lucia"
+  },
+  "LK": {
+   "level": 0.269,
+   "name": "Sri Lanka"
+  },
+  "LR": {
+   "level": 0.002,
+   "name": "Liberia"
+  },
+  "LS": {
+   "level": 0.342,
+   "name": "Lesotho"
+  },
+  "LT": {
+   "level": 0.58,
+   "name": "Lithuania"
+  },
+  "LU": {
+   "level": 0.941,
+   "name": "Luxembourg"
+  },
+  "LV": {
+   "level": 0.57,
+   "name": "Latvia"
+  },
+  "LY": {
+   "level": 0.391,
+   "name": "Libya"
+  },
+  "MA": {
+   "level": 0.421,
+   "name": "Morocco"
+  },
+  "MD": {
+   "level": 0.431,
+   "name": "Moldova"
+  },
+  "ME": {
+   "level": 0.417,
+   "name": "Montenegro"
+  },
+  "MG": {
+   "level": 0.307,
+   "name": "Madagascar"
+  },
+  "MH": {
+   "level": 0.947,
+   "name": "Marshall Islands"
+  },
+  "MK": {
+   "level": 0.374,
+   "name": "North Macedonia"
+  },
+  "ML": {
+   "level": 0.341,
+   "name": "Mali"
+  },
+  "MM": {
+   "level": 0.376,
+   "name": "Myanmar"
+  },
+  "MN": {
+   "level": 0.342,
+   "name": "Mongolia"
+  },
+  "MO": {
+   "level": 0.554,
+   "name": "Macao SAR, China"
+  },
+  "MR": {
+   "level": 0.312,
+   "name": "Mauritania"
+  },
+  "MT": {
+   "level": 0.663,
+   "name": "Malta"
+  },
+  "MU": {
+   "level": 0.386,
+   "name": "Mauritius"
+  },
+  "MV": {
+   "level": 0.512,
+   "name": "Maldives"
+  },
+  "MW": {
+   "level": 0.533,
+   "name": "Malawi"
+  },
+  "MX": {
+   "level": 0.537,
+   "name": "Mexico"
+  },
+  "MY": {
+   "level": 0.316,
+   "name": "Malaysia"
+  },
+  "MZ": {
+   "level": 0.37,
+   "name": "Mozambique"
+  },
+  "NA": {
+   "level": 0.407,
+   "name": "Namibia"
+  },
+  "NE": {
+   "level": 0.356,
+   "name": "Niger"
+  },
+  "NG": {
+   "level": 0.128,
+   "name": "Nigeria"
+  },
+  "NI": {
+   "level": 0.342,
+   "name": "Nicaragua"
+  },
+  "NL": {
+   "level": 0.844,
+   "name": "Netherlands"
+  },
+  "NO": {
+   "level": 0.909,
+   "name": "Norway"
+  },
+  "NP": {
+   "level": 0.244,
+   "name": "Nepal"
+  },
+  "NR": {
+   "level": 1.026,
+   "name": "Naoero"
+  },
+  "NZ": {
+   "level": 0.856,
+   "name": "New Zealand"
+  },
+  "OM": {
+   "level": 0.472,
+   "name": "Oman"
+  },
+  "PA": {
+   "level": 0.451,
+   "name": "Panama"
+  },
+  "PE": {
+   "level": 0.515,
+   "name": "Peru"
+  },
+  "PG": {
+   "level": 0.579,
+   "name": "Papua New Guinea"
+  },
+  "PH": {
+   "level": 0.332,
+   "name": "Philippines"
+  },
+  "PK": {
+   "level": 0.241,
+   "name": "Pakistan"
+  },
+  "PL": {
+   "level": 0.524,
+   "name": "Poland"
+  },
+  "PR": {
+   "level": 0.778,
+   "name": "Puerto Rico (US)"
+  },
+  "PT": {
+   "level": 0.604,
+   "name": "Portugal"
+  },
+  "PW": {
+   "level": 0.847,
+   "name": "Palau"
+  },
+  "PY": {
+   "level": 0.348,
+   "name": "Paraguay"
+  },
+  "QA": {
+   "level": 0.563,
+   "name": "Qatar"
+  },
+  "RO": {
+   "level": 0.443,
+   "name": "Romania"
+  },
+  "RS": {
+   "level": 0.45,
+   "name": "Serbia"
+  },
+  "RU": {
+   "level": 0.32,
+   "name": "Russian Federation"
+  },
+  "RW": {
+   "level": 0.27,
+   "name": "Rwanda"
+  },
+  "SA": {
+   "level": 0.468,
+   "name": "Saudi Arabia"
+  },
+  "SB": {
+   "level": 0.748,
+   "name": "Solomon Islands"
+  },
+  "SC": {
+   "level": 0.542,
+   "name": "Seychelles"
+  },
+  "SD": {
+   "level": 2.15,
+   "name": "Sudan"
+  },
+  "SE": {
+   "level": 0.87,
+   "name": "Sweden"
+  },
+  "SG": {
+   "level": 0.605,
+   "name": "Singapore"
+  },
+  "SI": {
+   "level": 0.631,
+   "name": "Slovenia"
+  },
+  "SK": {
+   "level": 0.579,
+   "name": "Slovak Republic"
+  },
+  "SL": {
+   "level": 0.242,
+   "name": "Sierra Leone"
+  },
+  "SM": {
+   "level": 0.792,
+   "name": "San Marino"
+  },
+  "SN": {
+   "level": 0.358,
+   "name": "Senegal"
+  },
+  "SO": {
+   "level": 0.525,
+   "name": "Somalia, Fed. Rep."
+  },
+  "SR": {
+   "level": 0.312,
+   "name": "Suriname"
+  },
+  "SS": {
+   "level": 0.059,
+   "name": "South Sudan"
+  },
+  "ST": {
+   "level": 0.612,
+   "name": "Sao Tome and Principe"
+  },
+  "SV": {
+   "level": 0.409,
+   "name": "El Salvador"
+  },
+  "SX": {
+   "level": 0.761,
+   "name": "Sint Maarten (Dutch part)"
+  },
+  "SY": {
+   "level": 0.322,
+   "name": "Syrian Arab Republic"
+  },
+  "SZ": {
+   "level": 0.328,
+   "name": "Eswatini"
+  },
+  "TC": {
+   "level": 0.987,
+   "name": "Turks and Caicos Islands"
+  },
+  "TD": {
+   "level": 0.352,
+   "name": "Chad"
+  },
+  "TG": {
+   "level": 0.339,
+   "name": "Togo"
+  },
+  "TH": {
+   "level": 0.307,
+   "name": "Thailand"
+  },
+  "TJ": {
+   "level": 0.276,
+   "name": "Tajikistan"
+  },
+  "TL": {
+   "level": 0.279,
+   "name": "Timor-Leste"
+  },
+  "TM": {
+   "level": 0.0,
+   "name": "Turkmenistan"
+  },
+  "TN": {
+   "level": 0.295,
+   "name": "Tunisia"
+  },
+  "TO": {
+   "level": 0.75,
+   "name": "Tonga"
+  },
+  "TR": {
+   "level": 0.411,
+   "name": "Turkiye"
+  },
+  "TT": {
+   "level": 0.511,
+   "name": "Trinidad and Tobago"
+  },
+  "TV": {
+   "level": 0.894,
+   "name": "Tuvalu"
+  },
+  "TZ": {
+   "level": 0.289,
+   "name": "Tanzania"
+  },
+  "UA": {
+   "level": 0.31,
+   "name": "Ukraine"
+  },
+  "UG": {
+   "level": 0.353,
+   "name": "Uganda"
+  },
+  "US": {
+   "level": 1.0,
+   "name": "United States"
+  },
+  "UY": {
+   "level": 0.658,
+   "name": "Uruguay"
+  },
+  "UZ": {
+   "level": 0.292,
+   "name": "Uzbekistan"
+  },
+  "VC": {
+   "level": 0.551,
+   "name": "St. Vincent and the Grenadines"
+  },
+  "VE": {
+   "level": 0.0,
+   "name": "Venezuela, RB"
+  },
+  "VI": {
+   "level": 0.89,
+   "name": "Virgin Islands (U.S.)"
+  },
+  "VN": {
+   "level": 0.289,
+   "name": "Viet Nam"
+  },
+  "VU": {
+   "level": 0.901,
+   "name": "Vanuatu"
+  },
+  "WS": {
+   "level": 0.628,
+   "name": "Samoa"
+  },
+  "XK": {
+   "level": 0.409,
+   "name": "Kosovo"
+  },
+  "YE": {
+   "level": 0.069,
+   "name": "Yemen, Rep."
+  },
+  "ZA": {
+   "level": 0.415,
+   "name": "South Africa"
+  },
+  "ZM": {
+   "level": 0.299,
+   "name": "Zambia"
+  },
+  "ZW": {
+   "level": 0.558,
+   "name": "Zimbabwe"
+  }
+ }
+}

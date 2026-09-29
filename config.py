@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     WEATHER_ENABLED: bool = True
     # Budget estimates convert their typical prices with Frankfurter's rates (free, no key)
     EXCHANGE_RATES_ENABLED: bool = True
+    # ...and scale them by each country's cost of living (World Bank), refreshed monthly in the background
+    PRICE_LEVELS_ENABLED: bool = True
 
     # Where place addresses, pins and opening hours come from:
     # "auto" uses Google when GOOGLE_PLACES_API_KEY is set, otherwise OpenStreetMap.

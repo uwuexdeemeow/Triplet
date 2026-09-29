@@ -4,6 +4,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import budget_estimate
+import price_levels
 import exchange_rates
 import scheduling
 import splits
@@ -361,12 +362,27 @@ def get_budget_estimate(
     rates = exchange_rates.usd_rates()
     notes = ["Rough figures for the whole group, from typical prices. Hotels and flights aren’t included."]
 
+    # Typical prices are US ones; scale them to what the trip's first country costs (typed, paid and
+    # posted prices are what they are, so they aren't scaled)
+    countries = [d.get("country_code") for d in trip.destinations or [] if d.get("country_code")]
+    local = price_levels.price_level(countries[0]) if countries else None
+    scale = local[0] if local else 1.0
+
     def from_usd(amount: float) -> float | None:
         return exchange_rates.convert(amount, "USD", currency, rates)
+
+    def typical_in_trip_currency(usd: float) -> float | None:
+        return from_usd(usd * scale)
 
     typical_prices = from_usd(1) is not None
     if not typical_prices:
         notes.append(f"Typical prices aren’t available in {currency} right now, so only costs you’ve entered are counted.")
+    elif local:
+        note = f"Typical prices adjusted for the cost of living in {local[1]}"
+        note += f" (World Bank, {local[2]})." if local[2] else " (World Bank)."
+        if len(set(countries)) > 1:
+            note += " The trip goes to more than one country, so this uses the first destination’s."
+        notes.append(note)
 
     activities = (
         db.query(Activity)
@@ -400,7 +416,7 @@ def get_budget_estimate(
         if typical is None or not typical_prices:
             return None
         level = price[1] if price is not None and price[0] == "level" else 1.0
-        return from_usd(typical * level) * people
+        return typical_in_trip_currency(typical * level) * people
 
     planned_by_day = {day.date: day.activities for day in itinerary.days}
     days = []
@@ -425,12 +441,12 @@ def get_budget_estimate(
                 for a in day_activities
             ])
             meals = sum(
-                from_usd(usd) * people for meal, usd in budget_estimate.MEAL_USD.items() if meal not in covered
+                typical_in_trip_currency(usd) * people for meal, usd in budget_estimate.MEAL_USD.items() if meal not in covered
             )
             rides = sum(
                 1 for a in day_activities if a.travel_from_previous and a.travel_from_previous.mode == "transit"
             )
-            transport = from_usd(budget_estimate.TRANSIT_RIDE_USD) * people * rides
+            transport = typical_in_trip_currency(budget_estimate.TRANSIT_RIDE_USD) * people * rides
 
         days.append(BudgetEstimateDay(
             date=day,
