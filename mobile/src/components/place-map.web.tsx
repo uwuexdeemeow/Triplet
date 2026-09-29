@@ -199,6 +199,8 @@ export type TripMapProps = {
   onLongPress?: (coordinates: Coordinates) => void;
   // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
   bottomInset?: number;
+  // The same for whatever floats over the top, e.g. a search bar and filters
+  topInset?: number;
   // A small preview with nothing floating over it, so it needs less room around the pins
   compact?: boolean;
   // A day's stops in order, joined by a line under the pins
@@ -215,7 +217,7 @@ export type TripMapHandle = {
 };
 
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false, route = [] },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, topInset = 0, compact = false, route = [] },
   ref,
 ) {
   const { colors, scheme } = useTheme();
@@ -325,13 +327,23 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
         });
       }
     };
+    // Adding the line only needs the style itself, not its tiles, so this doesn't wait for isStyleLoaded()
+    // (false until every tile is in, with no style event after). Before the style is read, adding throws
+    // and style.load tries again.
+    const tryApply = () => {
+      try {
+        apply();
+      } catch {
+        // "Style is not done loading"
+      }
+    };
     // After a new style (dark mode) the route is gone: put it back. Only what's missing, because
     // apply itself changes the style, which would send styledata again.
     const restore = () => {
-      if (route.length < 2 || !map.isStyleLoaded()) return;
-      if (!map.getSource('trip-route') || !map.getLayer('trip-route-line')) apply();
+      if (route.length < 2) return;
+      if (!map.getSource('trip-route') || !map.getLayer('trip-route-line')) tryApply();
     };
-    if (map.isStyleLoaded()) apply();
+    tryApply();
     // style.load is the usual signal for a new style; styledata covers a swap that doesn't send it
     map.on('style.load', restore);
     map.on('styledata', restore);
@@ -342,8 +354,10 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, routeKey]);
 
-  // Frame the pins whenever the set of pins changes, e.g. after switching the filter
-  const pinKey = places.map((place) => place.id).join(',');
+  // Frame the pins whenever the set of pins changes, e.g. after switching the filter. A day's route
+  // counts too: "All" and a day can have the same pins, and the day should still be framed. So does the
+  // room at the top, which is only known once the screen has laid out what floats there.
+  const pinKey = `${places.map((place) => place.id).join(',')}|${route.length}|${topInset}`;
   const fallbackKey = areaKey(fallbackArea);
   useEffect(() => {
     if (!map || !lib) return;
@@ -357,7 +371,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     const bounds = new lib.LngLatBounds();
     points.forEach((point) => bounds.extend([point.longitude, point.latitude]));
     map.fitBounds(bounds, {
-      padding: compact ? 24 : { top: 70, right: 40, bottom: bottomInset + 40, left: 40 },
+      padding: compact ? 24 : { top: topInset ? topInset + 24 : 70, right: 48, bottom: bottomInset + 40, left: 48 },
       maxZoom: places.length ? STREET_ZOOM : AREA_ZOOM,
       duration: 400,
     });

@@ -112,7 +112,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
  * and long-pressing drops a pin to add something there.
  */
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false, route = [] },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, topInset = 0, compact = false, route = [] },
   ref,
 ) {
   const { colors, scheme } = useTheme();
@@ -125,8 +125,10 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     moveTo: (coordinates) => camera.current?.easeTo({ center: toLngLat(coordinates), zoom: STREET_ZOOM, duration: 500 }),
   }));
 
-  // Frame the pins whenever the set of pins changes, e.g. after switching the filter
-  const pinKey = places.map((place) => place.id).join(',');
+  // Frame the pins whenever the set of pins changes, e.g. after switching the filter. A day's route
+  // counts too: "All" and a day can have the same pins, and the day should still be framed. So does the
+  // room at the top, which is only known once the screen has laid out what floats there.
+  const pinKey = `${places.map((place) => place.id).join(',')}|${route.length}|${topInset}`;
   const fallbackKey = areaKey(fallbackArea);
   useEffect(() => {
     if (!loaded) return;
@@ -140,7 +142,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     const lngs = points.map((point) => point.longitude);
     const lats = points.map((point) => point.latitude);
     camera.current?.fitBounds([Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)], {
-      padding: compact ? { top: 24, right: 24, bottom: 24, left: 24 } : { top: 90, right: 40, bottom: bottomInset + 40, left: 40 },
+      padding: compact ? { top: 24, right: 24, bottom: 24, left: 24 } : { top: topInset ? topInset + 24 : 90, right: 48, bottom: bottomInset + 40, left: 48 },
       duration: 400,
     });
     // Only refit for a different set of pins, not when a pin is selected

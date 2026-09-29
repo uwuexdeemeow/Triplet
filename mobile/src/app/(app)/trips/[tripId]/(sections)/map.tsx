@@ -71,6 +71,8 @@ export default function TripMapScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dropped, setDropped] = useState<Dropped | null>(null);
   const [sheetHeight, setSheetHeight] = useState(0);
+  // How far down the search bar and filters reach, so pins aren't fitted underneath them
+  const [topHeight, setTopHeight] = useState(0);
   const [searching, setSearching] = useState(false);
   const mapRef = useRef<TripMapHandle>(null);
 
@@ -209,10 +211,17 @@ export default function TripMapScreen() {
             : undefined
         }
         bottomInset={sheetHeight}
+        topInset={topHeight}
         route={route}
       />
 
-      <View style={styles.top} pointerEvents="box-none">
+      <View
+        style={styles.top}
+        pointerEvents="box-none"
+        onLayout={(event) => {
+          // Searching swaps the filters for results; the map shouldn't reframe while someone types
+          if (!searching) setTopHeight(Math.round(event.nativeEvent.layout.y + event.nativeEvent.layout.height));
+        }}>
         <View style={styles.searchWrap}>
           <MapSearch
             tripId={id}

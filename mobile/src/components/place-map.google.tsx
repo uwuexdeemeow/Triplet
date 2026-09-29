@@ -118,6 +118,8 @@ export type TripMapProps = {
   onLongPress?: (coordinates: Coordinates) => void;
   // Room taken by whatever floats over the bottom of the map, so pins aren't fitted underneath it
   bottomInset?: number;
+  // The same for whatever floats over the top, e.g. a search bar and filters
+  topInset?: number;
   // A small preview with nothing floating over it, so it needs less room around the pins
   compact?: boolean;
   // A day's stops in order, joined by a line under the pins
@@ -140,7 +142,7 @@ export type TripMapHandle = {
 };
 
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false, route = [] },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, topInset = 0, compact = false, route = [] },
   ref,
 ) {
   const styles = useStyles();
@@ -152,23 +154,26 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     moveTo: (coordinates) => mapRef.current?.animateToRegion({ ...coordinates, ...STREET_ZOOM }, 500),
   }));
 
-  // Frame the pins whenever the set of pins changes, e.g. after switching the filter
-  const pinKey = places.map((place) => place.id).join(',');
+  // Frame the pins whenever the set of pins changes, e.g. after switching the filter. A day's route
+  // counts too: "All" and a day can have the same pins, and the day should still be framed. So does the
+  // room at the top, which is only known once the screen has laid out what floats there.
+  const pinKey = `${places.map((place) => place.id).join(',')}|${route.length}|${topInset}`;
   const fallbackKey = areaKey(fallbackArea);
+  const padding = compact ? COMPACT_PADDING : { top: topInset ? topInset + 24 : 60, right: 48, bottom: bottomInset + 40, left: 48 };
   useEffect(() => {
     if (!ready) return;
     if (!places.length) {
       if (fallbackArea.length === 1) mapRef.current?.animateToRegion({ ...fallbackArea[0], ...AREA_ZOOM }, 400);
       else if (fallbackArea.length > 1)
         mapRef.current?.fitToCoordinates(fallbackArea, {
-          edgePadding: compact ? COMPACT_PADDING : { top: 60, right: 40, bottom: bottomInset + 40, left: 40 },
+          edgePadding: padding,
           animated: true,
         });
     } else if (places.length === 1) {
       mapRef.current?.animateToRegion({ latitude: places[0].latitude, longitude: places[0].longitude, ...STREET_ZOOM }, 400);
     } else {
       mapRef.current?.fitToCoordinates(places, {
-        edgePadding: compact ? COMPACT_PADDING : { top: 60, right: 40, bottom: bottomInset + 40, left: 40 },
+        edgePadding: padding,
         animated: true,
       });
     }
