@@ -4,16 +4,15 @@ import { Feather } from '@expo/vector-icons';
 import type { GeoJSONSource, Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 import { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { makeStyles, shadow } from '@/theme/theme';
+import { palettes } from '@/theme/tokens';
 import { areaKey } from '@/utils/map-area';
 
 // react-native-maps only draws native maps, so the website uses MapLibre instead.
 // OpenFreeMap serves the map free with no key; its style credits OpenStreetMap and OpenMapTiles.
-// A dark map in dark mode, so it doesn't glare against the rest of the app
-const STYLE_URLS = {
-  light: 'https://tiles.openfreemap.org/styles/liberty',
-  dark: 'https://tiles.openfreemap.org/styles/dark',
-} as const;
+// The map is light in both themes, as it's easier to read, so what's drawn on it uses the light colours
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+const MAP_COLORS = palettes.light;
 // Where the site serves MapLibre's background worker; copied there on npm install
 const WORKER_URL = '/maplibre/maplibre-gl-worker.mjs';
 const STREET_ZOOM = 15.5;
@@ -51,7 +50,6 @@ function numberedPin(label: string, color: string, selected: boolean): HTMLDivEl
  * on demand rather than imported at the top, which would break the static web export.
  */
 function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
-  const { scheme } = useTheme();
   const container = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<{ map: MapLibreMap; lib: MapLibre } | null>(null);
 
@@ -66,7 +64,7 @@ function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
       if (cancelled || !container.current) return;
       map = new lib.Map({
         container: container.current,
-        style: STYLE_URLS[scheme],
+        style: STYLE_URL,
         center: [center.longitude, center.latitude],
         zoom,
         interactive,
@@ -83,34 +81,21 @@ function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Switching theme swaps the map's look; pins are separate and stay put
-  const map = state?.map ?? null;
-  const shownScheme = useRef(scheme);
-  useEffect(() => {
-    if (!map || shownScheme.current === scheme) return;
-    shownScheme.current = scheme;
-    // No diffing against the old style: a diff drops layers the app added itself (the day's route)
-    // without a style.load, so it would only come back when the route next changed
-    map.setStyle(STYLE_URLS[scheme], { diff: false });
-  }, [map, scheme]);
-
-  return { container, map, lib: state?.lib ?? null };
+  return { container, map: state?.map ?? null, lib: state?.lib ?? null };
 }
 
 /** A small, non-interactive map with a pin, for previews. */
 export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { height?: number }) {
   const styles = useStyles();
-  const { colors } = useTheme();
   const { container, map, lib } = useMapLibre({ latitude, longitude }, STREET_ZOOM - 0.5, false);
   const marker = useRef<MapLibreMarker | null>(null);
 
   useEffect(() => {
     if (!map || !lib) return;
     map.jumpTo({ center: [longitude, latitude] });
-    // A fresh marker when the theme changes, since a marker's colour is fixed once made
     marker.current?.remove();
-    marker.current = new lib.Marker({ color: colors.accent }).setLngLat([longitude, latitude]).addTo(map);
-  }, [map, lib, latitude, longitude, colors.accent]);
+    marker.current = new lib.Marker({ color: MAP_COLORS.accent }).setLngLat([longitude, latitude]).addTo(map);
+  }, [map, lib, latitude, longitude]);
 
   return (
     <View style={[styles.mini, { height }]} accessibilityLabel="Map showing the pinned location">
@@ -136,7 +121,6 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
   ref,
 ) {
   const styles = useStyles();
-  const { colors } = useTheme();
   const { container, map } = useMapLibre(initial, zoomedOut ? AREA_ZOOM : STREET_ZOOM, true);
   const reportCenter = useEffectEvent((center: Coordinates) => onCenterChange(center));
 
@@ -172,7 +156,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
       <div ref={container} style={fill} />
       {/* The pin stays still while the map moves under it */}
       <View pointerEvents="none" style={styles.centerPin}>
-        <Feather name="map-pin" size={40} color={colors.accent} />
+        <Feather name="map-pin" size={40} color={MAP_COLORS.accent} />
         <View style={styles.pinShadow} />
       </View>
     </View>
@@ -220,7 +204,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, topInset = 0, compact = false, route = [] },
   ref,
 ) {
-  const { colors, scheme } = useTheme();
+  const colors = MAP_COLORS;
   const first = places[0] ?? fallbackArea[0] ?? { latitude: 20, longitude: 0 };
   const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : fallbackArea.length ? AREA_ZOOM : 1.5, true);
   const select = useEffectEvent((id: string | null) => onSelect(id));
@@ -259,16 +243,16 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   const dropLon = droppedPin?.longitude;
   useEffect(() => {
     if (!map || !lib || dropLat === undefined || dropLon === undefined) return;
-    const marker = new lib.Marker({ color: colors.ink }).setLngLat([dropLon, dropLat]).addTo(map);
+    const marker = new lib.Marker({ color: MAP_COLORS.ink }).setLngLat([dropLon, dropLat]).addTo(map);
     marker.getElement().style.zIndex = '2';
     return () => {
       marker.remove();
     };
-  }, [map, lib, dropLat, dropLon, colors.ink]);
+  }, [map, lib, dropLat, dropLon]);
 
   // Redraw the pins when they, or the selection, change. The screen rebuilds `places` on every
   // render, so compare what's in it rather than the array itself.
-  const markerKey = JSON.stringify([places, selectedId, colors.accent]);
+  const markerKey = JSON.stringify([places, selectedId]);
   useEffect(() => {
     if (!map || !lib) return;
     const markers = places.map((place) => {
@@ -293,9 +277,8 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, lib, markerKey]);
 
-  // The day's route: a dashed line under the pins. A new map style (dark mode) drops the layer, so it's
-  // added again whenever a style finishes loading.
-  const routeKey = JSON.stringify([route, colors.accent, scheme]);
+  // The day's route: a dashed line under the pins
+  const routeKey = JSON.stringify(route);
   useEffect(() => {
     if (!map) return;
     const apply = () => {
@@ -315,9 +298,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
       } else {
         map.addSource('trip-route', { type: 'geojson', data });
       }
-      if (map.getLayer('trip-route-line')) {
-        map.setPaintProperty('trip-route-line', 'line-color', colors.accent);
-      } else {
+      if (!map.getLayer('trip-route-line')) {
         map.addLayer({
           id: 'trip-route-line',
           type: 'line',
@@ -328,8 +309,8 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
       }
     };
     // Adding the line only needs the style itself, not its tiles, so this doesn't wait for isStyleLoaded()
-    // (false until every tile is in, with no style event after). Before the style is read, adding throws
-    // and style.load tries again.
+    // (false until every tile is in, with no event after). On a map that has only just been made, adding
+    // throws until the style is read, and style.load tries again.
     const tryApply = () => {
       try {
         apply();
@@ -337,19 +318,10 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
         // "Style is not done loading"
       }
     };
-    // After a new style (dark mode) the route is gone: put it back. Only what's missing, because
-    // apply itself changes the style, which would send styledata again.
-    const restore = () => {
-      if (route.length < 2) return;
-      if (!map.getSource('trip-route') || !map.getLayer('trip-route-line')) tryApply();
-    };
     tryApply();
-    // style.load is the usual signal for a new style; styledata covers a swap that doesn't send it
-    map.on('style.load', restore);
-    map.on('styledata', restore);
+    map.on('style.load', tryApply);
     return () => {
-      map.off('style.load', restore);
-      map.off('styledata', restore);
+      map.off('style.load', tryApply);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, routeKey]);

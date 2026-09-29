@@ -1,31 +1,17 @@
 import { Feather } from '@expo/vector-icons';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker, Polyline, type LongPressEvent, type MapPressEvent, type MapStyleElement, type Region } from 'react-native-maps';
-import { makeStyles, shadow, useTheme } from '@/theme/theme';
-import { fonts } from '@/theme/tokens';
+import MapView, { Marker, Polyline, type LongPressEvent, type MapPressEvent, type Region } from 'react-native-maps';
+import { makeStyles, shadow } from '@/theme/theme';
+import { fonts, palettes } from '@/theme/tokens';
 import { areaKey } from '@/utils/map-area';
 
 export type Coordinates = { latitude: number; longitude: number };
 
-// Google Maps (Android) has no dark mode of its own, so it gets this night style in the
-// app's graphite greys. Apple Maps (iOS) switches with userInterfaceStyle.
-const DARK_MAP_STYLE: MapStyleElement[] = [
-  { elementType: 'geometry', stylers: [{ color: '#1A1D21' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8E949C' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#121417' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#202328' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1C2620' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2A2E34' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#363B42' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#23272C' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#111820' }] },
-];
-
-// Props that make a map follow the app's light or dark theme
-function themedMapProps(scheme: 'light' | 'dark') {
-  return { userInterfaceStyle: scheme, customMapStyle: scheme === 'dark' ? DARK_MAP_STYLE : [] } as const;
-}
+// The map is light in both themes, as it's easier to read, so what's drawn on it uses the light
+// colours. Apple Maps (iOS) would otherwise follow the phone's dark mode.
+const LIGHT_MAP_PROPS = { userInterfaceStyle: 'light' } as const;
+const MAP_COLORS = palettes.light;
 
 // Close enough to see the streets around a restaurant
 const STREET_ZOOM = { latitudeDelta: 0.008, longitudeDelta: 0.008 };
@@ -33,11 +19,11 @@ const STREET_ZOOM = { latitudeDelta: 0.008, longitudeDelta: 0.008 };
 /** A small, non-interactive map with a pin, for previews. */
 export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { height?: number }) {
   const styles = useStyles();
-  const { colors, scheme } = useTheme();
+  const colors = MAP_COLORS;
   return (
     <View style={[styles.mini, { height }]} pointerEvents="none" accessibilityLabel="Map showing the pinned location">
       <MapView
-        {...themedMapProps(scheme)}
+        {...LIGHT_MAP_PROPS}
         style={StyleSheet.absoluteFill}
         region={{ latitude, longitude, ...STREET_ZOOM }}
         scrollEnabled={false}
@@ -68,7 +54,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
   ref,
 ) {
   const styles = useStyles();
-  const { colors, scheme } = useTheme();
+  const colors = MAP_COLORS;
   const mapRef = useRef<MapView>(null);
 
   useImperativeHandle(ref, () => ({
@@ -78,7 +64,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
   return (
     <View style={StyleSheet.absoluteFill}>
       <MapView
-        {...themedMapProps(scheme)}
+        {...LIGHT_MAP_PROPS}
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         initialRegion={{ ...initial, ...(zoomedOut ? { latitudeDelta: 0.3, longitudeDelta: 0.3 } : STREET_ZOOM) }}
@@ -146,7 +132,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   ref,
 ) {
   const styles = useStyles();
-  const { colors, scheme } = useTheme();
+  const colors = MAP_COLORS;
   const mapRef = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
 
@@ -183,7 +169,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
 
   return (
     <MapView
-      {...themedMapProps(scheme)}
+      {...LIGHT_MAP_PROPS}
       ref={mapRef}
       style={StyleSheet.absoluteFill}
       onMapReady={() => setReady(true)}

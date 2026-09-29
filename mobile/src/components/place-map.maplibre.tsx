@@ -4,17 +4,15 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { Coordinates, MapPlace, PickerMapHandle, TripMapHandle, TripMapProps } from '@/components/place-map.google';
-import { makeStyles, shadow, useTheme } from '@/theme/theme';
-import { fonts } from '@/theme/tokens';
+import { makeStyles, shadow } from '@/theme/theme';
+import { fonts, palettes } from '@/theme/tokens';
 import { areaKey } from '@/utils/map-area';
 
 // Phone maps in the app's own builds: MapLibre with free OpenFreeMap tiles, the same maps the
 // website shows. No Google key or billing needed. (Expo Go uses place-map.google.tsx instead.)
-
-const STYLE_URLS = {
-  light: 'https://tiles.openfreemap.org/styles/liberty',
-  dark: 'https://tiles.openfreemap.org/styles/dark',
-} as const;
+// The map is light in both themes, as it's easier to read, so what's drawn on it uses the light colours
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+const MAP_COLORS = palettes.light;
 const STREET_ZOOM = 15.5;
 const AREA_ZOOM = 10.5;
 
@@ -24,7 +22,7 @@ const toLngLat = ({ latitude, longitude }: Coordinates): LngLat => [longitude, l
 function Pin({ color, selected = false, label }: { color: string; selected?: boolean; label?: string }) {
   const styles = useStyles();
   return (
-    <View style={[styles.pin, { backgroundColor: color }, label ? styles.pinNumbered : null, selected && (label ? styles.pinNumberedSelected : styles.pinSelected)]}>
+    <View style={[styles.pin, { backgroundColor: color, borderColor: MAP_COLORS.surface }, label ? styles.pinNumbered : null, selected && (label ? styles.pinNumberedSelected : styles.pinSelected)]}>
       {label ? <Text style={styles.pinLabel}>{label}</Text> : null}
     </View>
   );
@@ -33,14 +31,13 @@ function Pin({ color, selected = false, label }: { color: string; selected?: boo
 /** A small, non-interactive map with a pin, for previews. */
 export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { height?: number }) {
   const styles = useStyles();
-  const { colors, scheme } = useTheme();
   const center = toLngLat({ latitude, longitude });
 
   return (
     <View style={[styles.mini, { height }]} pointerEvents="none" accessibilityLabel="Map showing the pinned location">
       <Map
         style={StyleSheet.absoluteFill}
-        mapStyle={STYLE_URLS[scheme]}
+        mapStyle={STYLE_URL}
         dragPan={false}
         touchZoom={false}
         doubleTapZoom={false}
@@ -51,7 +48,7 @@ export function MiniMap({ latitude, longitude, height = 160 }: Coordinates & { h
         attributionPosition={{ bottom: 4, right: 4 }}>
         <Camera center={center} zoom={STREET_ZOOM - 0.5} duration={0} />
         <ViewAnnotation id="pin" lngLat={center}>
-          <Pin color={colors.accent} />
+          <Pin color={MAP_COLORS.accent} />
         </ViewAnnotation>
       </Map>
     </View>
@@ -71,7 +68,6 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
   ref,
 ) {
   const styles = useStyles();
-  const { colors, scheme } = useTheme();
   const camera = useRef<CameraRef>(null);
 
   useImperativeHandle(ref, () => ({
@@ -82,7 +78,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
     <View style={StyleSheet.absoluteFill}>
       <Map
         style={StyleSheet.absoluteFill}
-        mapStyle={STYLE_URLS[scheme]}
+        mapStyle={STYLE_URL}
         logo={false}
         compass={false}
         touchPitch={false}
@@ -100,7 +96,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
       </Map>
       {/* The pin stays still while the map moves under it */}
       <View pointerEvents="none" style={styles.centerPin}>
-        <Feather name="map-pin" size={40} color={colors.accent} />
+        <Feather name="map-pin" size={40} color={MAP_COLORS.accent} />
         <View style={styles.pinShadow} />
       </View>
     </View>
@@ -115,7 +111,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, topInset = 0, compact = false, route = [] },
   ref,
 ) {
-  const { colors, scheme } = useTheme();
+  const colors = MAP_COLORS;
   const camera = useRef<CameraRef>(null);
   const [loaded, setLoaded] = useState(false);
   // A tap on a pin can also reach the map underneath; ignore that map tap
@@ -154,7 +150,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
   return (
     <Map
       style={StyleSheet.absoluteFill}
-      mapStyle={STYLE_URLS[scheme]}
+      mapStyle={STYLE_URL}
       logo={false}
       compass={false}
       touchPitch={false}
