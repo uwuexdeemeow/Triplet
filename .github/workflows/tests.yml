@@ -1,0 +1,44 @@
+# Runs the server's tests and the app's typecheck and lint on every push and pull request.
+#
+# Render's Auto-Deploy is set to "After CI Checks Pass", so a red run here stops a broken commit from
+# going online. Keep this the only workflow that runs on push: Render waits for every check on the
+# commit (see DEPLOY.md, "Tests before deploy").
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      # No database or network needed: tests/conftest.py uses in-memory SQLite and turns off outside services
+      - run: pytest -q
+
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx expo lint

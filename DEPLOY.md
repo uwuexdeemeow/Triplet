@@ -208,6 +208,22 @@ for the phone app in step 5.
 4. Save a TikTok or YouTube link to a trip, to check Gemini works.
 5. Reload the page on a trip (e.g. `/trips/1`): you stay signed in and on that page.
 
+### 4h. Tests before deploy
+
+The **Tests** workflow (`.github/workflows/tests.yml`) runs the server's tests, and the app's typecheck
+and lint, on every push and pull request. To make Render wait for it:
+
+1. In Render: the `triplet` service > **Settings** > **Build & Deploy** > **Auto-Deploy**, choose
+   **After CI Checks Pass**.
+
+Render then deploys a commit on `main` only once every check on it is green. A red **Tests** run
+means that commit is **not** online: open the run under **Actions**, read the failing step, fix it and
+push again. To put a commit online anyway, use **Manual Deploy** on the service page.
+
+Render waits for *every* check on the commit, so nothing slow or optional should run on push. That's
+why **Audit** (section 7c) is started on a schedule instead, and why **Deploy** (the image build in
+4a) only runs by hand: Render builds the repository's `Dockerfile` itself, so the image isn't needed.
+
 ## 5. The phone app
 
 The app is built with its server address baked in, so it needs a build that knows the new one.
@@ -328,6 +344,19 @@ schedules can run late or be skipped.
 Turn on cron-job.org's failure notifications, so you hear if GitHub stops accepting the token (e.g.
 when it expires). A run that starts but fails, for example if the database address changes, emails
 you like any failed GitHub Action.
+
+### 7c. Weekly package audit
+
+The **Audit** workflow (`.github/workflows/audit.yml`) checks the server's and the app's packages for
+known security problems. It doesn't run on push, so it never holds up a deploy; cron-job.org starts it
+once a week, since new problems are published about packages that haven't changed. Use the token from
+7a and create another job the same way, with:
+
+- **URL**: `https://api.github.com/repos/uwuexdeemeow/Triplet/actions/workflows/audit.yml/dispatches`
+- **Schedule**: every Monday at 09:00, time zone Asia/Singapore
+- The same request method, body and headers as the backup job. **Test run** should answer `204`.
+
+A red run names the package and the version that fixes it, and GitHub emails you.
 
 ### 7b. Bring a copy back
 

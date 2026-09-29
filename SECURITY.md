@@ -68,8 +68,9 @@ None open right now. Closed:
 
 ## Checking dependencies
 
-GitHub Actions runs both on every push and every Monday (`.github/workflows/audit.yml`), since new
-problems get published about packages that haven't changed. To run them yourself:
+GitHub Actions runs both every Monday (`.github/workflows/audit.yml`, started by cron-job.org; see
+DEPLOY.md, "Weekly package audit"), since new problems get published about packages that haven't
+changed. It doesn't run on push, so it never blocks a deploy. To run them yourself:
 
 ```bash
 venv/Scripts/python -m pip_audit -r requirements.txt   # Python

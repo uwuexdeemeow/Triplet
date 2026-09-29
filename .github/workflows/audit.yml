@@ -1,14 +1,12 @@
 # Checks the server's and the app's packages for known security problems.
 #
-# Runs on every push and pull request, and every Monday, since new problems are published about
-# packages that haven't changed. A red run names the package and the version that fixes it.
+# Started by hand or weekly from cron-job.org (DEPLOY.md, "Weekly package audit"), since new problems
+# are published about packages that haven't changed. It doesn't run on push: Render waits for every
+# check on a commit before deploying, and a newly published problem shouldn't block a deploy.
+# A red run names the package and the version that fixes it.
 name: Audit
 
 on:
-  push:
-  pull_request:
-  schedule:
-    - cron: "0 1 * * 1"
   workflow_dispatch:
 
 permissions:

@@ -1,12 +1,11 @@
-# Builds the server image (website included) and deploys it on Render.
+# Builds the server image (website included) and pushes it to GitHub's registry.
 #
-# Render's free build machine runs out of memory bundling the website, so the image is built here
-# instead and Render only runs it. See DEPLOY.md.
+# Not used at the moment: Render builds the Dockerfile itself once the Tests workflow passes, and this
+# image build would add 5-10 minutes to every check on a commit. Kept, started by hand only, for a
+# move back to image deploys. See DEPLOY.md.
 name: Deploy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
