@@ -285,6 +285,51 @@ Mail from your own domain is much less likely to land in spam.
 4. Add a sender like `codes@triplet.me` (**Senders** > **Add a sender**), then in Render change
    `SMTP_FROM` to `Triplet <codes@triplet.me>`.
 
+## 7. Database backups
+
+Two layers, so a bad change or a mistake can be undone:
+
+- **Neon's own history** lets you rewind the whole database to a moment in the recent past. How far
+  back depends on your plan: in the Neon console, open the project > **Settings** > **Instant restore**
+  (or **History retention**) to see it. Rewinding is under **Backup & Restore**.
+- **A nightly copy** made by GitHub Actions (`.github/workflows/backup.yml`) and kept for 30 days.
+  It's encrypted first, since the repository is public.
+
+### 7a. Turn on the nightly copy
+
+1. Make a passphrase: a long random one, e.g. from `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+   Keep it in your password manager. **Without it no copy can be opened**, and it can't be recovered.
+2. On GitHub: the repository's **Settings** > **Secrets and variables** > **Actions** >
+   **New repository secret**, twice:
+   - `BACKUP_DATABASE_URL`: the same address as `DB_SETTINGS` on Render (either the
+     `postgresql+psycopg://` or the `postgresql://` form works)
+   - `BACKUP_PASSPHRASE`: the passphrase from step 1
+3. **Actions** > **Backup** > **Run workflow**, to check it works now rather than tonight. A green run
+   has a `database-...` file under **Artifacts** at the bottom of its page.
+
+It then runs every night at 2 AM Singapore time. A failed run (for example, if the database address
+changes) emails you, like any failed GitHub Action.
+
+### 7b. Bring a copy back
+
+Download the `database-...` file from the run you want (**Actions** > **Backup** > the run >
+**Artifacts**) and unzip it. With PostgreSQL's tools installed (`C:\Program Files\PostgreSQL\18\bin`):
+
+```
+gpg --decrypt --output triplet.dump triplet-2026-10-01.dump.gpg
+pg_restore --list triplet.dump
+```
+
+`gpg` asks for the passphrase (Git Bash includes `gpg`). The list shows what's inside. Then restore into
+a **new, empty** Neon database first and check it, rather than straight over the live one:
+
+```
+pg_restore --no-owner --no-privileges --dbname "postgresql://...the new database..." triplet.dump
+```
+
+Once it looks right, point `DB_SETTINGS` on Render at the new database. To restore just one table,
+add `--table=trips` (for example) to the `pg_restore` line.
+
 ## If something goes wrong
 
 - **The build fails**: it runs on GitHub, under **Actions** > **Deploy**; the log shows which step.

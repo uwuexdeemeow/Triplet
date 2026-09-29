@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
+import httpx
 import yt_dlp
 from google import genai
 from google.genai import errors as genai_errors
@@ -235,8 +236,18 @@ def download_post(url: str, dest_dir: str) -> DownloadedPost:
     Returns:
         DownloadedPost: The downloaded media and the post's metadata.
     """
+    started = time.monotonic()
+
+    def give_up_if_slow(progress: dict):
+        # yt-dlp has no overall time limit, only one per connection, so check as data arrives
+        if time.monotonic() - started > settings.VIDEO_DOWNLOAD_TIMEOUT_SECONDS:
+            raise ExtractionError("The video took too long to download. Try again later.")
+
     options = {
         "outtmpl": f"{dest_dir}/video.%(ext)s",
+        "progress_hooks": [give_up_if_slow],
+        # Seconds to wait for each connection before giving up
+        "socket_timeout": 20,
         # Prefer files that already contain audio and video so ffmpeg isn't needed to merge them
         "format": "best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best",
         "max_filesize": settings.VIDEO_MAX_FILESIZE_MB * 1024 * 1024,
@@ -355,23 +366,36 @@ def analyse_post(client: genai.Client, post: DownloadedPost) -> VideoExtraction:
     except ValueError as e:
         raise ExtractionError("Could not understand the post") from e
 
+# Models that were overloaded or rate limited recently, and until when to try others first
+BUSY_FOR_SECONDS = 120
+_busy_until: dict[str, float] = {}
+
+def _model_order() -> list[str]:
+    """The models to try, in the configured order, but with recently busy ones last."""
+    models = [settings.GEMINI_MODEL, *[m for m in settings.GEMINI_FALLBACK_MODELS if m != settings.GEMINI_MODEL]]
+    now = time.monotonic()
+    # Sorting is stable, so each group keeps the configured order
+    return sorted(models, key=lambda model: _busy_until.get(model, 0) > now)
+
 def _generate_with_retry(client: genai.Client, contents: list):
     """
-    Call Gemini, retrying and then switching models when it's busy or rate limited.
+    Call Gemini, switching models when one is busy or rate limited.
 
-    The free tier limits requests per minute and a popular model sometimes answers 503 when
-    overloaded for minutes at a time. Each model gets a short retry, then the next model in
-    GEMINI_FALLBACK_MODELS is tried. Other errors, like a blocked request, fail straight away.
+    A popular model sometimes answers 503 when overloaded, for minutes at a time, and the free tier
+    limits requests per minute per model. Waiting rarely helps, so a busy model is skipped straight
+    away for the next in GEMINI_FALLBACK_MODELS, and remembered as busy for a couple of minutes so
+    the next posts start with one that's working. Only the last model left is retried after a wait.
+    Other errors, like a blocked request, fail straight away.
     """
-    models = [settings.GEMINI_MODEL, *[m for m in settings.GEMINI_FALLBACK_MODELS if m != settings.GEMINI_MODEL]]
+    models = _model_order()
 
     for model_index, model in enumerate(models):
         last_model = model_index == len(models) - 1
-        waits = RETRY_WAITS_SECONDS if last_model else RETRY_WAITS_SECONDS[:1]
+        waits = RETRY_WAITS_SECONDS if last_model else []
 
         for attempt, wait in enumerate([*waits, None]):
             try:
-                return client.models.generate_content(
+                response = client.models.generate_content(
                     model=model,
                     contents=contents,
                     config=types.GenerateContentConfig(
@@ -381,10 +405,22 @@ def _generate_with_retry(client: genai.Client, contents: list):
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                     ),
                 )
+                _busy_until.pop(model, None)
+                return response
+            except httpx.TimeoutException:
+                # Taking far longer than usual is a model under strain; don't wait on it again
+                _busy_until[model] = time.monotonic() + BUSY_FOR_SECONDS
+                if last_model:
+                    raise
+                logger.warning("Gemini model %s took over %ss, switching to %s",
+                               model, settings.GEMINI_TIMEOUT_SECONDS, models[model_index + 1])
+                break
             except genai_errors.APIError as e:
                 # A missing model (404) is worth skipping too, e.g. an old name in .env
                 if e.code not in RETRYABLE_CODES and not (e.code == 404 and not last_model):
                     raise
+                if e.code in RETRYABLE_CODES:
+                    _busy_until[model] = time.monotonic() + BUSY_FOR_SECONDS
                 if wait is None or e.code == 404:
                     if last_model:
                         raise
@@ -393,13 +429,23 @@ def _generate_with_retry(client: genai.Client, contents: list):
                 logger.warning("Gemini model %s returned %s, retrying in %ss (attempt %s)", model, e.code, wait, attempt + 1)
                 time.sleep(wait)
 
+def gemini_client(timeout_seconds: int | None = None) -> genai.Client:
+    """A Gemini client that gives up on each answer after a while (GEMINI_TIMEOUT_SECONDS by default)."""
+    return genai.Client(
+        api_key=settings.GEMINI_API_KEY,
+        http_options=types.HttpOptions(timeout=(timeout_seconds or settings.GEMINI_TIMEOUT_SECONDS) * 1000),
+    )
+
 def _analyse(post: DownloadedPost, label: str) -> VideoExtraction:
     """Ask Gemini about a post, turning its failures into messages safe to show."""
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    client = gemini_client()
     try:
         return analyse_post(client, post)
     except ExtractionError:
         raise
+    except httpx.TimeoutException as e:
+        logger.warning("Gemini took too long on %s with every model", label)
+        raise ExtractionError("The AI took too long to read this post. Try again in a few minutes.") from e
     except Exception as e:
         # Quota errors, network problems, blocked content etc. Keep the real cause in the logs.
         logger.exception("Gemini could not process %s", label)

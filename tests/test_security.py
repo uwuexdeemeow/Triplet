@@ -190,3 +190,46 @@ def test_place_searches_while_making_a_trip_are_limited(client, alice, limits_on
 
     assert client.get("/trips/destinations", headers=alice["headers"], params={"q": "one more"}).status_code == 429
     assert client.get("/trips/currency", headers=alice["headers"], params={"destination": "Tokyo"}).status_code == 429
+
+def test_link_saves_are_capped_for_everyone_together(client, alice, bob, trip, limits_on, monkeypatch):
+    monkeypatch.setattr(settings, "LINK_SAVES_DAILY_LIMIT_ALL", 2)
+    monkeypatch.setattr("routers.links.process_link", lambda link_id: None)
+    bobs_trip = client.post("/trips", headers=bob["headers"], json={
+        "title": "Bob's", "destination": "Seoul", "start_date": "2026-10-01", "end_date": "2026-10-02"}).json()
+
+    assert client.post(f"/trips/{trip['id']}/links", headers=alice["headers"],
+                       json={"url": "https://www.tiktok.com/@a/video/1"}).status_code == 201
+    assert client.post(f"/trips/{bobs_trip['id']}/links", headers=bob["headers"],
+                       json={"url": "https://www.tiktok.com/@b/video/1"}).status_code == 201
+
+    # Bob has saved only one today, but the day's total for everyone is used up
+    response = client.post(f"/trips/{bobs_trip['id']}/links", headers=bob["headers"],
+                           json={"url": "https://www.tiktok.com/@b/video/2"})
+    assert response.status_code == 429
+    assert "as many posts as it can today" in response.json()["detail"]
+
+def test_only_a_few_posts_are_read_at_once(monkeypatch):
+    import threading
+    import time
+    from routers import links
+
+    running, most = 0, 0
+    lock = threading.Lock()
+
+    def slow_read(db, link):
+        nonlocal running, most
+        with lock:
+            running += 1
+            most = max(most, running)
+        time.sleep(0.05)
+        with lock:
+            running -= 1
+
+    monkeypatch.setattr(links, "read_places", slow_read)
+    threads = [threading.Thread(target=links.read_places_in_turn, args=(None, n)) for n in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert most == settings.LINK_PROCESSING_AT_ONCE

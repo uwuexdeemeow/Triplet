@@ -10,12 +10,13 @@ import json
 import logging
 from dataclasses import dataclass, field
 
-from google import genai
+import httpx
 from google.genai import errors as genai_errors
 from google.genai import types
 
 import scheduling
 from config import settings
+from video_extractor import gemini_client
 
 logger = logging.getLogger("triplet.assistant")
 
@@ -166,7 +167,8 @@ def ask(question: str, context: TripContext) -> Answer:
         "trip": {"title": context.title, "destination": context.destination, "dates": context.dates, "currency": context.currency},
         "places_and_plans": [_spot_json(spot) for spot in context.spots],
     }
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    # Someone is waiting on screen, so each step of the answer gets less time than reading a post
+    client = gemini_client(timeout_seconds=45)
     config = types.GenerateContentConfig(
         system_instruction=system_instruction(data),
         tools=_tools(context),
@@ -189,6 +191,12 @@ def ask(question: str, context: TripContext) -> Answer:
             if error.code in RETRYABLE_CODES:
                 raise AssistantError("The AI service is busy right now. Try again in a minute.") from error
             raise AssistantError("The AI service couldn't answer that") from error
+        except httpx.TimeoutException as error:
+            if index < len(models) - 1:
+                logger.warning("Gemini model %s took too long, trying %s", model, models[index + 1])
+                continue
+            logger.warning("Gemini took too long to answer with every model")
+            raise AssistantError("The AI service is taking too long right now. Try again in a minute.") from error
         except Exception as error:
             logger.exception("Gemini could not answer")
             raise AssistantError("The AI service couldn't answer that") from error

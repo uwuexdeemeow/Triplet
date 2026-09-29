@@ -4,10 +4,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from sqlalchemy.orm import Session
 from config import settings
 from database import connect_db
-from models import User, RefreshToken, PasswordResetToken
+from models import User, RefreshToken, PasswordResetToken, PendingSignup, UserIdentity
 from schemas import (
     UserCreate, UserLogin, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse,
-    VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest, SignupResponse
+    VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest, SignupResponse, SocialLoginRequest
 )
 import codes
 from security import hash_password, verify_password, create_access_token, generate_token, hash_token
@@ -16,6 +16,7 @@ from dependencies import get_current_user
 from mailer import send_email
 import verification
 import rate_limit
+import social_login
 from rate_limit import client_ip
 
 # Says why an email wasn't sent; the API can't, since it never reveals which emails have accounts
@@ -259,6 +260,57 @@ def login(
     rate_limit.clear(db, email_ip_key)
 
     return issue_tokens(db, user_detail, request, response)
+
+@router.post("/social", response_model=Token)
+def social_sign_in(
+    social: SocialLoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(connect_db)
+):
+    """
+    Sign in with Google or Apple, using the ID token the app got from them.
+
+    The first time, it links to the Triplet account with the same email, or makes a new one. Both are
+    safe because Google and Apple have confirmed the person owns that email, and Triplet accounts
+    only exist once their email is confirmed too.
+    """
+    rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
+                   "Too many requests. Wait a moment and try again.")
+    try:
+        identity = social_login.verify(social.provider, social.id_token, social.nonce)
+    except social_login.SocialLoginError as error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(error))
+
+    linked = db.query(UserIdentity).filter(
+        UserIdentity.provider == identity.provider,
+        UserIdentity.subject == identity.subject
+    ).first()
+    if linked is not None:
+        return issue_tokens(db, db.get(User, linked.user_id), request, response)
+
+    user = db.query(User).filter(User.email == identity.email).first()
+    if user is None:
+        user = User(
+            # Apple's hidden emails look like "x7k2p9@privaterelay.appleid.com", so that's a last resort
+            name=(clean_name(social.name or identity.name or "")
+                  or clean_name(identity.email.split("@")[0][:60].replace("_", " ").replace(".", " "))
+                  or "Traveller"),
+            email=identity.email,
+            # There's no password yet; "Forgot password" sets one, which proves the email again
+            password=hash_password(generate_token()),
+            email_verified_at=datetime.now(timezone.utc)
+        )
+        db.add(user)
+        db.flush()
+        verification.attach_invitations(db, user)
+        # A half-finished email sign-up for this address is no longer needed
+        db.query(PendingSignup).filter(PendingSignup.email == identity.email).delete(synchronize_session=False)
+        logger.info("New account %s from %s sign-in", user.id, identity.provider)
+
+    db.add(UserIdentity(user_id=user.id, provider=identity.provider, subject=identity.subject, email=identity.email))
+    db.commit()
+    return issue_tokens(db, user, request, response)
 
 @router.post("/refresh", response_model=Token)
 def refresh(

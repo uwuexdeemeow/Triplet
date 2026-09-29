@@ -910,3 +910,45 @@ class LinkImage(Base):
         LargeBinary,
         nullable=False
     )
+
+class UserIdentity(Base):
+    """A Google or Apple account someone signs in with, linked to their Triplet account."""
+    __tablename__ = "user_identities"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    # "google" or "apple"
+    provider: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False
+    )
+
+    # The provider's own id for the person ("sub"), which stays the same even if their email changes
+    subject: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    # The email the provider gave when this was linked, for reference
+    email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("provider", "subject", name="uq_identity_provider_subject"),
+    )

@@ -93,6 +93,15 @@ class VerifyCodeRequest(BaseModel):
     signup_token: OpaqueToken
     code: EmailCode
 
+class SocialLoginRequest(BaseModel):
+    provider: Literal["google", "apple"]
+    # The ID token Google or Apple gave the app (a signed JWT, usually 1-2 KB)
+    id_token: Annotated[str, StringConstraints(max_length=8192)]
+    # Apple only: the random value whose hash the app gave Apple for this sign-in
+    nonce: Annotated[str, StringConstraints(max_length=256)] | None = None
+    # Apple only tells the app someone's name the first time, and never puts it in the token
+    name: ShortText | None = None
+
 class CodeRequest(BaseModel):
     code: EmailCode
 

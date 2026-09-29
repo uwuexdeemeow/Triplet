@@ -10,6 +10,7 @@ import { useSession } from '@/auth/session';
 import { loginSchema, type LoginValues } from '@/auth/validation';
 import { Button } from '@/components/button';
 import { FormMessage, Screen } from '@/components/screen';
+import { SocialSignInButtons } from '@/components/social-sign-in';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -55,6 +56,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
+          <SocialSignInButtons />
           <FormMessage message={formError} />
 
           <Controller

@@ -301,6 +301,11 @@ def test_extract_returns_caption_and_places(monkeypatch):
     assert result.caption == "Best ramen"
     assert result.places[0].name == "Ichiran"
 
+@pytest.fixture(autouse=True)
+def no_busy_models():
+    # Which models were busy is remembered between posts, so each test starts afresh
+    video_extractor._busy_until.clear()
+
 def api_error(code: int):
     return video_extractor.genai_errors.APIError(code, {"error": {"code": code, "message": "test", "status": "TEST"}})
 
@@ -337,8 +342,8 @@ def test_still_busy_after_retries_says_so(monkeypatch):
         with pytest.raises(ExtractionError, match="busy"):
             extract_from_video("https://www.tiktok.com/@a/video/1")
 
-    # Main model: first try and one retry. Backup (last) model: first try and two retries.
-    assert client_class.return_value.models.generate_content.call_count == 5
+    # Main model: one try, then straight to the backup. Backup (last) model: first try and two retries.
+    assert client_class.return_value.models.generate_content.call_count == 4
 
 class FakeResponse:
     def __init__(self, url):
@@ -380,14 +385,35 @@ def test_busy_model_falls_back_to_the_next(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", ["backup-model"])
     client = gemini_client(parsed=VideoExtraction(places=[Place(name="Ichiran")]))
     good_response = client.models.generate_content.return_value
-    # The main model stays busy through its retry, the backup answers
-    client.models.generate_content.side_effect = [api_error(503), api_error(503), good_response]
+    # The main model is busy, so the backup is asked straight away, without waiting
+    client.models.generate_content.side_effect = [api_error(503), good_response]
+    waits = []
+    monkeypatch.setattr(video_extractor.time, "sleep", waits.append)
 
     result = analyse_post(client, DownloadedPost(info={"description": "Ramen"}))
 
     assert result.places[0].name == "Ichiran"
     models = [call.kwargs["model"] for call in client.models.generate_content.call_args_list]
-    assert models == ["main-model", "main-model", "backup-model"]
+    assert models == ["main-model", "backup-model"]
+    assert waits == []
+
+def test_a_busy_model_is_tried_last_for_a_while(monkeypatch):
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "main-model")
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", ["backup-model"])
+    client = gemini_client(parsed=VideoExtraction())
+    good_response = client.models.generate_content.return_value
+    client.models.generate_content.side_effect = [api_error(503), good_response, good_response]
+
+    analyse_post(client, DownloadedPost(info={"description": "Ramen"}))
+    # The next post starts with the backup, rather than waiting on the busy model again
+    analyse_post(client, DownloadedPost(info={"description": "Sushi"}))
+
+    models = [call.kwargs["model"] for call in client.models.generate_content.call_args_list]
+    assert models == ["main-model", "backup-model", "backup-model"]
+
+    # A couple of minutes later the main model is first again
+    monkeypatch.setattr(video_extractor.time, "monotonic", lambda: 10**9)
+    assert video_extractor._model_order() == ["main-model", "backup-model"]
 
 def test_unknown_model_is_skipped(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_MODEL", "retired-model")
@@ -400,3 +426,32 @@ def test_unknown_model_is_skipped(monkeypatch):
 
     models = [call.kwargs["model"] for call in client.models.generate_content.call_args_list]
     assert models == ["retired-model", "backup-model"]
+
+def test_a_model_that_takes_too_long_is_skipped(monkeypatch):
+    import httpx
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "main-model")
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", ["backup-model"])
+    client = gemini_client(parsed=VideoExtraction(places=[Place(name="Ichiran")]))
+    good_response = client.models.generate_content.return_value
+    client.models.generate_content.side_effect = [httpx.ReadTimeout("slow"), good_response]
+
+    result = analyse_post(client, DownloadedPost(info={"description": "Ramen"}))
+
+    assert result.places[0].name == "Ichiran"
+    models = [call.kwargs["model"] for call in client.models.generate_content.call_args_list]
+    assert models == ["main-model", "backup-model"]
+    assert video_extractor._model_order() == ["backup-model", "main-model"]
+
+def test_every_model_taking_too_long_says_so(monkeypatch):
+    import httpx
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS", ["backup-model"])
+
+    with patch("yt_dlp.YoutubeDL", fake_youtube_dl(VIDEO_INFO)), \
+         patch("video_extractor.genai.Client") as client_class:
+        client_class.return_value.models.generate_content.side_effect = httpx.ReadTimeout("slow")
+        with pytest.raises(ExtractionError, match="too long"):
+            extract_from_video("https://www.tiktok.com/@a/video/1")
+
+    # The client is told to give up after GEMINI_TIMEOUT_SECONDS
+    assert client_class.call_args.kwargs["http_options"].timeout == settings.GEMINI_TIMEOUT_SECONDS * 1000

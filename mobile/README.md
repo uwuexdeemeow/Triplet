@@ -150,6 +150,64 @@ limit is 100 iPhones a year.
 To add a phone after a build, register it, then run `npx eas-cli@latest build:resign` on that build (or
 build again).
 
+## Sign in with Google and Apple
+
+The log-in and sign-up screens show **Continue with Apple** (iPhone) and **Continue with Google**
+(iPhone and Android) once each is set up; until then they stay hidden. Neither shows on the website
+yet. Both need a new build after setting them up, since they add native code.
+
+How it works: the phone signs in with Google or Apple and sends the token they give it to the
+server (`/auth/social`), which checks it was signed by them, for this app, with a confirmed email.
+The first time, it links to the Triplet account with that email, or makes a new one.
+
+### Apple
+
+1. Needs the paid Apple Developer account (the same one as for TestFlight).
+2. Nothing else to set up: `expo-apple-authentication` in `app.json` asks for the "Sign in with Apple"
+   capability, and EAS turns it on for the app when it builds. The server accepts tokens for the
+   bundle id `com.uwuexdeemeow.triplet` (`APPLE_CLIENT_IDS` in `config.py`; change it there if the
+   bundle id ever changes).
+3. Build for iPhone again (`build --profile preview --platform ios`, or TestFlight).
+
+Apple lets people hide their email; their account then uses an `@privaterelay.appleid.com` address.
+Apple only forwards mail to those from sender domains registered in the Apple Developer account
+(**Certificates, Identifiers & Profiles** > **Services** > **Sign in with Apple for Email
+Communication**), and a Gmail sender can't be registered. So until codes are sent from your own
+domain, people who hide their email can sign in with Apple but won't get reset codes or invite
+emails. Invites inside the app still show up.
+
+### Google
+
+1. In the [Google Cloud console](https://console.cloud.google.com), make a project (e.g. "Triplet"),
+   then open **Google Auth Platform**:
+   - **Branding**: app name Triplet, your support email.
+   - **Audience**: External. While it says **Testing**, only the test users you list can sign in; click
+     **Publish app** when you want anyone to (basic sign-in needs no review from Google).
+2. **Clients** > **Create client**, three times:
+   - **Web application**, named e.g. "Triplet server". No addresses needed. This is the one tokens are
+     issued for: copy its client id.
+   - **iOS**, bundle id `com.uwuexdeemeow.triplet`. Copy its client id.
+   - **Android**, package name `com.uwuexdeemeow.triplet`, and the **SHA-1** of the app's signing key:
+     run `npx eas-cli@latest credentials --platform android`, pick the profile, and copy the SHA-1
+     it shows. (Once the app is on Google Play, add a second Android client with the SHA-1 from Play
+     Console > **App signing**.)
+3. Give the app the two ids, for each environment you build with:
+   ```bash
+   npx eas-cli@latest env:create --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value 1234-web.apps.googleusercontent.com --environment preview --visibility plaintext
+   npx eas-cli@latest env:create --name EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID --value 1234-ios.apps.googleusercontent.com --environment preview --visibility plaintext
+   ```
+   Repeat with `--environment production` (and `development`), and put the same two lines in
+   `.env.local` to try it from `npx expo start` on a development build.
+4. Tell the server which tokens to accept: on Render, **Environment** > add `GOOGLE_CLIENT_IDS` with
+   the **web** client id in brackets and quotes, like `["1234-web.apps.googleusercontent.com"]`.
+5. Build again for both phones.
+
+### Accounts made this way
+
+They have no password at first. Changing email or deleting the account asks for the current
+password, so people add one with **Forgot password?** on the log-in screen: the emailed code proves
+it's their inbox, the same as signing up. Signing in with Google or Apple keeps working either way.
+
 ## Shipping updates without a new build (EAS Update)
 
 Most changes (screens, text, logic) can reach installed apps without reinstalling. Each build profile has a

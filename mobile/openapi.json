@@ -213,6 +213,48 @@
     }
    }
   },
+  "/auth/social": {
+   "post": {
+    "tags": [
+     "Authentication"
+    ],
+    "summary": "Social Sign In",
+    "description": "Sign in with Google or Apple, using the ID token the app got from them.\n\nThe first time, it links to the Triplet account with the same email, or makes a new one. Both are\nsafe because Google and Apple have confirmed the person owns that email, and Triplet accounts\nonly exist once their email is confirmed too.",
+    "operationId": "social_sign_in_auth_social_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SocialLoginRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/auth/refresh": {
    "post": {
     "tags": [
@@ -6515,6 +6557,53 @@
      "reason"
     ],
     "title": "SlotSuggestion"
+   },
+   "SocialLoginRequest": {
+    "properties": {
+     "provider": {
+      "type": "string",
+      "enum": [
+       "google",
+       "apple"
+      ],
+      "title": "Provider"
+     },
+     "id_token": {
+      "type": "string",
+      "maxLength": 8192,
+      "title": "Id Token"
+     },
+     "nonce": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 256
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Nonce"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "provider",
+     "id_token"
+    ],
+    "title": "SocialLoginRequest"
    },
    "Token": {
     "properties": {

@@ -11,6 +11,7 @@ import { signupSchema, type SignupValues } from '@/auth/validation';
 import { Button } from '@/components/button';
 import { PasswordMeter } from '@/components/password-meter';
 import { FormMessage, Screen } from '@/components/screen';
+import { SocialSignInButtons } from '@/components/social-sign-in';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { makeStyles } from '@/theme/theme';
@@ -61,6 +62,7 @@ export default function SignupScreen() {
         </View>
 
         <View style={styles.form}>
+          <SocialSignInButtons />
           <FormMessage message={formError} />
 
           <Controller

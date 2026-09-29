@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session, selectinload
@@ -64,6 +65,14 @@ def read_places(db: Session, link: SavedLink) -> ExtractionResult:
         return extract_from_text(text, link.url)
     return extract_from_video(link.url)
 
+# Reading a post downloads it and hands it to the AI, which is what takes memory, so only a
+# couple run at once and the rest wait their turn. Looking up addresses afterwards isn't counted.
+_reading = threading.BoundedSemaphore(settings.LINK_PROCESSING_AT_ONCE)
+
+def read_places_in_turn(db: Session, link: SavedLink) -> ExtractionResult:
+    with _reading:
+        return read_places(db, link)
+
 def process_link(link_id: int):
     """
     Fetch a link's details and extract the places from its video.
@@ -89,7 +98,7 @@ def process_link(link_id: int):
         reads_places = settings.GEMINI_API_KEY and link.platform in (*VIDEO_PLATFORMS, SCREENSHOT, ARTICLE)
         if reads_places:
             try:
-                result = read_places(db, link)
+                result = read_places_in_turn(db, link)
             except (ExtractionError, ArticleError) as e:
                 link.status = "failed"
                 link.error = str(e)[:500]
@@ -152,13 +161,15 @@ def process_link(link_id: int):
 
 def limit_link_processing(db: Session, membership: TripMembership):
     """Each save or re-check downloads a video and asks the AI about it, which costs money."""
-    rate_limit.hit(
-        db,
-        f"link-saves:{membership.user_id}",
-        settings.LINK_SAVES_DAILY_LIMIT,
-        timedelta(days=1),
-        "You've saved a lot of posts today. Try again tomorrow."
-    )
+    day = timedelta(days=1)
+    person, everyone = f"link-saves:{membership.user_id}", "link-saves:all"
+    # Check both before counting either, so a refused save doesn't use up anyone's allowance
+    rate_limit.check(db, person, settings.LINK_SAVES_DAILY_LIMIT, day,
+                     "You've saved a lot of posts today. Try again tomorrow.")
+    rate_limit.check(db, everyone, settings.LINK_SAVES_DAILY_LIMIT_ALL, day,
+                     "Triplet has read as many posts as it can today. Try again tomorrow.")
+    rate_limit.record(db, person, day)
+    rate_limit.record(db, everyone, day)
 
 @router.post("", response_model=SavedLinkResponse, status_code=201)
 def create_link(

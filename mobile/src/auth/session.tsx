@@ -12,6 +12,7 @@ import {
   saveGuestToken,
   saveSession,
 } from '@/auth/token-storage';
+import type { SocialSignIn } from '@/auth/social';
 import { forgetSignup, pendingSignup, rememberSignup } from '@/auth/verification';
 
 // Guests opened one trip with its code and PIN, and can only look at it
@@ -23,6 +24,8 @@ type Session = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   confirmSignup: (code: string) => Promise<void>;
+  // After Google or Apple sign-in on the phone: the server checks their token and signs in
+  signInWithProvider: (signIn: SocialSignIn) => Promise<void>;
   enterAsGuest: (accessCode: string, pin: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -160,6 +163,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [startSession],
   );
 
+  const signInWithProvider = useCallback(
+    async (signIn: SocialSignIn) => {
+      const tokens = await api<Tokens>('/auth/social', {
+        method: 'POST',
+        body: signIn,
+        auth: false,
+        refreshCookie: REFRESH_IN_COOKIE,
+      });
+      forgetSignup();
+      await startSession(tokens);
+    },
+    [startSession],
+  );
+
   // Signing up doesn't sign in: the account is only created once the emailed code is entered
   const signUp = useCallback(async (name: string, email: string, password: string) => {
     const { signup_token } = await api<Schemas['SignupResponse']>('/auth/signup', {
@@ -214,8 +231,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const value = useMemo(
-    () => ({ status, signIn, signUp, confirmSignup, enterAsGuest, signOut }),
-    [status, signIn, signUp, confirmSignup, enterAsGuest, signOut],
+    () => ({ status, signIn, signUp, confirmSignup, signInWithProvider, enterAsGuest, signOut }),
+    [status, signIn, signUp, confirmSignup, signInWithProvider, enterAsGuest, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

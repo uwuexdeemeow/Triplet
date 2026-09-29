@@ -96,6 +96,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/social": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Social Sign In
+         * @description Sign in with Google or Apple, using the ID token the app got from them.
+         *
+         *     The first time, it links to the Triplet account with the same email, or makes a new one. Both are
+         *     safe because Google and Apple have confirmed the person owns that email, and Triplet accounts
+         *     only exist once their email is confirmed too.
+         */
+        post: operations["social_sign_in_auth_social_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/refresh": {
         parameters: {
             query?: never;
@@ -1754,6 +1778,20 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** SocialLoginRequest */
+        SocialLoginRequest: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "google" | "apple";
+            /** Id Token */
+            id_token: string;
+            /** Nonce */
+            nonce?: string | null;
+            /** Name */
+            name?: string | null;
+        };
         /** Token */
         Token: {
             /** Access Token */
@@ -2199,6 +2237,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UserLogin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Token"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    social_sign_in_auth_social_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocialLoginRequest"];
             };
         };
         responses: {

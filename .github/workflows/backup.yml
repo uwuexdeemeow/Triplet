@@ -1,0 +1,53 @@
+# A copy of the database every night, kept for 30 days. See DEPLOY.md, "Database backups".
+#
+# The copy is encrypted with a passphrase only you have (the BACKUP_PASSPHRASE secret) before it's
+# stored: this repository is public, and its Actions files can be downloaded by anyone signed in to
+# GitHub. Without the passphrase a copy is unreadable.
+name: Backup
+
+on:
+  schedule:
+    # 18:00 UTC is 2 AM in Singapore, where the server is
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copy the database
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::error::Add the BACKUP_DATABASE_URL and BACKUP_PASSPHRASE secrets first (DEPLOY.md, Database backups)"
+            exit 1
+          fi
+          # The server's own setting says postgresql+psycopg://; pg_dump wants postgresql://
+          DATABASE_URL="${DATABASE_URL/postgresql+psycopg:/postgresql:}"
+
+          # pg_dump from the newest PostgreSQL, which can read any older server, like Neon's.
+          # The custom format is compressed and lets pg_restore bring back single tables too.
+          docker run --rm -e DATABASE_URL postgres:18 \
+            sh -c 'pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges' > triplet.dump
+          # A dump of an empty or unreachable database is tiny; don't keep that as a backup
+          if [ "$(stat -c %s triplet.dump)" -lt 1024 ]; then
+            echo "::error::The backup is suspiciously small; check BACKUP_DATABASE_URL"
+            exit 1
+          fi
+
+          echo "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output "triplet-$(date -u +%Y-%m-%d).dump.gpg" triplet.dump
+          rm triplet.dump
+          ls -l ./*.gpg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: database-${{ github.run_id }}
+          path: "*.dump.gpg"
+          retention-days: 30
+          if-no-files-found: error

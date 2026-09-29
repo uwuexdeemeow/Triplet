@@ -82,7 +82,7 @@ class FakeChats:
 def fake_client(monkeypatch, reply):
     chats = FakeChats(reply)
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
-    monkeypatch.setattr(assistant.genai, "Client", lambda api_key: type("Client", (), {"chats": chats})())
+    monkeypatch.setattr(assistant, "gemini_client", lambda timeout_seconds=None: type("Client", (), {"chats": chats})())
     return chats
 
 def test_off_topic_answers_are_just_the_fixed_reply(monkeypatch):

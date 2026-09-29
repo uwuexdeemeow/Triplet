@@ -60,8 +60,14 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.5-flash"
     # Tried in order when the main model is overloaded or rate limited
     GEMINI_FALLBACK_MODELS: list[str] = ["gemini-3.6-flash", "gemini-3.1-flash-lite"]
+    # Longest to wait for one Gemini answer before trying the next model. A post usually takes
+    # 10 to 60 seconds, but an overloaded model can sit on a request for many minutes.
+    GEMINI_TIMEOUT_SECONDS: int = 120
     VIDEO_MAX_DURATION_SECONDS: int = 600
-    VIDEO_MAX_FILESIZE_MB: int = 100
+    # TikToks are usually well under this; the free server has 512 MB in all
+    VIDEO_MAX_FILESIZE_MB: int = 50
+    # A download slower than this gives up, so a stalled one can't tie the server up
+    VIDEO_DOWNLOAD_TIMEOUT_SECONDS: int = 90
 
     # Daily forecasts on the plan, from Open-Meteo (free, no key)
     WEATHER_ENABLED: bool = True
@@ -82,10 +88,20 @@ class Settings(BaseSettings):
     # Pin picker searches are free for 5,000 a month
     PLACES_SEARCH_DAILY_LIMIT: int = 150
 
+    # Sign in with Google: the OAuth client ids whose sign-in tokens are accepted (the "Web" client
+    # the app asks for tokens with; see mobile/README.md). Empty turns Google sign-in off.
+    GOOGLE_CLIENT_IDS: list[str] = []
+    # Sign in with Apple: the app's bundle id. Empty turns Apple sign-in off.
+    APPLE_CLIENT_IDS: list[str] = ["com.uwuexdeemeow.triplet"]
+
     # Slow down password guessing, sign-up spam and costly lookups. Tests switch this off.
     RATE_LIMITS_ENABLED: bool = True
-    # Saving a link costs a video download and an AI call, so cap it per person per day
+    # Saving a link costs a video download and an AI call, so cap it per person per day...
     LINK_SAVES_DAILY_LIMIT: int = 40
+    # ...and for everyone together, so many accounts can't run up the bill or the bandwidth
+    LINK_SAVES_DAILY_LIMIT_ALL: int = 500
+    # Posts read at the same time; more wait their turn, so downloads can't use up the memory
+    LINK_PROCESSING_AT_ONCE: int = 2
 
     @field_validator("SECRET_KEY")
     @classmethod
