@@ -40,6 +40,7 @@ import {
 import { useShowsMapPanel, useWideLayout } from '@/utils/layout';
 import { usePullToRefresh } from '@/utils/pull-to-refresh';
 import { formatMoney } from '@/utils/money';
+import { openDirections, type Stop } from '@/utils/directions';
 import { platformLabel } from '@/utils/places';
 import { select, warn } from '@/utils/haptics';
 
@@ -111,7 +112,7 @@ export default function PlanScreen() {
           {activities.map((activity, index) => (
             <Enter key={activity.id} index={index}>
               {activity.travel_from_previous ? (
-                <TravelConnector leg={activity.travel_from_previous} from={activities[index - 1]?.title} />
+                <TravelConnector leg={activity.travel_from_previous} from={activities[index - 1]} to={activity} />
               ) : null}
               <ActivityRow
                 tripId={id}
@@ -257,8 +258,9 @@ function TripCost({ tripId }: { tripId: number }) {
   );
 }
 
-// Between two plans: roughly how long the trip takes at that time of day, and when to set off
-function TravelConnector({ leg, from }: { leg: TravelLeg; from?: string }) {
+// Between two plans: roughly how long the trip takes at that time of day, and when to set off.
+// Tapping it opens the route between them in the maps app.
+function TravelConnector({ leg, from, to }: { leg: TravelLeg; from?: ItineraryActivity; to: ItineraryActivity }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const how = leg.mode === 'walk' ? 'walk' : 'by train or taxi';
@@ -266,17 +268,28 @@ function TravelConnector({ leg, from }: { leg: TravelLeg; from?: string }) {
     `~${leg.minutes} min ${how}`,
     `${leg.km} km`,
     leg.note,
-    leg.leave_by ? `leave${from ? ` ${from}` : ''} by ${activityClock(leg.leave_by)}` : null,
+    leg.leave_by ? `leave${from ? ` ${from.title}` : ''} by ${activityClock(leg.leave_by)}` : null,
   ].filter(Boolean);
   return (
-    <View style={styles.travel} accessibilityLabel={`About ${leg.minutes} minutes ${how}, ${leg.km} kilometres${leg.note ? `, ${leg.note}` : ''}${leg.leave_by ? `. Leave by ${activityClock(leg.leave_by)}` : ''}`}>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`About ${leg.minutes} minutes ${how}, ${leg.km} kilometres${leg.note ? `, ${leg.note}` : ''}${leg.leave_by ? `. Leave by ${activityClock(leg.leave_by)}` : ''}`}
+      accessibilityHint="Opens the route in your maps app"
+      disabled={!from}
+      onPress={() => from && openDirections(stopFor(to), stopFor(from), leg.mode === 'walk' ? 'walk' : 'transit')}
+      style={({ pressed, hovered }) => [styles.travel, (pressed || hovered) && styles.travelActive]}>
       <View style={styles.travelLine} />
       <Feather name={leg.mode === 'walk' ? 'user' : 'navigation'} size={12} color={leg.note ? colors.secondText : colors.muted} />
       <Text style={[styles.travelText, leg.note ? styles.travelBusy : null]} numberOfLines={2}>
         {parts.join(' · ')}
       </Text>
-    </View>
+      {from ? <Text style={styles.travelLink}>Route</Text> : null}
+    </Pressable>
   );
+}
+
+function stopFor(activity: ItineraryActivity): Stop {
+  return { name: activity.title, address: activity.location, latitude: activity.latitude, longitude: activity.longitude };
 }
 
 function ActivityRow({
@@ -370,22 +383,30 @@ function ActivityRow({
           </View>
         );
       })}
-      {activity.source_link_id != null || conflicts.length > 0 ? (
-        <View style={styles.badges}>
-          {activity.source_link_id != null ? (
-            <View style={styles.badge}>
-              <Feather name="link" size={12} color={colors.muted} />
-              <Text style={styles.badgeText}>From {platformLabel(activity.source_platform)}</Text>
-            </View>
-          ) : null}
-          {conflicts.map((otherId) => (
-            <View key={otherId} style={[styles.badge, styles.badgeConflict]}>
-              <Feather name="alert-triangle" size={12} color={colors.dangerText} />
-              <Text style={[styles.badgeText, styles.badgeConflictText]}>Overlaps {titles.get(otherId) ?? 'another plan'}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      <View style={styles.badges}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Directions to ${activity.title}`}
+          accessibilityHint="Opens your maps app"
+          onPress={() => openDirections(stopFor(activity))}
+          hitSlop={6}
+          style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
+          <Feather name="navigation" size={12} color={colors.accentStrong} />
+          <Text style={[styles.badgeText, styles.badgeActionText]}>Directions</Text>
+        </Pressable>
+        {activity.source_link_id != null ? (
+          <View style={styles.badge}>
+            <Feather name="link" size={12} color={colors.muted} />
+            <Text style={styles.badgeText}>From {platformLabel(activity.source_platform)}</Text>
+          </View>
+        ) : null}
+        {conflicts.map((otherId) => (
+          <View key={otherId} style={[styles.badge, styles.badgeConflict]}>
+            <Feather name="alert-triangle" size={12} color={colors.dangerText} />
+            <Text style={[styles.badgeText, styles.badgeConflictText]}>Overlaps {titles.get(otherId) ?? 'another plan'}</Text>
+          </View>
+        ))}
+      </View>
       {remove.error ? <Text style={styles.deleteError}>{remove.error.message}</Text> : null}
     </PressableScale>
   );
@@ -680,6 +701,15 @@ const useStyles = makeStyles((colors) => ({
   badgeConflict: {
     backgroundColor: colors.dangerSoft,
   },
+  badgeAction: {
+    backgroundColor: colors.accentSoft,
+  },
+  badgeActionActive: {
+    opacity: 0.75,
+  },
+  badgeActionText: {
+    color: colors.accentStrong,
+  },
   badgeConflictText: {
     color: colors.dangerText,
   },
@@ -730,5 +760,13 @@ const useStyles = makeStyles((colors) => ({
   // Rush hour or a late taxi: the trip takes longer than usual
   travelBusy: {
     color: colors.secondText,
+  },
+  travelActive: {
+    opacity: 0.7,
+  },
+  travelLink: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.accent,
   },
 }));

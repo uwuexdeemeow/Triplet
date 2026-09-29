@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useLinks, usePlaces, type TripPlace } from '@/api/trips';
 import { Button } from '@/components/button';
+import { DirectionsLink } from '@/components/directions-link';
 import { MiniMap } from '@/components/place-map';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
@@ -232,6 +233,7 @@ function ReviewForm({ tripId, place }: { tripId: number; place: TripPlace }) {
         {place.latitude != null && place.longitude != null ? (
           <View style={styles.mapBlock}>
             <MiniMap latitude={place.latitude} longitude={place.longitude} />
+            <DirectionsLink to={place} />
             <Button label="Adjust pin" variant="secondary" onPress={openPinPicker} />
           </View>
         ) : (

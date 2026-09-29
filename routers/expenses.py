@@ -6,10 +6,14 @@ from sqlalchemy.orm import Session
 import budget_estimate
 import exchange_rates
 import scheduling
+import splits
 from database import connect_db
-from models import User, Trip, TripMembership, Activity, Expense, ExtractedPlace
+from models import User, Trip, TripMembership, Activity, Expense, ExpenseShare, ExtractedPlace, Settlement
 from routers.activities import build_itinerary
-from schemas import ExpenseCreate, ExpenseUpdate, ExpenseResponse, BudgetSummary, MemberBalance, BudgetEstimate, BudgetEstimateDay
+from schemas import (
+    ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseShareIn, BudgetSummary, MemberBalance, BudgetEstimate,
+    BudgetEstimateDay, SettlementCreate, SettlementResponse, Transfer
+)
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 
 router = APIRouter(
@@ -41,6 +45,45 @@ def validate_expense_links(db: Session, trip_id: int, paid_by_id: int | None, ac
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Activity not found"
             )
+
+def member_ids(db: Session, trip_id: int) -> set[int]:
+    return {user_id for (user_id,) in db.query(TripMembership.user_id).filter(TripMembership.trip_id == trip_id)}
+
+def apply_split(db: Session, trip_id: int, expense: Expense, split: str, shares: list[ExpenseShareIn]):
+    """
+    Set who shares an expense. "all" needs no shares: it's everyone on the trip, worked out when
+    shown. "people" splits evenly between those listed; "amounts" takes the amounts given, which
+    must add up to the expense.
+    """
+    if split == "all":
+        expense.split = "all"
+        expense.shares = []
+        return
+
+    user_ids = [share.user_id for share in shares]
+    if not user_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose who shares this expense")
+    if len(set(user_ids)) != len(user_ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Each person can only be listed once")
+    if not set(user_ids) <= member_ids(db, trip_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Everyone sharing it must be on the trip")
+
+    if split == "people":
+        amounts = splits.even_shares(expense.amount, user_ids)
+    else:
+        if any(share.amount is None for share in shares):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter an amount for each person")
+        amounts = {share.user_id: splits.cents(share.amount) for share in shares}
+        total = sum(amounts.values(), splits.cents(0))
+        if total != splits.cents(expense.amount):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"The amounts add up to {total}, not {splits.cents(expense.amount)}"
+            )
+
+    expense.split = split
+    # Replacing the list deletes the old shares (delete-orphan)
+    expense.shares = [ExpenseShare(user_id=user_id, amount=amount) for user_id, amount in amounts.items() if amount > 0 or split == "people"]
 
 def get_expense_or_404(db: Session, trip_id: int, expense_id: int) -> Expense:
     expense = db.query(Expense).filter(
@@ -79,6 +122,7 @@ def create_expense(
         category=expense_create.category,
         spent_on=expense_create.spent_on
     )
+    apply_split(db, trip_id, expense, expense_create.split, expense_create.shares)
 
     db.add(expense)
     db.commit()
@@ -143,8 +187,21 @@ def update_expense(
         update_data.get("activity_id")
     )
 
+    split = update_data.pop("split", None)
+    update_data.pop("shares", None)
     for field, value in update_data.items():
         setattr(expense, field, value)
+
+    if split is not None or expense_update.shares is not None:
+        apply_split(db, trip_id, expense, split or expense.split, expense_update.shares or [])
+    elif "amount" in update_data and expense.split == "people":
+        # Same people, new total: work their parts out again
+        apply_split(db, trip_id, expense, "people", [ExpenseShareIn(user_id=share.user_id) for share in expense.shares])
+    elif "amount" in update_data and expense.split == "amounts":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This expense is split by amounts, so change each person's amount too"
+        )
 
     db.commit()
     db.refresh(expense)
@@ -199,19 +256,44 @@ def get_budget(
         .all()
     )
 
-    # Expenses are split evenly between everyone on the trip.
-    # A positive balance means the member is owed money, negative means they owe.
-    share = total_spent / len(members) if members else Decimal("0")
+    # Each person's part: expenses split between everyone are shared evenly by whoever is on the
+    # trip now; the others by their own shares. A positive balance means the member is owed
+    # money, negative means they owe.
+    share = defaultdict(Decimal)
+    everyone = [user.id for member, user in members]
+    for expense in expenses:
+        if expense.split == "all":
+            if everyone:
+                for user_id, amount in splits.even_shares(expense.amount, everyone).items():
+                    share[user_id] += amount
+        else:
+            for part in expense.shares:
+                share[part.user_id] += part.amount
 
+    # Paying someone back evens things out without being spending
+    settlements = db.query(Settlement).filter(Settlement.trip_id == trip_id).order_by(Settlement.created_at, Settlement.id).all()
+    settled = defaultdict(Decimal)
+    for settlement in settlements:
+        if settlement.from_user_id is not None:
+            settled[settlement.from_user_id] += settlement.amount
+        if settlement.to_user_id is not None:
+            settled[settlement.to_user_id] -= settlement.amount
+
+    names = {user.id: user.name for member, user in members}
+    net = {user_id: paid_by[user_id] - share[user_id] + settled[user_id] for user_id in everyone}
     balances = [
         MemberBalance(
-            user_id=user.id,
-            name=user.name,
-            paid=round(float(paid_by[user.id]), 2),
-            share=round(float(share), 2),
-            balance=round(float(paid_by[user.id] - share), 2)
+            user_id=user_id,
+            name=names[user_id],
+            paid=round(float(paid_by[user_id]), 2),
+            share=round(float(share[user_id]), 2),
+            balance=round(float(net[user_id]), 2)
         )
-        for member, user in members
+        for user_id in everyone
+    ]
+    settle_up = [
+        Transfer(from_user_id=debtor, from_name=names[debtor], to_user_id=creditor, to_name=names[creditor], amount=float(amount))
+        for debtor, creditor, amount in splits.settle_up(net)
     ]
 
     return BudgetSummary(
@@ -222,8 +304,50 @@ def get_budget(
         remaining=float(trip.budget - total_spent) if trip.budget is not None else None,
         planned_activity_cost=float(planned_activity_cost),
         by_category={category: float(amount) for category, amount in by_category.items()},
-        balances=balances
+        balances=balances,
+        settle_up=settle_up,
+        settlements=[SettlementResponse.model_validate(settlement) for settlement in settlements]
     )
+
+@router.post("/settlements", response_model=SettlementResponse, status_code=201)
+def create_settlement(
+    trip_id: int,
+    settlement_create: SettlementCreate,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """Record someone paying someone else back, e.g. from the Budget tab's "Mark as paid"."""
+    require_role(membership, EDITOR_ROLES)
+    if settlement_create.from_user_id == settlement_create.to_user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Someone can't pay themselves back")
+    if not {settlement_create.from_user_id, settlement_create.to_user_id} <= member_ids(db, trip_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Both people must be on the trip")
+
+    settlement = Settlement(
+        trip_id=trip_id,
+        from_user_id=settlement_create.from_user_id,
+        to_user_id=settlement_create.to_user_id,
+        amount=splits.cents(settlement_create.amount)
+    )
+    db.add(settlement)
+    db.commit()
+    db.refresh(settlement)
+    return settlement
+
+@router.delete("/settlements/{settlement_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_settlement(
+    trip_id: int,
+    settlement_id: int,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """Undo a payback recorded by mistake."""
+    require_role(membership, EDITOR_ROLES)
+    settlement = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.trip_id == trip_id).first()
+    if settlement is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+    db.delete(settlement)
+    db.commit()
 
 @router.get("/budget/estimate", response_model=BudgetEstimate)
 def get_budget_estimate(

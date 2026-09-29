@@ -890,6 +890,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/settlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Settlement
+         * @description Record someone paying someone else back, e.g. from the Budget tab's "Mark as paid".
+         */
+        post: operations["create_settlement_trips__trip_id__settlements_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/settlements/{settlement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Settlement
+         * @description Undo a payback recorded by mistake.
+         */
+        delete: operations["delete_settlement_trips__trip_id__settlements__settlement_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/budget/estimate": {
         parameters: {
             query?: never;
@@ -1297,6 +1337,16 @@ export interface components {
             };
             /** Balances */
             balances: components["schemas"]["MemberBalance"][];
+            /**
+             * Settle Up
+             * @default []
+             */
+            settle_up: components["schemas"]["Transfer"][];
+            /**
+             * Settlements
+             * @default []
+             */
+            settlements: components["schemas"]["SettlementResponse"][];
         };
         /** CodeRequest */
         CodeRequest: {
@@ -1368,6 +1418,17 @@ export interface components {
             activity_id?: number | null;
             /** Paid By Id */
             paid_by_id?: number | null;
+            /**
+             * Split
+             * @default all
+             * @enum {string}
+             */
+            split: "all" | "people" | "amounts";
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["ExpenseShareIn"][];
         };
         /** ExpenseResponse */
         ExpenseResponse: {
@@ -1388,10 +1449,34 @@ export interface components {
             /** Spent On */
             spent_on?: string | null;
             /**
+             * Split
+             * @default all
+             */
+            split: string;
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["ExpenseShareOut"][];
+            /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+        };
+        /** ExpenseShareIn */
+        ExpenseShareIn: {
+            /** User Id */
+            user_id: number;
+            /** Amount */
+            amount?: number | null;
+        };
+        /** ExpenseShareOut */
+        ExpenseShareOut: {
+            /** User Id */
+            user_id: number;
+            /** Amount */
+            amount: number;
         };
         /** ExpenseUpdate */
         ExpenseUpdate: {
@@ -1407,6 +1492,10 @@ export interface components {
             activity_id?: number | null;
             /** Paid By Id */
             paid_by_id?: number | null;
+            /** Split */
+            split?: ("all" | "people" | "amounts") | null;
+            /** Shares */
+            shares?: components["schemas"]["ExpenseShareIn"][] | null;
         };
         /** ExtractedPlaceResponse */
         ExtractedPlaceResponse: {
@@ -1867,6 +1956,31 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** SettlementCreate */
+        SettlementCreate: {
+            /** From User Id */
+            from_user_id: number;
+            /** To User Id */
+            to_user_id: number;
+            /** Amount */
+            amount: number;
+        };
+        /** SettlementResponse */
+        SettlementResponse: {
+            /** Id */
+            id: number;
+            /** From User Id */
+            from_user_id?: number | null;
+            /** To User Id */
+            to_user_id?: number | null;
+            /** Amount */
+            amount: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** SignInOptions */
         SignInOptions: {
             /** Google Client Id */
@@ -1916,6 +2030,22 @@ export interface components {
             token_type: string;
             /** Refresh Token */
             refresh_token?: string | null;
+        };
+        /**
+         * Transfer
+         * @description A payment that would even things out: from_user pays to_user.
+         */
+        Transfer: {
+            /** From User Id */
+            from_user_id: number;
+            /** From Name */
+            from_name: string;
+            /** To User Id */
+            to_user_id: number;
+            /** To Name */
+            to_name: string;
+            /** Amount */
+            amount: number;
         };
         /**
          * TravelLeg
@@ -4336,6 +4466,71 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BudgetSummary"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_settlement_trips__trip_id__settlements_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettlementCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettlementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_settlement_trips__trip_id__settlements__settlement_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+                settlement_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

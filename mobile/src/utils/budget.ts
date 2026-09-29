@@ -1,7 +1,6 @@
 import type { ComponentProps } from 'react';
 import type { Feather } from '@expo/vector-icons';
 
-import type { BudgetSummary } from '@/api/trips';
 import type { ColorScheme } from '@/theme/tokens';
 
 export const EXPENSE_CATEGORIES = ['food', 'accommodation', 'transport', 'activities', 'shopping', 'other'] as const;
@@ -26,37 +25,3 @@ export function categoryMeta(category: string) {
   return CATEGORY_META[(EXPENSE_CATEGORIES as readonly string[]).includes(category) ? (category as ExpenseCategory) : 'other'];
 }
 
-export type Transfer = { fromId: number; fromName: string; toId: number; toName: string; amount: number };
-
-/**
- * The fewest payments that settle everyone up. Each balance is paid minus fair share:
- * positive means they're owed money, negative means they owe it.
- */
-export function settleUp(balances: BudgetSummary['balances']): Transfer[] {
-  // Work in cents so rounding can't leave someone owing 0.0000001
-  const owed = balances.filter((b) => b.balance > 0.005).map((b) => ({ ...b, cents: Math.round(b.balance * 100) }));
-  const owing = balances.filter((b) => b.balance < -0.005).map((b) => ({ ...b, cents: Math.round(-b.balance * 100) }));
-  owed.sort((a, b) => b.cents - a.cents);
-  owing.sort((a, b) => b.cents - a.cents);
-
-  const transfers: Transfer[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < owing.length && j < owed.length) {
-    const cents = Math.min(owing[i].cents, owed[j].cents);
-    if (cents > 0) {
-      transfers.push({
-        fromId: owing[i].user_id,
-        fromName: owing[i].name,
-        toId: owed[j].user_id,
-        toName: owed[j].name,
-        amount: cents / 100,
-      });
-    }
-    owing[i].cents -= cents;
-    owed[j].cents -= cents;
-    if (owing[i].cents === 0) i++;
-    if (owed[j].cents === 0) j++;
-  }
-  return transfers;
-}

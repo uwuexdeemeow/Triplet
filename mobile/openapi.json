@@ -3493,6 +3493,114 @@
     }
    }
   },
+  "/trips/{trip_id}/settlements": {
+   "post": {
+    "tags": [
+     "Budget"
+    ],
+    "summary": "Create Settlement",
+    "description": "Record someone paying someone else back, e.g. from the Budget tab's \"Mark as paid\".",
+    "operationId": "create_settlement_trips__trip_id__settlements_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettlementCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SettlementResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/settlements/{settlement_id}": {
+   "delete": {
+    "tags": [
+     "Budget"
+    ],
+    "summary": "Delete Settlement",
+    "description": "Undo a payback recorded by mistake.",
+    "operationId": "delete_settlement_trips__trip_id__settlements__settlement_id__delete",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "settlement_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Settlement Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/budget/estimate": {
    "get": {
     "tags": [
@@ -4649,6 +4757,22 @@
       },
       "type": "array",
       "title": "Balances"
+     },
+     "settle_up": {
+      "items": {
+       "$ref": "#/components/schemas/Transfer"
+      },
+      "type": "array",
+      "title": "Settle Up",
+      "default": []
+     },
+     "settlements": {
+      "items": {
+       "$ref": "#/components/schemas/SettlementResponse"
+      },
+      "type": "array",
+      "title": "Settlements",
+      "default": []
      }
     },
     "type": "object",
@@ -4945,6 +5069,25 @@
        }
       ],
       "title": "Paid By Id"
+     },
+     "split": {
+      "type": "string",
+      "enum": [
+       "all",
+       "people",
+       "amounts"
+      ],
+      "title": "Split",
+      "default": "all"
+     },
+     "shares": {
+      "items": {
+       "$ref": "#/components/schemas/ExpenseShareIn"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Shares",
+      "default": []
      }
     },
     "type": "object",
@@ -5010,6 +5153,19 @@
       ],
       "title": "Spent On"
      },
+     "split": {
+      "type": "string",
+      "title": "Split",
+      "default": "all"
+     },
+     "shares": {
+      "items": {
+       "$ref": "#/components/schemas/ExpenseShareOut"
+      },
+      "type": "array",
+      "title": "Shares",
+      "default": []
+     },
      "created_at": {
       "type": "string",
       "format": "date-time",
@@ -5026,6 +5182,50 @@
      "created_at"
     ],
     "title": "ExpenseResponse"
+   },
+   "ExpenseShareIn": {
+    "properties": {
+     "user_id": {
+      "type": "integer",
+      "title": "User Id"
+     },
+     "amount": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 99999999.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Amount"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id"
+    ],
+    "title": "ExpenseShareIn"
+   },
+   "ExpenseShareOut": {
+    "properties": {
+     "user_id": {
+      "type": "integer",
+      "title": "User Id"
+     },
+     "amount": {
+      "type": "number",
+      "title": "Amount"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "amount"
+    ],
+    "title": "ExpenseShareOut"
    },
    "ExpenseUpdate": {
     "properties": {
@@ -5106,6 +5306,37 @@
        }
       ],
       "title": "Paid By Id"
+     },
+     "split": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "all",
+         "people",
+         "amounts"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Split"
+     },
+     "shares": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ExpenseShareIn"
+        },
+        "type": "array",
+        "maxItems": 50
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Shares"
      }
     },
     "type": "object",
@@ -6693,6 +6924,77 @@
     ],
     "title": "ScheduleWarning"
    },
+   "SettlementCreate": {
+    "properties": {
+     "from_user_id": {
+      "type": "integer",
+      "title": "From User Id"
+     },
+     "to_user_id": {
+      "type": "integer",
+      "title": "To User Id"
+     },
+     "amount": {
+      "type": "number",
+      "maximum": 99999999.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Amount"
+     }
+    },
+    "type": "object",
+    "required": [
+     "from_user_id",
+     "to_user_id",
+     "amount"
+    ],
+    "title": "SettlementCreate"
+   },
+   "SettlementResponse": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "from_user_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From User Id"
+     },
+     "to_user_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To User Id"
+     },
+     "amount": {
+      "type": "number",
+      "title": "Amount"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "amount",
+     "created_at"
+    ],
+    "title": "SettlementResponse"
+   },
    "SignInOptions": {
     "properties": {
      "google_client_id": {
@@ -6828,6 +7130,40 @@
      "token_type"
     ],
     "title": "Token"
+   },
+   "Transfer": {
+    "properties": {
+     "from_user_id": {
+      "type": "integer",
+      "title": "From User Id"
+     },
+     "from_name": {
+      "type": "string",
+      "title": "From Name"
+     },
+     "to_user_id": {
+      "type": "integer",
+      "title": "To User Id"
+     },
+     "to_name": {
+      "type": "string",
+      "title": "To Name"
+     },
+     "amount": {
+      "type": "number",
+      "title": "Amount"
+     }
+    },
+    "type": "object",
+    "required": [
+     "from_user_id",
+     "from_name",
+     "to_user_id",
+     "to_name",
+     "amount"
+    ],
+    "title": "Transfer",
+    "description": "A payment that would even things out: from_user pays to_user."
    },
    "TravelLeg": {
     "properties": {

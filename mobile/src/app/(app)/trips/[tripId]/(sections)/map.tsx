@@ -16,6 +16,7 @@ import {
   type TripPlace,
 } from '@/api/trips';
 import { Button } from '@/components/button';
+import { DirectionsLink } from '@/components/directions-link';
 import { MapSearch } from '@/components/map-search';
 import { TripMap, type Coordinates, type MapPlace, type TripMapHandle } from '@/components/place-map';
 import { Glass } from '@/components/glass';
@@ -432,6 +433,9 @@ function SelectedActivity({
             {activity.location}
           </Text>
         ) : null}
+        <DirectionsLink
+          to={{ name: activity.title, address: activity.location, latitude: activity.latitude, longitude: activity.longitude }}
+        />
       </View>
       <View style={styles.actions}>
         <Button
@@ -479,6 +483,7 @@ function SelectedPlace({ tripId, place }: { tripId: string; place: TripPlace }) 
             {place.address}
           </Text>
         ) : null}
+        <DirectionsLink to={place} />
       </View>
       <View style={styles.actions}>
         <Button

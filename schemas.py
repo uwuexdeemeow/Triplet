@@ -553,6 +553,19 @@ class LinkToActivity(BaseModel):
 
         return self
 
+ExpenseSplit = Literal["all", "people", "amounts"]
+
+class ExpenseShareIn(BaseModel):
+    user_id: int
+    # Only for split "amounts"; with "people" everyone's part is worked out evenly
+    amount: float | None = Field(default=None, ge=0, le=99_999_999)
+
+class ExpenseShareOut(BaseModel):
+    user_id: int
+    amount: float
+
+    model_config = {"from_attributes": True}
+
 class ExpenseCreate(BaseModel):
     title: ShortText
     amount: float = Field(gt=0, le=99_999_999)
@@ -560,6 +573,9 @@ class ExpenseCreate(BaseModel):
     spent_on: date | None = None
     activity_id: int | None = None
     paid_by_id: int | None = None
+    # "all": everyone on the trip. "people": the people in shares, evenly. "amounts": shares' amounts.
+    split: ExpenseSplit = "all"
+    shares: list[ExpenseShareIn] = Field(default=[], max_length=50)
 
 class ExpenseUpdate(BaseModel):
     title: ShortText | None = None
@@ -568,6 +584,8 @@ class ExpenseUpdate(BaseModel):
     spent_on: date | None = None
     activity_id: int | None = None
     paid_by_id: int | None = None
+    split: ExpenseSplit | None = None
+    shares: list[ExpenseShareIn] | None = Field(default=None, max_length=50)
 
 class ExpenseResponse(BaseModel):
     id: int
@@ -578,6 +596,8 @@ class ExpenseResponse(BaseModel):
     amount: float
     category: str
     spent_on: date | None = None
+    split: str = "all"
+    shares: list[ExpenseShareOut] = []
     created_at: datetime
 
     model_config={
@@ -614,6 +634,28 @@ class BudgetEstimate(BaseModel):
     unpriced_plans: int
     notes: list[str]
 
+class SettlementCreate(BaseModel):
+    from_user_id: int
+    to_user_id: int
+    amount: float = Field(gt=0, le=99_999_999)
+
+class SettlementResponse(BaseModel):
+    id: int
+    from_user_id: int | None = None
+    to_user_id: int | None = None
+    amount: float
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+class Transfer(BaseModel):
+    """A payment that would even things out: from_user pays to_user."""
+    from_user_id: int
+    from_name: str
+    to_user_id: int
+    to_name: str
+    amount: float
+
 class BudgetSummary(BaseModel):
     trip_id: int
     currency: str
@@ -623,3 +665,6 @@ class BudgetSummary(BaseModel):
     planned_activity_cost: float
     by_category: dict[str, float]
     balances: list[MemberBalance]
+    # The fewest payments that would settle everyone up, after the paybacks already recorded
+    settle_up: list[Transfer] = []
+    settlements: list[SettlementResponse] = []

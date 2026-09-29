@@ -26,7 +26,7 @@ import { Body, Title } from '@/components/text';
 import { PressableScale } from '@/components/pressable-scale';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
-import { categoryMeta, EXPENSE_CATEGORIES, CATEGORY_META, settleUp } from '@/utils/budget';
+import { categoryMeta, EXPENSE_CATEGORIES, CATEGORY_META } from '@/utils/budget';
 import { formatShortDate } from '@/utils/dates';
 import { useWideLayout } from '@/utils/layout';
 import { usePullToRefresh } from '@/utils/pull-to-refresh';
@@ -87,7 +87,7 @@ export default function BudgetScreen() {
         {summary.total_spent > 0 ? <CategoryCard summary={summary} money={money} /> : null}
 
         {summary.balances.length > 1 && summary.total_spent > 0 ? (
-          <SettleUpCard summary={summary} myId={me.data?.id} money={money} />
+          <SettleUpCard tripId={id} summary={summary} myId={me.data?.id} canEdit={canEdit} money={money} />
         ) : null}
 
         <Text style={styles.sectionTitle}>Expenses</Text>
@@ -95,7 +95,8 @@ export default function BudgetScreen() {
           <View style={styles.empty}>
             <Title style={styles.center}>Nothing spent yet</Title>
             <Body style={styles.muted}>
-              Log what you spend as you go. With friends on the trip, it’s split evenly so you can settle up at the end.
+              Log what you spend as you go. With friends on the trip, split each cost between everyone or just some of
+              you, then settle up at the end.
             </Body>
           </View>
         ) : (
@@ -345,25 +346,50 @@ function CategoryCard({ summary, money }: { summary: BudgetSummary; money: (amou
   );
 }
 
+// Who pays whom to even things out, worked out by the server from everyone's shares and the
+// paybacks already recorded. "Mark as paid" records one, and a mistake can be undone.
 function SettleUpCard({
+  tripId,
   summary,
   myId,
+  canEdit,
   money,
 }: {
+  tripId: number;
   summary: BudgetSummary;
   myId: number | undefined;
+  canEdit: boolean;
   money: (amount: number) => string;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const transfers = settleUp(summary.balances);
-  const name = (id: number, fallback: string) => (id === myId ? 'You' : fallback);
-  const share = summary.balances[0]?.share ?? 0;
+  const queryClient = useQueryClient();
+  const transfers = summary.settle_up ?? [];
+  const settlements = summary.settlements ?? [];
+  const names = new Map(summary.balances.map((balance) => [balance.user_id, balance.name]));
+  const who = (id: number | null | undefined, start = false) =>
+    id == null ? 'Someone who left' : id === myId ? (start ? 'You' : 'you') : (names.get(id) ?? 'Someone who left');
+  const mine = summary.balances.find((balance) => balance.user_id === myId);
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: tripKeys.budget(tripId) });
+  const markPaid = useMutation({
+    mutationFn: (transfer: { from_user_id: number; to_user_id: number; amount: number }) =>
+      api(`/trips/${tripId}/settlements`, {
+        method: 'POST',
+        body: { from_user_id: transfer.from_user_id, to_user_id: transfer.to_user_id, amount: transfer.amount },
+      }),
+    onSuccess: refresh,
+  });
+  const undo = useMutation({
+    mutationFn: (settlementId: number) => api(`/trips/${tripId}/settlements/${settlementId}`, { method: 'DELETE' }),
+    onSuccess: refresh,
+  });
 
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Settle up</Text>
-      <Text style={styles.cardNote}>Split evenly: {money(share)} each.</Text>
+      {mine ? <Text style={styles.cardNote}>Your share of the costs: {money(mine.share)}.</Text> : null}
+      <FormMessage message={(markPaid.error ?? undo.error)?.message ?? null} />
       {transfers.length === 0 ? (
         <View style={styles.status}>
           <Feather name="check-circle" size={15} color={colors.accent} />
@@ -371,16 +397,50 @@ function SettleUpCard({
         </View>
       ) : (
         transfers.map((transfer) => (
-          <View key={`${transfer.fromId}-${transfer.toId}`} style={styles.transfer}>
-            <Text style={styles.transferText}>
-              <Text style={styles.bold}>{name(transfer.fromId, transfer.fromName)}</Text>
-              {transfer.fromId === myId ? ' pay ' : ' pays '}
-              <Text style={styles.bold}>{transfer.toId === myId ? 'you' : transfer.toName}</Text>
-            </Text>
-            <Text style={styles.transferAmount}>{money(transfer.amount)}</Text>
+          <View key={`${transfer.from_user_id}-${transfer.to_user_id}`} style={styles.transfer}>
+            <View style={styles.transferMain}>
+              <Text style={styles.transferText}>
+                <Text style={styles.bold}>{who(transfer.from_user_id, true)}</Text>
+                {transfer.from_user_id === myId ? ' pay ' : ' pays '}
+                <Text style={styles.bold}>{who(transfer.to_user_id)}</Text>
+              </Text>
+              <Text style={styles.transferAmount}>{money(transfer.amount)}</Text>
+            </View>
+            {canEdit ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Mark ${money(transfer.amount)} from ${who(transfer.from_user_id)} to ${who(transfer.to_user_id)} as paid`}
+                disabled={markPaid.isPending}
+                onPress={() => markPaid.mutate(transfer)}
+                style={({ pressed }) => [styles.paidButton, pressed && styles.pressed]}>
+                <Text style={styles.paidLabel}>Mark as paid</Text>
+              </Pressable>
+            ) : null}
           </View>
         ))
       )}
+      {settlements.length ? (
+        <View style={styles.paidList}>
+          <Text style={styles.paidTitle}>Paid back</Text>
+          {settlements.map((settlement) => (
+            <View key={settlement.id} style={styles.paidRow}>
+              <Text style={styles.paidText} numberOfLines={2}>
+                {who(settlement.from_user_id, true)} paid {who(settlement.to_user_id)} {money(settlement.amount)}
+              </Text>
+              {canEdit ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Undo this payment"
+                  disabled={undo.isPending}
+                  onPress={() => undo.mutate(settlement.id)}
+                  hitSlop={8}>
+                  <Text style={styles.undoLabel}>Undo</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -414,7 +474,18 @@ function ExpenseRow({
     },
   });
 
-  const details = [showPayer && payer ? `Paid by ${payer}` : null, plan ? `For ${plan}` : null, showPayer || plan ? null : meta.label]
+  const splitNote =
+    expense.split === 'people'
+      ? `Split between ${expense.shares.length}`
+      : expense.split === 'amounts'
+        ? 'Custom split'
+        : null;
+  const details = [
+    showPayer && payer ? `Paid by ${payer}` : null,
+    splitNote,
+    plan ? `For ${plan}` : null,
+    showPayer || plan || splitNote ? null : meta.label,
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -647,12 +718,62 @@ const useStyles = makeStyles((colors) => ({
   },
   transfer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
     minHeight: 40,
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: radii.input,
     backgroundColor: colors.bg,
+  },
+  transferMain: {
+    flex: 1,
+    minWidth: 180,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  paidButton: {
+    minHeight: 32,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paidLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.accentStrong,
+  },
+  paidList: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  paidTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.muted,
+  },
+  paidRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  paidText: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13.5,
+    color: colors.muted,
+  },
+  pressed: {
+    opacity: 0.75,
+  },
+  undoLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.accent,
   },
   transferText: {
     flex: 1,

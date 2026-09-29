@@ -563,6 +563,74 @@ class Expense(Base):
         nullable=True
     )
 
+    # Who shares the cost: "all" (everyone on the trip, evenly, worked out when it's shown),
+    # "people" (some of them, evenly) or "amounts" (set amounts each). The last two are in shares.
+    split: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        default="all",
+        server_default="all"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+    shares: Mapped[list["ExpenseShare"]] = relationship(
+        cascade="all, delete-orphan",
+        order_by="ExpenseShare.user_id"
+    )
+
+class ExpenseShare(Base):
+    """One person's part of an expense that isn't split between everyone."""
+    __tablename__ = "expense_shares"
+
+    expense_id: Mapped[int] = mapped_column(
+        ForeignKey("expenses.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False
+    )
+
+class Settlement(Base):
+    """Someone paying someone else back, which evens out who owes what. Not an expense."""
+    __tablename__ = "settlements"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    from_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    to_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

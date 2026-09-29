@@ -46,6 +46,24 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
+type Split = 'all' | 'people' | 'amounts';
+
+const SPLITS: { value: Split; label: string }[] = [
+  { value: 'all', label: 'Everyone' },
+  { value: 'people', label: 'Some people' },
+  { value: 'amounts', label: 'Custom amounts' },
+];
+
+function parseMoney(value: string): number {
+  const number = Number(value.trim().replace(/,/g, ''));
+  return Number.isFinite(number) ? number : NaN;
+}
+
+// Whole cents, so adding up amounts like 0.1 + 0.2 comes out exact
+function toCents(amount: number): number {
+  return Math.round(amount * 100);
+}
+
 // Adds an expense, or edits one when opened with an expenseId
 export default function ExpenseScreen() {
   const styles = useStyles();
@@ -113,6 +131,21 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
         },
   });
   const day = useWatch({ control, name: 'day' });
+  const amountText = useWatch({ control, name: 'amount' });
+
+  // Who shares the cost. Kept beside the form: "Some people" and "Custom amounts" need a
+  // choice per person, which depends on who's on the trip.
+  const [split, setSplit] = useState<Split>((expense?.split as Split | undefined) ?? 'all');
+  const [chosen, setChosen] = useState<Set<number> | null>(() =>
+    expense?.split === 'people' ? new Set(expense.shares.map((share) => share.user_id)) : null,
+  );
+  const [amounts, setAmounts] = useState<Record<number, string>>(() =>
+    expense?.split === 'amounts' ? Object.fromEntries(expense.shares.map((share) => [share.user_id, String(share.amount)])) : {},
+  );
+  const [splitError, setSplitError] = useState<string | null>(null);
+  const everyone = members.data?.map((member) => member.user_id) ?? [];
+  // Until someone is left out, "Some people" starts with everyone ticked
+  const picked = chosen ?? new Set(everyone);
 
   const plansThatDay = itinerary.data?.days.find((item) => item.date === day)?.activities ?? [];
 
@@ -131,6 +164,15 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
         activity_id: values.activityId,
         // Leaving it empty on a new expense means "me"; the server fills that in
         ...(values.paidBy != null || !expense ? { paid_by_id: values.paidBy } : {}),
+        split,
+        shares:
+          split === 'people'
+            ? everyone.filter((userId) => picked.has(userId)).map((userId) => ({ user_id: userId }))
+            : split === 'amounts'
+              ? everyone
+                  .filter((userId) => parseMoney(amounts[userId] ?? '') > 0)
+                  .map((userId) => ({ user_id: userId, amount: parseMoney(amounts[userId]) }))
+              : [],
       };
       return expense
         ? api(`/trips/${trip.id}/expenses/${expense.id}`, { method: 'PATCH', body })
@@ -150,7 +192,23 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
     },
   });
 
-  const onSubmit = handleSubmit((values) => save.mutate(values));
+  // How much of the total the custom amounts still leave, in cents
+  const totalCents = toCents(parseMoney(amountText ?? ''));
+  const assignedCents = everyone.reduce((sum, userId) => sum + (toCents(parseMoney(amounts[userId] ?? '')) || 0), 0);
+
+  const onSubmit = handleSubmit((values) => {
+    setSplitError(null);
+    if (split === 'people' && picked.size === 0) return setSplitError('Choose who shares it.');
+    if (split === 'amounts') {
+      if (everyone.some((userId) => amounts[userId]?.trim() && !(parseMoney(amounts[userId]) >= 0))) {
+        return setSplitError('Enter amounts as numbers, like 1500.');
+      }
+      if (assignedCents !== totalCents) {
+        return setSplitError(`The amounts need to add up to ${formatMoney(totalCents / 100, trip.currency)}.`);
+      }
+    }
+    save.mutate(values);
+  });
 
   const error = save.error ?? remove.error;
   const errorMessage =
@@ -326,11 +384,104 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
                     );
                   })}
                 </View>
-                <Text style={styles.hint}>Split evenly between everyone on the trip.</Text>
               </View>
             );
           }}
         />
+      ) : null}
+
+      {everyone.length > 1 ? (
+        <View style={styles.field}>
+          <Text style={styles.label}>Split</Text>
+          <View style={styles.chips}>
+            {SPLITS.map((option) => {
+              const selected = split === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => {
+                    setSplit(option.value);
+                    setSplitError(null);
+                  }}
+                  style={[styles.chip, selected && styles.chipSelected]}>
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {split === 'all' ? <Text style={styles.hint}>Split evenly between everyone on the trip.</Text> : null}
+
+          {split === 'people' ? (
+            <>
+              <View style={styles.chips}>
+                {members.data!.map((member) => {
+                  const selected = picked.has(member.user_id);
+                  return (
+                    <Pressable
+                      key={member.user_id}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => {
+                        const next = new Set(picked);
+                        if (selected) next.delete(member.user_id);
+                        else next.add(member.user_id);
+                        setChosen(next);
+                        setSplitError(null);
+                      }}
+                      style={[styles.chip, selected && styles.chipSelected]}>
+                      {selected ? <Feather name="check" size={14} color={colors.onAccent} /> : null}
+                      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                        {member.user_id === me.data?.id ? 'Me' : member.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.hint}>
+                {picked.size > 0 && totalCents > 0
+                  ? `${formatMoney(totalCents / 100 / picked.size, trip.currency)} each, split evenly between ${picked.size}.`
+                  : 'Split evenly between the people ticked.'}
+              </Text>
+            </>
+          ) : null}
+
+          {split === 'amounts' ? (
+            <>
+              {members.data!.map((member) => (
+                <View key={member.user_id} style={styles.shareRow}>
+                  <Text style={styles.shareName} numberOfLines={1}>
+                    {member.user_id === me.data?.id ? 'Me' : member.name}
+                  </Text>
+                  <View style={styles.shareAmount}>
+                    <TextField
+                      label={`${member.user_id === me.data?.id ? 'My' : `${member.name}’s`} share`}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      value={amounts[member.user_id] ?? ''}
+                      onChangeText={(value) => {
+                        setAmounts((current) => ({ ...current, [member.user_id]: value }));
+                        setSplitError(null);
+                      }}
+                    />
+                  </View>
+                </View>
+              ))}
+              <Text style={[styles.hint, totalCents > 0 && assignedCents !== totalCents && styles.hintAttention]}>
+                {totalCents > 0
+                  ? assignedCents === totalCents
+                    ? 'All of it is assigned.'
+                    : assignedCents < totalCents
+                      ? `${formatMoney((totalCents - assignedCents) / 100, trip.currency)} left to assign.`
+                      : `${formatMoney((assignedCents - totalCents) / 100, trip.currency)} too much.`
+                  : 'Enter the amount above first.'}
+              </Text>
+            </>
+          ) : null}
+          <FormMessage message={splitError} />
+        </View>
       ) : null}
 
       <Button label={expense ? 'Save' : 'Add expense'} loading={save.isPending} onPress={onSubmit} />
@@ -381,6 +532,25 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.muted,
+  },
+  hintAttention: {
+    fontFamily: fonts.semibold,
+    color: colors.secondText,
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.md,
+  },
+  shareName: {
+    flex: 1,
+    paddingBottom: 16,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  shareAmount: {
+    width: 140,
   },
   chips: {
     flexDirection: 'row',

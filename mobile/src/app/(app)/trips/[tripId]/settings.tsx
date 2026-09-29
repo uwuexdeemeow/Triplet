@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, Share, Text, View } from 'react-native';
 import { api, ApiError, type Schemas } from '@/api/client';
 import { tripKeys, useMe, useMembers, useTrip, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
+import { DestinationField, type PickedDestination } from '@/components/destination-field';
 import { FormMessage, Screen } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { Muted } from '@/components/text';
@@ -53,23 +54,39 @@ export default function TripSettingsScreen() {
   );
 }
 
-// The name and budget, which owners and members can change
+// A trip made before trips had several places only has a name; it becomes the first bubble
+function startingDestinations(trip: Trip): PickedDestination[] {
+  if (trip.destinations?.length) return trip.destinations;
+  return trip.destination ? [{ name: trip.destination }] : [];
+}
+
+// Whether the places differ from what's saved: names, their order, or a pin
+function sameDestinations(a: PickedDestination[], b: PickedDestination[]) {
+  const key = (list: PickedDestination[]) => JSON.stringify(list.map((d) => [d.name, d.address ?? null, d.latitude ?? null, d.longitude ?? null]));
+  return key(a) === key(b);
+}
+
+// The name, places and budget, which owners and members can change
 function TripDetails({ trip }: { trip: Trip }) {
   const styles = useStyles();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(trip.title);
+  const [destinations, setDestinations] = useState<PickedDestination[]>(() => startingDestinations(trip));
+  const [destinationText, setDestinationText] = useState('');
   const [budget, setBudget] = useState(trip.budget != null ? String(trip.budget) : '');
-  const [errors, setErrors] = useState<{ title?: string; budget?: string; form?: string }>({});
+  const [errors, setErrors] = useState<{ title?: string; destinations?: string; budget?: string; form?: string }>({});
   const [saved, setSaved] = useState(false);
 
   const save = useMutation({
-    mutationFn: (body: { title: string; budget: number | null }) =>
+    mutationFn: (body: { title: string; budget: number | null; destinations?: PickedDestination[] }) =>
       api<Trip>(`/trips/${trip.id}`, { method: 'PATCH', body }),
     onSuccess: (updated) => {
       queryClient.setQueryData(tripKeys.trip(trip.id), updated);
       // The trips list shows the name, and the Budget tab the budget
       queryClient.invalidateQueries({ queryKey: tripKeys.all, exact: true });
       queryClient.invalidateQueries({ queryKey: tripKeys.budget(trip.id) });
+      // Keep the pins the server looked up for places typed without a suggestion
+      setDestinations(startingDestinations(updated));
       setSaved(true);
     },
     onError: (err) => setErrors({ form: err.message }),
@@ -78,16 +95,36 @@ function TripDetails({ trip }: { trip: Trip }) {
   const submit = () => {
     const value = title.trim();
     const amount = parseAmount(budget);
+    // A place typed but not yet turned into a bubble counts too
+    const typed = destinationText.trim();
+    const places = typed ? [...destinations, { name: typed }] : destinations;
+    if (typed) {
+      setDestinations(places);
+      setDestinationText('');
+    }
     const next: typeof errors = {};
     if (!value) next.title = 'Give the trip a name';
+    if (!places.length) next.destinations = 'Where are you going?';
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) next.budget = 'Enter an amount, like 150000';
     setErrors(next);
     setSaved(false);
-    if (next.title || next.budget) return;
-    save.mutate({ title: value, budget: amount });
+    if (next.title || next.destinations || next.budget) return;
+    // Only send the places when they changed, so unchanged ones aren't looked up again
+    const placesChanged = !sameDestinations(places, startingDestinations(trip));
+    save.mutate({
+      title: value,
+      budget: amount,
+      ...(placesChanged
+        ? { destinations: places.map(({ name, address, latitude, longitude, country_code }) => ({ name, address, latitude, longitude, country_code })) }
+        : {}),
+    });
   };
 
-  const unchanged = title.trim() === trip.title && parseAmount(budget) === (trip.budget ?? null);
+  const unchanged =
+    title.trim() === trip.title &&
+    parseAmount(budget) === (trip.budget ?? null) &&
+    !destinationText.trim() &&
+    sameDestinations(destinations, startingDestinations(trip));
 
   return (
     <View style={styles.section}>
@@ -102,6 +139,21 @@ function TripDetails({ trip }: { trip: Trip }) {
         returnKeyType="done"
         maxLength={255}
         error={errors.title}
+      />
+      <DestinationField
+        label="Destinations"
+        hint="Changing these changes where the map opens and which places come first when you search."
+        value={destinations}
+        onChange={(value) => {
+          setDestinations(value);
+          setSaved(false);
+        }}
+        text={destinationText}
+        onChangeText={(value) => {
+          setDestinationText(value);
+          setSaved(false);
+        }}
+        error={errors.destinations}
       />
       <TextField
         label={`Budget (${trip.currency}, optional)`}
