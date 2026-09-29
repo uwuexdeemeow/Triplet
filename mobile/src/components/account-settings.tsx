@@ -38,7 +38,7 @@ export function AccountSettings({ user }: { user: User }) {
         </Row>
         <Row
           label="Password"
-          value={user.has_password ? '••••••••' : 'Not set: you sign in with Google or Apple'}
+          value={user.has_password ? '••••••••' : 'Not set'}
           action={user.has_password ? 'Change' : 'Set'}
           expanded={open === 'password'}
           onPress={() => toggle('password')}
