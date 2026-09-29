@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 from config import settings
 import mailer
-from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses, plan_draft, ask, share
+from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses, plan_draft, ask
 
 # Show the app's own log lines (triplet.*) next to uvicorn's, including info like "email sent".
 # Other libraries stay at their defaults, so their chatter doesn't flood the log.
@@ -71,8 +71,6 @@ app.include_router(ask.router)
 app.include_router(links.image_router)
 app.include_router(guest.router)
 app.include_router(guest.setup_router)
-app.include_router(share.setup_router)
-app.include_router(share.router)
 
 # Reusable global interceptor for input validation errors
 @app.exception_handler(RequestValidationError)

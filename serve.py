@@ -65,8 +65,8 @@ async def website_headers(request: Request, call_next):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     else:
         response.headers.setdefault("Cache-Control", "no-cache")
-    # Anyone with a trip's share link can read it; search engines shouldn't list it
-    if path.startswith("/shared/"):
+    # A trip's link page, with the code in the address; search engines shouldn't list it
+    if path == "/shared" or path.startswith("/shared/"):
         response.headers["X-Robots-Tag"] = "noindex"
     return response
 

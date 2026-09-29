@@ -49,6 +49,7 @@ def test_page_paths_get_the_app_with_security_headers(site):
 
 def test_share_pages_are_kept_out_of_search_engines(site):
     assert site.get("/shared/abc123").headers["X-Robots-Tag"] == "noindex"
+    assert site.get("/shared").headers["X-Robots-Tag"] == "noindex"
     assert "X-Robots-Tag" not in site.get("/trips/2").headers
 
 def test_built_files_are_cached_for_good(site):

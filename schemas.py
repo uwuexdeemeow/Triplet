@@ -136,23 +136,29 @@ class GuestAccessCreate(BaseModel):
     pin: Annotated[str, StringConstraints(max_length=12)]
 
 class GuestAccessSetup(BaseModel):
-    pin: str = Field(min_length=4, max_length=12, pattern=r"^\d+$")
+    # Letters and numbers, and capitals matter
+    pin: str = Field(pattern=r"^[A-Za-z0-9]{4,12}$")
     expires_at: datetime | None = None
+    show_costs: bool = False
+
+class GuestAccessUpdate(BaseModel):
+    show_costs: bool
 
 class GuestAccessResponse(BaseModel):
     trip_id: int
     access_code: str
     expires_at: datetime | None = None
-
-    model_config={
-        "from_attributes": True
-    }
-
-class ShareLinkResponse(BaseModel):
-    token: str
-    # The website address of the page, for sharing
+    show_costs: bool = False
+    # The website address that asks for this code's PIN, for sharing
     url: str
-    created_at: datetime
+
+class GuestToken(Token):
+    access_code: str
+    show_costs: bool
+
+class GuestLookup(BaseModel):
+    """What a code's link page shows before the PIN is asked for: the title only."""
+    title: str
 
 class CurrencySuggestion(BaseModel):
     # None when the destination couldn't be placed in a country
@@ -441,28 +447,14 @@ class ItineraryResponse(BaseModel):
     days: list[ItineraryDay]
     conflict_count: int
 
-class SharedActivity(BaseModel):
-    """What a share link shows of a plan: no costs, notes or where it was saved from."""
-    title: str
-    location: str
-    start_time: datetime
-    end_time: datetime
-    latitude: float | None = None
-    longitude: float | None = None
+class GuestItineraryDay(ItineraryDay):
+    # Left out unless the owner shows costs to guests
+    estimated_cost: float | None = None
 
-class SharedDay(BaseModel):
-    date: date
-    activities: list[SharedActivity]
-    weather: DayWeather | None = None
-
-class SharedTrip(BaseModel):
-    """A trip as its share link shows it: the plan only, no costs, budget, people or saved posts."""
-    title: str
-    destination: str
-    destinations: list[str] = []
-    start_date: date | None = None
-    end_date: date | None = None
-    days: list[SharedDay]
+class GuestItineraryResponse(BaseModel):
+    trip_id: int
+    days: list[GuestItineraryDay]
+    conflict_count: int
 
 class SavedLinkCreate(BaseModel):
     url: HttpUrl
