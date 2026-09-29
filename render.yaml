@@ -10,7 +10,7 @@ services:
     image:
       url: ghcr.io/uwuexdeemeow/triplet:latest
     plan: free
-    healthCheckPath: /api/
+    healthCheckPath: /api/health
     envVars:
       - key: ENVIRONMENT
         value: production

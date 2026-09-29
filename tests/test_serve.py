@@ -56,6 +56,12 @@ def test_built_files_are_cached_for_good(site):
 def test_missing_files_are_still_missing(site):
     assert site.get("/_expo/static/js/gone.js").status_code == 404
 
+def test_health_answers_through_the_website_server(site):
+    response = site.get("/api/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
 def test_the_api_lives_under_api(site, outbox):
     response = site.post("/api/auth/signup", json={"name": "sam", "email": "sam@example.com", "password": PASSWORD})
     assert response.status_code == 202, response.text

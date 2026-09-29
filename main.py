@@ -94,6 +94,11 @@ def root():
         "message": "Triplet API is running"
     }
 
+@app.get("/health", tags=["Site"])
+def health():
+    """Answers without touching the database, so a scheduled ping keeps the server awake but not Neon."""
+    return {"status": "ok"}
+
 @app.get("/site-info", tags=["Site"])
 def site_info():
     """Public details the website's privacy policy and terms pages show."""

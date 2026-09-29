@@ -221,7 +221,7 @@ means that commit is **not** online: open the run under **Actions**, read the fa
 push again. To put a commit online anyway, use **Manual Deploy** on the service page.
 
 Render waits for *every* check on the commit, so nothing slow or optional should run on push. That's
-why **Audit** (section 7c) is started on a schedule instead, and why **Deploy** (the image build in
+why **Audit** (section 8b) is started on a schedule instead, and why **Deploy** (the image build in
 4a) only runs by hand: Render builds the repository's `Dockerfile` itself, so the image isn't needed.
 
 ## 5. The phone app
@@ -345,19 +345,6 @@ Turn on cron-job.org's failure notifications, so you hear if GitHub stops accept
 when it expires). A run that starts but fails, for example if the database address changes, emails
 you like any failed GitHub Action.
 
-### 7c. Weekly package audit
-
-The **Audit** workflow (`.github/workflows/audit.yml`) checks the server's and the app's packages for
-known security problems. It doesn't run on push, so it never holds up a deploy; cron-job.org starts it
-once a week, since new problems are published about packages that haven't changed. Use the token from
-7a and create another job the same way, with:
-
-- **URL**: `https://api.github.com/repos/uwuexdeemeow/Triplet/actions/workflows/audit.yml/dispatches`
-- **Schedule**: every Monday at 09:00, time zone Asia/Singapore
-- The same request method, body and headers as the backup job. **Test run** should answer `204`.
-
-A red run names the package and the version that fixes it, and GitHub emails you.
-
 ### 7b. Bring a copy back
 
 Download the `database-...` file from the run you want (**Actions** > **Backup** > the run >
@@ -377,6 +364,36 @@ pg_restore --no-owner --no-privileges --dbname "postgresql://...the new database
 
 Once it looks right, point `DB_SETTINGS` on Render at the new database. To restore just one table,
 add `--table=trips` (for example) to the `pg_restore` line.
+
+## 8. Other scheduled jobs
+
+Both use [cron-job.org](https://cron-job.org), like the nightly copy in 7a.
+
+### 8a. Keep the server awake
+
+Render's free plan puts the server to sleep after 15 idle minutes, and the next visit (including a
+sign-up code) waits about 50 seconds. A ping every 10 minutes keeps it awake. In cron-job.org, create a job:
+
+- **URL**: `https://triplet-ikz2.onrender.com/api/health` (your site's address, then `/api/health`)
+- **Schedule**: every 10 minutes
+- **Request method**: `GET`. No token is needed.
+- Turn on failure notifications. **Test run** should answer `200` with `{"status":"ok"}`.
+
+Render's free plan gives 750 instance hours a month, and one always-on service uses about 730. The
+ping doesn't touch the database, so Neon still suspends when idle (it wakes in about a second).
+
+### 8b. Weekly package audit
+
+The **Audit** workflow (`.github/workflows/audit.yml`) checks the server's and the app's packages for
+known security problems. It doesn't run on push, so it never holds up a deploy; cron-job.org starts it
+once a week, since new problems are published about packages that haven't changed. Use the token from
+7a and create another job the same way, with:
+
+- **URL**: `https://api.github.com/repos/uwuexdeemeow/Triplet/actions/workflows/audit.yml/dispatches`
+- **Schedule**: every Monday at 09:00, time zone Asia/Singapore
+- The same request method, body and headers as the backup job. **Test run** should answer `204`.
+
+A red run names the package and the version that fixes it, and GitHub emails you.
 
 ## If something goes wrong
 
