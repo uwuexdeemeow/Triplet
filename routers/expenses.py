@@ -368,11 +368,19 @@ def get_budget_estimate(
     local = price_levels.price_level(countries[0]) if countries else None
     scale = local[0] if local else 1.0
 
+    # Whether any figure below was converted with the rates, which ExchangeRate-API wants a credit for
+    used_rates = False
+
     def from_usd(amount: float) -> float | None:
         return exchange_rates.convert(amount, "USD", currency, rates)
 
     def typical_in_trip_currency(usd: float) -> float | None:
-        return from_usd(usd * scale)
+        nonlocal used_rates
+        converted = from_usd(usd * scale)
+        # US-dollar typical prices only need the rates for another currency
+        if converted is not None and currency != "USD":
+            used_rates = True
+        return converted
 
     typical_prices = from_usd(1) is not None
     if not typical_prices:
@@ -399,6 +407,7 @@ def get_budget_estimate(
         paid[expense.activity_id] += expense.amount
 
     def plan_cost(activity) -> float | None:
+        nonlocal used_rates
         # What was paid beats what was typed, which beats our guess
         if activity.id in paid:
             return float(paid[activity.id])
@@ -411,6 +420,9 @@ def get_budget_estimate(
         if price is not None and price[0] == "amount":
             converted = exchange_rates.convert(price[1], price[2], currency, rates)
             if converted is not None:
+                # A price from a post in another currency was converted, even on a US-dollar trip
+                if price[2] != currency:
+                    used_rates = True
                 return converted * people
         typical = budget_estimate.CATEGORY_USD.get(place.category or "other")
         if typical is None or not typical_prices:
@@ -476,5 +488,5 @@ def get_budget_estimate(
         unpriced_plans=unpriced,
         notes=notes,
         # Typical prices are US dollars, so a US-dollar trip needed no rates
-        rates_source=exchange_rates.rates_source() if typical_prices and currency != "USD" else None
+        rates_source=exchange_rates.rates_source() if used_rates else None
     )

@@ -108,3 +108,17 @@ def test_a_us_dollar_trip_needs_no_credit(client, alice, trip, db, monkeypatch):
     db.commit()
 
     assert estimate(client, alice, trip)["rates_source"] is None
+
+def test_a_us_dollar_trip_is_credited_when_a_posted_price_was_converted(client, alice, trip, db, monkeypatch):
+    from tests.test_budget_estimate import add_plan, attach_place
+    serve(monkeypatch, {exchange_rates.PRIMARY_URL: {**EXCHANGE_RATE_API, "rates": {"USD": 1, "JPY": 150}}})
+    db.get(Trip, trip["id"]).currency = "USD"
+    db.commit()
+    ramen = add_plan(client, alice, trip, "Ramen", "12:00", "13:00")
+    attach_place(db, trip, ramen, category="food", price_range="¥1,000-1,500")
+
+    result = estimate(client, alice, trip)
+
+    # 1,250 yen at 150 to the dollar, converted with the rates
+    assert result["days"][0]["plans"] == pytest.approx(1250 / 150, abs=0.01)
+    assert result["rates_source"] == "ExchangeRate-API"

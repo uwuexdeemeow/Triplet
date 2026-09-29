@@ -15,7 +15,9 @@ from models import Activity, Expense, Settlement, Trip
 # The largest amounts the database columns hold (Numeric(10, 2) and Numeric(12, 2))
 MAX_AMOUNT = Decimal("99999999.99")
 MAX_BUDGET = Decimal("9999999999.99")
-KNOWN_CURRENCIES = set(COUNTRY_CURRENCY.values())
+# The currencies the app's picker offers: those countries use, and the balboa, which Panama's own entry
+# maps to the US dollar it circulates with
+KNOWN_CURRENCIES = set(COUNTRY_CURRENCY.values()) | {"PAB"}
 
 def convert_trip(db: Session, trip: Trip, new_currency: str, rates: dict[str, float]) -> float:
     """

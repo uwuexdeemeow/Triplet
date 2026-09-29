@@ -156,3 +156,10 @@ def test_patching_with_unavailable_rates_is_refused(client, alice, trip, monkeyp
 
     assert response.status_code == 503
     assert get_trip(client, alice, trip)["title"] == "Tokyo"
+
+def test_every_currency_the_app_offers_is_accepted(client, alice, trip, change, monkeypatch):
+    # The picker offers the Panamanian balboa, which no country entry maps to
+    monkeypatch.setattr(exchange_rates, "usd_rates", lambda: {**RATES, "PAB": 1.0})
+
+    assert change("PAB").status_code == 200
+    assert get_trip(client, alice, trip)["currency"] == "PAB"

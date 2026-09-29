@@ -89,7 +89,9 @@ function useMapLibre(center: Coordinates, zoom: number, interactive: boolean) {
   useEffect(() => {
     if (!map || shownScheme.current === scheme) return;
     shownScheme.current = scheme;
-    map.setStyle(STYLE_URLS[scheme]);
+    // No diffing against the old style: a diff drops layers the app added itself (the day's route)
+    // without a style.load, so it would only come back when the route next changed
+    map.setStyle(STYLE_URLS[scheme], { diff: false });
   }, [map, scheme]);
 
   return { container, map, lib: state?.lib ?? null };
@@ -308,22 +310,34 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
       };
       if (source) {
         source.setData(data);
-        map.setPaintProperty('trip-route-line', 'line-color', colors.accent);
-        return;
+      } else {
+        map.addSource('trip-route', { type: 'geojson', data });
       }
-      map.addSource('trip-route', { type: 'geojson', data });
-      map.addLayer({
-        id: 'trip-route-line',
-        type: 'line',
-        source: 'trip-route',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': colors.accent, 'line-width': 3, 'line-dasharray': [3, 1.5] },
-      });
+      if (map.getLayer('trip-route-line')) {
+        map.setPaintProperty('trip-route-line', 'line-color', colors.accent);
+      } else {
+        map.addLayer({
+          id: 'trip-route-line',
+          type: 'line',
+          source: 'trip-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': colors.accent, 'line-width': 3, 'line-dasharray': [3, 1.5] },
+        });
+      }
+    };
+    // After a new style (dark mode) the route is gone: put it back. Only what's missing, because
+    // apply itself changes the style, which would send styledata again.
+    const restore = () => {
+      if (route.length < 2 || !map.isStyleLoaded()) return;
+      if (!map.getSource('trip-route') || !map.getLayer('trip-route-line')) apply();
     };
     if (map.isStyleLoaded()) apply();
-    map.on('style.load', apply);
+    // style.load is the usual signal for a new style; styledata covers a swap that doesn't send it
+    map.on('style.load', restore);
+    map.on('styledata', restore);
     return () => {
-      map.off('style.load', apply);
+      map.off('style.load', restore);
+      map.off('styledata', restore);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, routeKey]);
