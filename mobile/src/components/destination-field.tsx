@@ -218,7 +218,8 @@ const useStyles = makeStyles((colors) => ({
   },
   input: {
     flexGrow: 1,
-    minWidth: 120,
+    // Room for a short name, so the field only gets taller once the bubbles fill the line
+    minWidth: 80,
     minHeight: 34,
     paddingHorizontal: 6,
     paddingVertical: 0,

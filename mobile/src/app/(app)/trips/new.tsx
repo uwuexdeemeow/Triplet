@@ -138,13 +138,6 @@ export default function NewTripScreen() {
           )}
         />
 
-        {pins.length ? (
-          // Just a preview: the trip's own map is the one to explore
-          <View style={styles.map} pointerEvents="none" accessibilityLabel={`Map of ${destinations.map((place) => place.name).join(', ')}`}>
-            <TripMap places={[]} selectedId={null} onSelect={() => {}} fallbackArea={pins} compact />
-          </View>
-        ) : null}
-
         <View style={styles.row}>
           <Controller
             control={control}
@@ -214,6 +207,14 @@ export default function NewTripScreen() {
             />
           </View>
         </View>
+
+        {pins.length ? (
+          // Just a preview, at the end so adding places doesn't move the fields below them.
+          // The trip's own map is the one to explore.
+          <View style={styles.map} pointerEvents="none" accessibilityLabel={`Map of ${destinations.map((place) => place.name).join(', ')}`}>
+            <TripMap places={[]} selectedId={null} onSelect={() => {}} fallbackArea={pins} compact />
+          </View>
+        ) : null}
 
         <Button label="Create trip" loading={createTrip.isPending} onPress={onSubmit} />
       </View>
