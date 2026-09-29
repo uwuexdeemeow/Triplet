@@ -210,7 +210,8 @@ emails. Invites inside the app still show up.
    Repeat with `--environment production` (and `development`), and put the same two lines in
    `.env.local` to try it from `npx expo start` on a development build.
 4. Tell the server which tokens to accept: on Render, **Environment** > add `GOOGLE_CLIENT_IDS` with
-   the **web** client id in brackets and quotes, like `["1234-web.apps.googleusercontent.com"]`.
+   the **web** client id, e.g. `1234-web.apps.googleusercontent.com` (`["1234-web..."]` works too).
+   If there are ever several, separate them with commas and put the web client first.
 5. The website's button appears once Render has restarted with it. The phones need a new build.
 
 **Google on Android only, not iPhone:** leave out `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` (and skip the iOS

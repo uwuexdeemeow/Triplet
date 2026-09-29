@@ -1,6 +1,7 @@
-from typing import Literal
+import json
+from typing import Annotated, Literal
 from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Example keys from docs and tutorials; anyone could forge sign-in tokens with them
 KNOWN_WEAK_KEYS = {"secret", "changeme", "change-me", "your-secret-key", "supersecret", "test-secret-key"}
@@ -94,9 +95,10 @@ class Settings(BaseSettings):
     # Sign in with Google: the OAuth client ids whose sign-in tokens are accepted. The first is the
     # "Web application" client: the website's button uses it, and the phone apps ask for tokens
     # meant for it (see mobile/README.md). Empty turns Google sign-in off.
-    GOOGLE_CLIENT_IDS: list[str] = []
+    # Either a plain id, several separated by commas, or a JSON list like ["id"]
+    GOOGLE_CLIENT_IDS: Annotated[list[str], NoDecode] = []
     # Sign in with Apple: the app's bundle id. Empty turns Apple sign-in off.
-    APPLE_CLIENT_IDS: list[str] = ["com.uwuexdeemeow.triplet"]
+    APPLE_CLIENT_IDS: Annotated[list[str], NoDecode] = ["com.uwuexdeemeow.triplet"]
 
     # Slow down password guessing, sign-up spam and costly lookups. Tests switch this off.
     RATE_LIMITS_ENABLED: bool = True
@@ -113,6 +115,22 @@ class Settings(BaseSettings):
         if len(value) < 32 or value.lower() in KNOWN_WEAK_KEYS:
             raise ValueError("SECRET_KEY must be at least 32 random characters. Run: python secret.py")
         return value
+
+    @field_validator("GOOGLE_CLIENT_IDS", "APPLE_CLIENT_IDS", mode="before")
+    @classmethod
+    def list_of_ids(cls, value):
+        """Read "a", "a, b" or ["a", "b"] the same way, so a pasted id works as it is."""
+        if not isinstance(value, str):
+            return value
+        text = value.strip()
+        # Curly quotes sneak in when copying from documents or chat apps
+        text = text.translate(str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'"}))
+        if text.startswith("["):
+            try:
+                return [str(item).strip() for item in json.loads(text) if str(item).strip()]
+            except ValueError:
+                text = text.strip("[]")
+        return [part.strip().strip("\"'") for part in text.split(",") if part.strip().strip("\"'")]
 
     @field_validator("CORS_ORIGINS")
     @classmethod

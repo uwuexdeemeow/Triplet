@@ -233,3 +233,20 @@ def test_only_a_few_posts_are_read_at_once(monkeypatch):
         thread.join()
 
     assert most == settings.LINK_PROCESSING_AT_ONCE
+
+@pytest.mark.parametrize("value", [
+    "123-abc.apps.googleusercontent.com",
+    ' "123-abc.apps.googleusercontent.com" ',
+    '["123-abc.apps.googleusercontent.com"]',
+    "[“123-abc.apps.googleusercontent.com”]",
+    "[123-abc.apps.googleusercontent.com]",
+])
+def test_google_client_ids_can_be_pasted_however(monkeypatch, value):
+    monkeypatch.setenv("GOOGLE_CLIENT_IDS", value)
+
+    assert Settings(DB_SETTINGS="sqlite://", SECRET_KEY="k" * 40).GOOGLE_CLIENT_IDS == ["123-abc.apps.googleusercontent.com"]
+
+def test_several_google_client_ids(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_IDS", "web-id, android-id")
+
+    assert Settings(DB_SETTINGS="sqlite://", SECRET_KEY="k" * 40).GOOGLE_CLIENT_IDS == ["web-id", "android-id"]
