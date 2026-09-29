@@ -3,3 +3,5 @@ venv/
 __pycache__/
 *.pyc
 .env
+# Claude Code: local worktrees and drafts
+.claude/
