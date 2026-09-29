@@ -1,5 +1,5 @@
 import json
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 PLATFORM_DOMAINS = {
@@ -42,6 +42,20 @@ def supported_link(url: str) -> bool:
     if port not in (None, 80, 443):
         return False
     return detect_platform(url) in VIDEO_PLATFORMS
+
+def post_key(url: str) -> str:
+    """
+    The same post always gives the same key, whatever tracking bits the share added, e.g.
+    "tiktok.com/@a/video/1" for ".../video/1?is_from_webapp=1&sender_device=pc".
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower().removeprefix("www.").removeprefix("m.")
+    path = parsed.path.rstrip("/")
+    # A YouTube video's id is in the query: youtube.com/watch?v=abc
+    if host == "youtube.com" and path == "/watch":
+        video = parse_qs(parsed.query).get("v", [""])[0]
+        return f"{host}{path}?v={video}"
+    return f"{host}{path}"
 
 def detect_platform(url: str) -> str:
     """

@@ -11,7 +11,7 @@ from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, Li
 from schemas import SavedLinkCreate, SavedLinkUpdate, SavedLinkResponse, LinkToActivity, ActivityResponse
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 import rate_limit
-from link_parser import detect_platform, fetch_metadata, ARTICLE, SCREENSHOT, VIDEO_PLATFORMS
+from link_parser import detect_platform, fetch_metadata, post_key, ARTICLE, SCREENSHOT, VIDEO_PLATFORMS
 from video_extractor import extract_from_images, extract_from_text, extract_from_video, ExtractionError, ExtractionResult
 from web_extractor import fetch_article, ArticleError
 from places_lookup import enrich_place
@@ -175,14 +175,23 @@ def limit_link_processing(db: Session, membership: TripMembership):
 def create_link(
     trip_id: int,
     link_create: SavedLinkCreate,
+    response: Response,
     background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db),
     membership: TripMembership = Depends(get_trip_membership)
 ):
     require_role(membership, EDITOR_ROLES)
-    limit_link_processing(db, membership)
-
     url = str(link_create.url)
+
+    # Saving a post that's already in the trip (a double tap, or pasting it again) gives back the
+    # one there, without downloading it again or counting against the daily limit
+    key = post_key(url)
+    for existing in db.query(SavedLink).filter(SavedLink.trip_id == trip_id, SavedLink.platform != SCREENSHOT):
+        if post_key(existing.url) == key:
+            response.status_code = status.HTTP_200_OK
+            return existing
+
+    limit_link_processing(db, membership)
 
     link = SavedLink(
         trip_id=trip_id,
@@ -347,6 +356,9 @@ def refresh_link(
     require_role(membership, EDITOR_ROLES)
 
     link = get_link_or_404(db, trip_id, link_id)
+    # Already being read: pressing again changes nothing and isn't counted
+    if link.status in ("pending", "processing"):
+        return link
     limit_link_processing(db, membership)
 
     link.status = "pending"

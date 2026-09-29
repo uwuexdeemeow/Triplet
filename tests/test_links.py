@@ -262,7 +262,7 @@ def test_add_extracted_place_to_itinerary(client, alice, trip, save_link, gemini
 
 def test_place_must_belong_to_link(client, alice, trip, save_link, gemini_enabled):
     first = get_link(client, alice, trip, save_link())
-    second = save_link()
+    second = save_link(url="https://www.tiktok.com/@foodie/video/456")
 
     response = add_to_itinerary(client, alice, trip, second, place_id=first["places"][0]["id"])
 
@@ -327,3 +327,40 @@ def test_try_again_keeps_places_already_in_the_plan(client, alice, trip, save_li
     assert looked_up == ["Fuunji"]
     remaining = client.get(f"/trips/{trip['id']}/activities/{activity['id']}", headers=alice["headers"]).json()
     assert remaining["place_id"] == ichiran["id"]
+
+def test_saving_the_same_post_again_gives_back_the_first(client, alice, trip, save_link, monkeypatch):
+    monkeypatch.setattr(settings, "RATE_LIMITS_ENABLED", True)
+    monkeypatch.setattr(settings, "LINK_SAVES_DAILY_LIMIT", 1)
+    first = save_link(url="https://www.tiktok.com/@michitabi.jp/video/7649583065529928967?is_from_webapp=1&sender_device=pc")
+
+    # The same video shared another way, with different tracking bits: no new save, not counted
+    for again in ["https://www.tiktok.com/@michitabi.jp/video/7649583065529928967",
+                  "https://m.tiktok.com/@michitabi.jp/video/7649583065529928967/?web_id=123"]:
+        response = client.post(f"/trips/{trip['id']}/links", headers=alice["headers"], json={"url": again})
+        assert response.status_code == 200
+        assert response.json()["id"] == first["id"]
+
+    assert len(client.get(f"/trips/{trip['id']}/links", headers=alice["headers"]).json()) == 1
+
+def test_different_youtube_videos_are_different_posts():
+    from link_parser import post_key
+
+    assert post_key("https://www.youtube.com/watch?v=abc&t=10") == post_key("https://youtube.com/watch?v=abc")
+    assert post_key("https://www.youtube.com/watch?v=abc") != post_key("https://www.youtube.com/watch?v=xyz")
+
+def test_checking_again_while_still_reading_isnt_counted(client, alice, trip, db, monkeypatch):
+    from models import SavedLink
+    monkeypatch.setattr(settings, "RATE_LIMITS_ENABLED", True)
+    monkeypatch.setattr(settings, "LINK_SAVES_DAILY_LIMIT", 1)
+    link = SavedLink(trip_id=trip["id"], added_by_id=alice["id"], url=TIKTOK_URL, platform="tiktok", status="processing")
+    db.add(link)
+    db.commit()
+
+    for _ in range(3):
+        response = client.post(f"/trips/{trip['id']}/links/{link.id}/refresh", headers=alice["headers"])
+        assert response.status_code == 202
+
+    # The one save allowed today is still there to use
+    with patch("routers.links.process_link"):
+        assert client.post(f"/trips/{trip['id']}/links", headers=alice["headers"],
+                           json={"url": "https://www.tiktok.com/@a/video/2"}).status_code == 201

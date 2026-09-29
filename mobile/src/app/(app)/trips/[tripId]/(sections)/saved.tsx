@@ -241,6 +241,8 @@ function SaveLinkForm({ tripId, onSaved }: { tripId: number; onSaved: () => void
   });
 
   const submit = () => {
+    // Enter in the box works even while the Save button is busy, so ignore repeats here
+    if (saveLink.isPending) return;
     const value = url.trim();
     setError(null);
     if (!/^https?:\/\/\S+$/i.test(value)) {
