@@ -48,10 +48,17 @@ export default function SharedTripScreen() {
               emptyMessage="Nothing’s planned yet. Check back later."
             />
             <View style={styles.footer}>
-              <Body style={styles.muted}>Plan your own trips with friends, all in one place.</Body>
+              {/* Signed-in people and guests can't reach the sign-up screen; send them back where they came from */}
+              {status === 'signedOut' ? (
+                <Body style={styles.muted}>Plan your own trips with friends, all in one place.</Body>
+              ) : null}
               {status === 'signedIn' ? (
                 <Link href="/" style={styles.link}>
                   Back to Triplet
+                </Link>
+              ) : status === 'guest' ? (
+                <Link href="/" style={styles.link}>
+                  Back to the trip
                 </Link>
               ) : (
                 <Link href="/signup" style={styles.link}>
