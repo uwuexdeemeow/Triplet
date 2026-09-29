@@ -1,8 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import MapView, { Marker, type LongPressEvent, type MapPressEvent, type MapStyleElement, type Region } from 'react-native-maps';
+import { StyleSheet, Text, View } from 'react-native';
+import MapView, { Marker, Polyline, type LongPressEvent, type MapPressEvent, type MapStyleElement, type Region } from 'react-native-maps';
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { fonts } from '@/theme/tokens';
 import { areaKey } from '@/utils/map-area';
 
 export type Coordinates = { latitude: number; longitude: number };
@@ -102,6 +103,8 @@ export type MapPlace = Coordinates & {
   id: string;
   name: string;
   planned: boolean;
+  // A stop number drawn on the pin, for a day's route
+  label?: string;
 };
 
 export type TripMapProps = {
@@ -117,6 +120,8 @@ export type TripMapProps = {
   bottomInset?: number;
   // A small preview with nothing floating over it, so it needs less room around the pins
   compact?: boolean;
+  // A day's stops in order, joined by a line under the pins
+  route?: Coordinates[];
 };
 
 // Around the pins on a small preview map
@@ -135,9 +140,10 @@ export type TripMapHandle = {
 };
 
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false, route = [] },
   ref,
 ) {
+  const styles = useStyles();
   const { colors, scheme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
@@ -182,18 +188,29 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
       }}
       onLongPress={(event: LongPressEvent) => onLongPress?.(event.nativeEvent.coordinate)}
       toolbarEnabled={false}>
+      {route.length > 1 ? (
+        <Polyline coordinates={route} strokeColor={colors.accent} strokeWidth={3} lineJoin="round" lineDashPattern={[10, 5]} />
+      ) : null}
       {places.map((place) => {
         const selected = place.id === selectedId;
+        const color = selected ? colors.ink : place.planned ? colors.accent : colors.second;
         return (
           <Marker
             // Android only picks up a new pin colour on a fresh marker
-            key={`${place.id}-${selected ? 'selected' : place.planned ? 'planned' : 'saved'}`}
+            key={`${place.id}-${selected ? 'selected' : place.planned ? 'planned' : 'saved'}-${place.label ?? ''}`}
             coordinate={{ latitude: place.latitude, longitude: place.longitude }}
             title={place.name}
-            pinColor={selected ? colors.ink : place.planned ? colors.accent : colors.second}
+            // A numbered stop is a round badge; other pins keep the default pin
+            pinColor={place.label ? undefined : color}
+            anchor={place.label ? { x: 0.5, y: 0.5 } : undefined}
             zIndex={selected ? 1 : 0}
-            onPress={() => onSelect(place.id)}
-          />
+            onPress={() => onSelect(place.id)}>
+            {place.label ? (
+              <View style={[styles.badge, { backgroundColor: color }]}>
+                <Text style={styles.badgeText}>{place.label}</Text>
+              </View>
+            ) : null}
+          </Marker>
         );
       })}
       {droppedPin ? (
@@ -223,6 +240,21 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     // The pin's point, not its middle, marks the spot
     transform: [{ translateX: -20 }, { translateY: -40 }],
+  },
+  badge: {
+    minWidth: 26,
+    height: 26,
+    paddingHorizontal: 6,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: '#FFFFFF',
   },
   pinShadow: {
     width: 14,

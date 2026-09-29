@@ -1,7 +1,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { Feather } from '@expo/vector-icons';
-import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
+import type { GeoJSONSource, Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 import { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
@@ -24,6 +24,27 @@ type MapLibre = typeof import('maplibre-gl');
 export type Coordinates = { latitude: number; longitude: number };
 
 const fill: CSSProperties = { position: 'absolute', inset: 0 };
+
+/** A round badge with a stop number, for a day's route. */
+function numberedPin(label: string, color: string, selected: boolean): HTMLDivElement {
+  const size = selected ? 32 : 26;
+  const element = document.createElement('div');
+  element.textContent = label;
+  Object.assign(element.style, {
+    width: `${size}px`,
+    height: `${size}px`,
+    borderRadius: '50%',
+    background: color,
+    color: '#fff',
+    border: '2px solid #fff',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    font: '700 13px system-ui, sans-serif',
+  });
+  return element;
+}
 
 /**
  * Creates a map in a div once MapLibre has loaded. MapLibre needs the browser, so it's loaded
@@ -161,6 +182,8 @@ export type MapPlace = Coordinates & {
   id: string;
   name: string;
   planned: boolean;
+  // A stop number drawn on the pin, for a day's route
+  label?: string;
 };
 
 export type TripMapProps = {
@@ -176,6 +199,8 @@ export type TripMapProps = {
   bottomInset?: number;
   // A small preview with nothing floating over it, so it needs less room around the pins
   compact?: boolean;
+  // A day's stops in order, joined by a line under the pins
+  route?: Coordinates[];
 };
 
 /**
@@ -188,10 +213,10 @@ export type TripMapHandle = {
 };
 
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false, route = [] },
   ref,
 ) {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const first = places[0] ?? fallbackArea[0] ?? { latitude: 20, longitude: 0 };
   const { container, map, lib } = useMapLibre(first, places.length ? STREET_ZOOM : fallbackArea.length ? AREA_ZOOM : 1.5, true);
   const select = useEffectEvent((id: string | null) => onSelect(id));
@@ -244,7 +269,8 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     if (!map || !lib) return;
     const markers = places.map((place) => {
       const selected = place.id === selectedId;
-      const marker = new lib.Marker({ color: selected ? colors.ink : place.planned ? colors.accent : colors.second })
+      const color = selected ? colors.ink : place.planned ? colors.accent : colors.second;
+      const marker = new lib.Marker(place.label ? { element: numberedPin(place.label, color, selected) } : { color })
         .setLngLat([place.longitude, place.latitude])
         .addTo(map);
       const element = marker.getElement();
@@ -262,6 +288,45 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     return () => markers.forEach((marker) => marker.remove());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, lib, markerKey]);
+
+  // The day's route: a dashed line under the pins. A new map style (dark mode) drops the layer, so it's
+  // added again whenever a style finishes loading.
+  const routeKey = JSON.stringify([route, colors.accent, scheme]);
+  useEffect(() => {
+    if (!map) return;
+    const apply = () => {
+      const source = map.getSource('trip-route') as GeoJSONSource | undefined;
+      if (route.length < 2) {
+        if (map.getLayer('trip-route-line')) map.removeLayer('trip-route-line');
+        if (source) map.removeSource('trip-route');
+        return;
+      }
+      const data: GeoJSON.Feature = {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: route.map((point) => [point.longitude, point.latitude]) },
+      };
+      if (source) {
+        source.setData(data);
+        map.setPaintProperty('trip-route-line', 'line-color', colors.accent);
+        return;
+      }
+      map.addSource('trip-route', { type: 'geojson', data });
+      map.addLayer({
+        id: 'trip-route-line',
+        type: 'line',
+        source: 'trip-route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': colors.accent, 'line-width': 3, 'line-dasharray': [3, 1.5] },
+      });
+    };
+    if (map.isStyleLoaded()) apply();
+    map.on('style.load', apply);
+    return () => {
+      map.off('style.load', apply);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, routeKey]);
 
   // Frame the pins whenever the set of pins changes, e.g. after switching the filter
   const pinKey = places.map((place) => place.id).join(',');

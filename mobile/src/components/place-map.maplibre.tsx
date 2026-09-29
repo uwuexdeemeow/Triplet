@@ -1,10 +1,11 @@
 import { Feather } from '@expo/vector-icons';
-import { Camera, Map, ViewAnnotation, type CameraRef, type LngLat } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Layer, Map, ViewAnnotation, type CameraRef, type LngLat } from '@maplibre/maplibre-react-native';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { Coordinates, MapPlace, PickerMapHandle, TripMapHandle, TripMapProps } from '@/components/place-map.google';
 import { makeStyles, shadow, useTheme } from '@/theme/theme';
+import { fonts } from '@/theme/tokens';
 import { areaKey } from '@/utils/map-area';
 
 // Phone maps in the app's own builds: MapLibre with free OpenFreeMap tiles, the same maps the
@@ -19,10 +20,14 @@ const AREA_ZOOM = 10.5;
 
 const toLngLat = ({ latitude, longitude }: Coordinates): LngLat => [longitude, latitude];
 
-/** A round pin: the plan's colour inside a ring in the card colour, bigger when selected. */
-function Pin({ color, selected = false }: { color: string; selected?: boolean }) {
+/** A round pin: the plan's colour inside a ring in the card colour, bigger when selected. A stop shows its number. */
+function Pin({ color, selected = false, label }: { color: string; selected?: boolean; label?: string }) {
   const styles = useStyles();
-  return <View style={[styles.pin, { backgroundColor: color }, selected && styles.pinSelected]} />;
+  return (
+    <View style={[styles.pin, { backgroundColor: color }, label ? styles.pinNumbered : null, selected && (label ? styles.pinNumberedSelected : styles.pinSelected)]}>
+      {label ? <Text style={styles.pinLabel}>{label}</Text> : null}
+    </View>
+  );
 }
 
 /** A small, non-interactive map with a pin, for previews. */
@@ -107,7 +112,7 @@ export const PickerMap = forwardRef<PickerMapHandle, PickerMapProps>(function Pi
  * and long-pressing drops a pin to add something there.
  */
 export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
-  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false },
+  { places, selectedId, onSelect, fallbackArea = [], droppedPin = null, onLongPress, bottomInset = 0, compact = false, route = [] },
   ref,
 ) {
   const { colors, scheme } = useTheme();
@@ -161,6 +166,19 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
         onLongPress?.({ latitude, longitude });
       }}>
       <Camera ref={camera} initialViewState={{ center: [0, 20], zoom: 1.5 }} />
+      {route.length > 1 ? (
+        // Under the pins, which are views drawn on top of the map
+        <GeoJSONSource
+          id="trip-route"
+          data={{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route.map(toLngLat) } }}>
+          <Layer
+            id="trip-route-line"
+            type="line"
+            layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+            paint={{ 'line-color': colors.accent, 'line-width': 3, 'line-dasharray': [3, 1.5] }}
+          />
+        </GeoJSONSource>
+      ) : null}
       {places.map((place) => (
         <ViewAnnotation
           key={place.id}
@@ -171,7 +189,7 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
             pinTappedAt.current = Date.now();
             onSelect(place.id);
           }}>
-          <Pin color={color(place)} selected={place.id === selectedId} />
+          <Pin color={color(place)} selected={place.id === selectedId} label={place.label} />
         </ViewAnnotation>
       ))}
       {droppedPin ? (
@@ -199,10 +217,27 @@ const useStyles = makeStyles((colors) => ({
     borderColor: colors.surface,
     boxShadow: `0 2px 6px ${shadow(colors, 0.35)}`,
   },
+  pinNumbered: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
   pinSelected: {
     width: 24,
     height: 24,
     borderRadius: 12,
+  },
+  pinNumberedSelected: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   centerPin: {
     position: 'absolute',

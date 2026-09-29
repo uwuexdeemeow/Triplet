@@ -21,14 +21,17 @@ export function PlanMapPanel({ tripId, activities }: Props) {
   const places = usePlaces(tripId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Numbered by position in the day, so the pins match the plan list even when a plan has no pin
   const planned: MapPlace[] = activities
-    .filter((activity) => activity.latitude != null && activity.longitude != null)
-    .map((activity) => ({
+    .map((activity, index) => ({ activity, label: String(index + 1) }))
+    .filter(({ activity }) => activity.latitude != null && activity.longitude != null)
+    .map(({ activity, label }) => ({
       id: `activity-${activity.id}`,
       name: activity.title,
       latitude: activity.latitude!,
       longitude: activity.longitude!,
       planned: true,
+      label,
     }));
   const saved: MapPlace[] = (places.data ?? [])
     .filter((place) => place.activity_ids.length === 0 && place.latitude != null && place.longitude != null)
@@ -44,7 +47,7 @@ export function PlanMapPanel({ tripId, activities }: Props) {
 
   return (
     <View style={styles.panel}>
-      <TripMap places={pins} selectedId={selectedId} onSelect={setSelectedId} />
+      <TripMap places={pins} selectedId={selectedId} onSelect={setSelectedId} route={planned} />
       <View style={styles.legend} pointerEvents="none">
         {selected ? (
           <Text style={styles.selected} numberOfLines={1}>

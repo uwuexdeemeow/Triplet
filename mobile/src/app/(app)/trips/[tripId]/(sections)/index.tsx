@@ -121,6 +121,7 @@ export default function PlanScreen() {
                 currency={currency}
                 canEdit={canEdit}
                 paid={paid.get(activity.id)}
+                stop={mapPanel ? index + 1 : undefined}
               />
             </Enter>
           ))}
@@ -299,9 +300,12 @@ function ActivityRow({
   activity,
   titles,
   currency,
+  stop,
 }: {
   tripId: number;
   canEdit: boolean;
+  // The plan's number in the day, shown when the side map is visible
+  stop?: number;
   // Total of the expenses linked to this plan, if any
   paid?: number;
   activity: ItineraryActivity;
@@ -413,7 +417,15 @@ function ActivityRow({
 
   return (
     <View style={styles.row}>
-      <Text style={styles.time}>{activityClock(activity.start_time)}</Text>
+      <View style={styles.timeColumn}>
+        <Text style={styles.time}>{activityClock(activity.start_time)}</Text>
+        {/* The same number as its pin on the side map */}
+        {stop ? (
+          <View style={styles.stop} accessible accessibilityLabel={`Stop ${stop}`}>
+            <Text style={styles.stopText}>{stop}</Text>
+          </View>
+        ) : null}
+      </View>
       <View style={styles.swipe}>
         {canEdit ? (
           <SwipeToDelete label={`Delete ${activity.title}`} radius={16} onDelete={() => remove.mutateAsync()}>
@@ -636,6 +648,23 @@ const useStyles = makeStyles((colors) => ({
   row: {
     flexDirection: 'row',
     gap: spacing.md,
+  },
+  timeColumn: {
+    width: 48,
+    gap: 6,
+  },
+  stop: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+  },
+  stopText: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.onAccent,
   },
   time: {
     width: 48,

@@ -23,7 +23,7 @@ import { Glass } from '@/components/glass';
 import { FormMessage } from '@/components/screen';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
-import { activityClock, formatShortDate } from '@/utils/dates';
+import { activityClock, dayOfMonth, eachDay, formatShortDate, weekdayShort } from '@/utils/dates';
 import { needsCheck, placeDetail } from '@/utils/places';
 import { select as selectionTick } from '@/utils/haptics';
 
@@ -35,7 +35,8 @@ const FILTERS = [
   { key: 'saved', label: 'Saved only' },
 ] as const;
 
-type Filter = (typeof FILTERS)[number]['key'];
+// One of the above, or "day:2026-10-05" to walk through that day's plans
+type Filter = (typeof FILTERS)[number]['key'] | `day:${string}`;
 
 // A spot to add something at: long-pressed on the map, or picked from search (which already knows its name)
 type Dropped = Coordinates & { known?: { name: string; address: string | null } };
@@ -109,12 +110,36 @@ export default function TripMapScreen() {
   const unpinned = (places.data ?? []).filter((place) => !hasPin(place) && !isPlanned(place) && place.details_status !== 'pending');
   const lookingUp = (places.data ?? []).some((place) => !hasPin(place) && place.details_status === 'pending');
 
-  const counts: Record<Filter, number> = {
+  const counts = {
     all: items.length,
     planned: items.filter((item) => item.planned).length,
     saved: items.filter((item) => !item.planned).length,
   };
-  const shown = items.filter((item) => filter === 'all' || (filter === 'planned') === item.planned);
+
+  // A day's plans are numbered by their place in the day, counting plans with no pin, so the numbers
+  // match the plan list
+  const stopNumbers = new Map<number, number>();
+  (itinerary.data?.days ?? []).forEach((d) => d.activities.forEach((activity, index) => stopNumbers.set(activity.id, index + 1)));
+  const dayCounts = new Map<string, number>();
+  activityItems.forEach((item) => item.kind === 'activity' && dayCounts.set(item.day, (dayCounts.get(item.day) ?? 0) + 1));
+  const tripDays = [
+    ...new Set([
+      ...(trip.data?.start_date && trip.data?.end_date ? eachDay(trip.data.start_date, trip.data.end_date) : []),
+      ...(itinerary.data?.days ?? []).map((d) => d.date),
+    ]),
+  ].sort();
+
+  const day = filter.startsWith('day:') ? filter.slice(4) : null;
+  const dayItems: MapItem[] = day
+    ? activityItems
+        .filter((item) => item.kind === 'activity' && item.day === day)
+        .map((item) => ({ ...item, label: String(item.kind === 'activity' ? stopNumbers.get(item.activity.id) : '') }))
+    : [];
+  const dayWithoutPin = day
+    ? (itinerary.data?.days.find((d) => d.date === day)?.activities.filter((activity) => !hasPin(activity)).length ?? 0)
+    : 0;
+  const shown = day ? dayItems : items.filter((item) => filter === 'all' || (filter === 'planned') === item.planned);
+  const route = day ? dayItems.map(({ latitude, longitude }) => ({ latitude, longitude })) : undefined;
   const selected = shown.find((item) => item.id === selectedId) ?? null;
 
   // With nothing pinned, open the map on the trip's destinations: all of them in view
@@ -184,6 +209,7 @@ export default function TripMapScreen() {
             : undefined
         }
         bottomInset={sheetHeight}
+        route={route}
       />
 
       <View style={styles.top} pointerEvents="box-none">
@@ -232,6 +258,29 @@ export default function TripMapScreen() {
                 </Pressable>
               );
             })}
+            {tripDays.map((date) => {
+              const key: Filter = `day:${date}`;
+              const active = key === filter;
+              return (
+                <Pressable
+                  key={key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${formatShortDate(date)}: show this day's route`}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    selectionTick();
+                    setFilter(key);
+                    select(null);
+                  }}
+                  style={styles.filterPress}>
+                  <Glass interactive tintColor={active ? colors.accent : undefined} style={styles.filter}>
+                    <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
+                      {weekdayShort(date)} {dayOfMonth(date)} · {dayCounts.get(date) ?? 0}
+                    </Text>
+                  </Glass>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         )}
       </View>
@@ -243,7 +292,7 @@ export default function TripMapScreen() {
         {dropped ? (
           <DroppedPin tripId={tripId} dropped={dropped} canEdit={canEdit} onCancel={() => setDropped(null)} />
         ) : selected?.kind === 'activity' ? (
-          <SelectedActivity tripId={tripId} activity={selected.activity} day={selected.day} canEdit={canEdit} />
+          <SelectedActivity tripId={tripId} activity={selected.activity} day={selected.day} stop={selected.label} canEdit={canEdit} />
         ) : selected?.kind === 'place' ? (
           <SelectedPlace tripId={tripId} place={selected.place} />
         ) : (
@@ -252,7 +301,16 @@ export default function TripMapScreen() {
             canEdit={canEdit}
             unpinned={unpinned}
             note={
-              lookingUp
+              day
+                ? [
+                    shown.length === 0 ? 'No plans with a location this day.' : null,
+                    dayWithoutPin > 0
+                      ? `${dayWithoutPin} ${dayWithoutPin === 1 ? 'plan' : 'plans'} this day ${dayWithoutPin === 1 ? 'has' : 'have'} no location.`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || null
+                : lookingUp
                 ? 'Looking up addresses… pins appear as they’re found.'
                 : items.length === 0
                   ? 'Nothing on the map yet.'
@@ -410,18 +468,21 @@ function SelectedActivity({
   tripId,
   activity,
   day,
+  stop,
   canEdit,
 }: {
   tripId: string;
   activity: ItineraryActivity;
   day: string;
+  // The plan's number in a day's route, when looking at one day
+  stop?: string;
   canEdit: boolean;
 }) {
   const styles = useStyles();
   return (
     <View style={styles.selected}>
       <View style={styles.selectedText}>
-        <Text style={styles.kicker}>In the plan</Text>
+        <Text style={styles.kicker}>{stop ? `Stop ${stop} · In the plan` : 'In the plan'}</Text>
         <Text style={styles.selectedName} numberOfLines={2}>
           {activity.title}
         </Text>
