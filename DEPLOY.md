@@ -395,6 +395,28 @@ once a week, since new problems are published about packages that haven't change
 
 A red run names the package and the version that fixes it, and GitHub emails you.
 
+### 8c. Refresh the price levels
+
+The budget estimate scales its typical prices by each country's cost of living, from
+`price_levels.json` (World Bank data, which changes once a year). The server also refreshes it by
+itself in the background, but only in memory, so the file is what a freshly started server uses. The
+**Price levels** workflow (`.github/workflows/price-levels.yml`) downloads new figures and opens a
+pull request if they changed.
+
+1. One-off, so the workflow can open pull requests: the repository's **Settings** > **Actions** >
+   **General** > **Workflow permissions**, tick **Allow GitHub Actions to create and approve pull
+   requests**, and save.
+2. Try it: **Actions** > **Price levels** > **Run workflow**. No change means it says so and stops.
+3. To run it monthly, create a cron-job.org job like the audit's (8b), with the URL
+   `https://api.github.com/repos/uwuexdeemeow/Triplet/actions/workflows/price-levels.yml/dispatches`
+   and the schedule the 1st of each month.
+4. When a pull request appears, check that the country count and year look right (about 200
+   countries; the year is the World Bank's latest), wait for **Tests** to go green, then merge it.
+   Merging deploys the new file.
+
+You can also run `venv/Scripts/python scripts/update_price_levels.py` on your computer and commit
+the file.
+
 ## If something goes wrong
 
 - **The build fails**: it runs on GitHub, under **Actions** > **Deploy**; the log shows which step.

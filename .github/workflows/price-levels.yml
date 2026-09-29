@@ -1,0 +1,57 @@
+# Refreshes price_levels.json (each country's cost of living, for the budget estimate) from the World
+# Bank, and opens a pull request if anything changed.
+#
+# Started by hand or from cron-job.org (DEPLOY.md, "Refresh the price levels"). The World Bank publishes
+# once a year, so monthly is plenty. It opens a pull request instead of pushing to main so a bad
+# download is looked at first, and so the Tests workflow runs before anything deploys.
+name: Price levels
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      # config.py needs these to load; nothing here connects to a database
+      - name: Fetch from the World Bank
+        env:
+          DB_SETTINGS: sqlite://
+          SECRET_KEY: ${{ github.sha }}${{ github.run_id }}${{ github.run_attempt }}
+        run: python scripts/update_price_levels.py
+
+      - name: Open a pull request if it changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # fetched_at changes on every run, so compare the countries and the year only
+          if git show HEAD:price_levels.json | python -c "
+          import json, sys
+          old = json.load(sys.stdin)
+          new = json.load(open('price_levels.json', encoding='utf-8'))
+          sys.exit(0 if (old['year'], old['countries']) == (new['year'], new['countries']) else 1)
+          "; then
+            echo "No change in the price levels"
+            exit 0
+          fi
+          branch="price-levels-$(date +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add price_levels.json
+          git commit -m "Update price levels from the World Bank"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Update price levels from the World Bank" \
+            --body "New country price levels for the budget estimate, from scripts/update_price_levels.py. Check that the country count and year look right before merging."
