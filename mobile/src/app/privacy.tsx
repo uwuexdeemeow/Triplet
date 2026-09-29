@@ -24,6 +24,7 @@ export default function PrivacyScreen() {
       heading: 'How it’s used',
       body: [
         'Only to run Triplet: to sign you in, show your trips to the people on them, find the places in the posts you save, suggest places and currencies, estimate costs, and email you sign-up codes, password resets and trip invitations.',
+        'Triplet also emails you when something about your account changes, such as your password or email address, or a new way to sign in is added, so you can tell if it wasn’t you.',
       ],
     },
     {
@@ -32,11 +33,13 @@ export default function PrivacyScreen() {
         'Triplet uses these services to do its job. Each gets only what that job needs:',
         [
           'Render (hosting) and Neon (database): store and serve everything above.',
-          'Google Gemini (AI): reads the posts, screenshots and questions you send it, to find places and answer questions about your trip. Posts are downloaded from TikTok, Instagram or YouTube first.',
+          // Remove the second sentence if Triplet moves to Gemini's paid tier, which doesn't train on what's sent
+          'Google Gemini (AI): reads the posts, screenshots and questions you send it, to find places and answer questions about your trip. Posts are downloaded from TikTok, Instagram or YouTube first. Triplet uses Gemini’s free tier, where Google may use what is sent to it to improve its products, so don’t send screenshots or questions you’d like to keep private.',
           'Brevo: sends Triplet’s emails, so it sees your email address and the message.',
           'OpenStreetMap services (Photon, Nominatim, OpenFreeMap map tiles): receive the place names you search for and show maps.',
           'Google Places, when it’s used for place details: receives the names of places to look up.',
-          'Open-Meteo (weather) and Frankfurter (exchange rates): receive trip locations and currencies, not who you are.',
+          'Open-Meteo (weather) and ExchangeRate-API (exchange rates, with currency-api as a backup): receive trip locations and currencies, not who you are.',
+          'The World Bank: Triplet downloads its country price levels to estimate costs. Nothing about you or your trips is sent to it.',
           'Google, if you choose Sign in with Google.',
         ],
       ],
@@ -44,7 +47,8 @@ export default function PrivacyScreen() {
     {
       heading: 'Who can see your trips',
       body: [
-        'Only the people you add to a trip, and anyone you give its guest code and PIN to. Other Triplet users can’t find your trips or your email address.',
+        'Only the people you add to a trip, and anyone you give its guest code and PIN or its share link to. Other Triplet users can’t find your trips or your email address.',
+        'A share link shows a trip’s plan (its places, days and times) to anyone who has the link, without an account. It doesn’t show costs, the budget, who is on the trip or saved posts. The trip’s owner can replace the link, which stops the old one working, or turn it off in Trip settings.',
       ],
     },
     {
@@ -74,7 +78,7 @@ export default function PrivacyScreen() {
   return (
     <LegalPage
       title="Privacy policy"
-      updated="29 September 2026"
+      updated="30 September 2026"
       intro="Triplet helps you and your friends plan trips from the posts you save. This page explains what it keeps about you, why, and who else handles it."
       sections={sections}
     />
