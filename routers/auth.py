@@ -7,7 +7,8 @@ from database import connect_db
 from models import User, RefreshToken, PasswordResetToken, PendingSignup, UserIdentity
 from schemas import (
     UserCreate, UserLogin, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse,
-    VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest, SignupResponse, SocialLoginRequest
+    VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest, SignupResponse, SocialLoginRequest,
+    SignInOptions
 )
 import codes
 from security import hash_password, verify_password, create_access_token, generate_token, hash_token
@@ -260,6 +261,12 @@ def login(
     rate_limit.clear(db, email_ip_key)
 
     return issue_tokens(db, user_detail, request, response)
+
+@router.get("/sign-in-options", response_model=SignInOptions)
+def sign_in_options():
+    """What the website's log-in page can offer. Read at runtime, so changing it needs no rebuild."""
+    # The first id is the "Web application" client, which the website's button signs in with
+    return {"google_client_id": settings.GOOGLE_CLIENT_IDS[0] if settings.GOOGLE_CLIENT_IDS else None}
 
 @router.post("/social", response_model=Token)
 def social_sign_in(

@@ -213,6 +213,28 @@
     }
    }
   },
+  "/auth/sign-in-options": {
+   "get": {
+    "tags": [
+     "Authentication"
+    ],
+    "summary": "Sign In Options",
+    "description": "What the website's log-in page can offer. Read at runtime, so changing it needs no rebuild.",
+    "operationId": "sign_in_options_auth_sign_in_options_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignInOptions"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/auth/social": {
    "post": {
     "tags": [
@@ -3897,6 +3919,26 @@
      }
     }
    }
+  },
+  "/site-info": {
+   "get": {
+    "tags": [
+     "Site"
+    ],
+    "summary": "Site Info",
+    "description": "Public details the website's privacy policy and terms pages show.",
+    "operationId": "site_info_site_info_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -6514,6 +6556,23 @@
      "message"
     ],
     "title": "ScheduleWarning"
+   },
+   "SignInOptions": {
+    "properties": {
+     "google_client_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Google Client Id"
+     }
+    },
+    "type": "object",
+    "title": "SignInOptions"
    },
    "SignupResponse": {
     "properties": {

@@ -93,6 +93,10 @@ class VerifyCodeRequest(BaseModel):
     signup_token: OpaqueToken
     code: EmailCode
 
+class SignInOptions(BaseModel):
+    # The Google client the website's sign-in button uses, or None when Google sign-in is off
+    google_client_id: str | None = None
+
 class SocialLoginRequest(BaseModel):
     provider: Literal["google", "apple"]
     # The ID token Google or Apple gave the app (a signed JWT, usually 1-2 KB)

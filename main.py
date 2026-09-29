@@ -93,3 +93,8 @@ def root():
     return {
         "message": "Triplet API is running"
     }
+
+@app.get("/site-info", tags=["Site"])
+def site_info():
+    """Public details the website's privacy policy and terms pages show."""
+    return {"contact_email": settings.CONTACT_EMAIL}

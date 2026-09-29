@@ -152,13 +152,19 @@ build again).
 
 ## Sign in with Google and Apple
 
-The log-in and sign-up screens show **Continue with Apple** (iPhone) and **Continue with Google**
-(iPhone and Android) once each is set up; until then they stay hidden. Neither shows on the website
-yet. Both need a new build after setting them up, since they add native code.
+The log-in and sign-up screens show **Continue with Google** (website, Android, iPhone) and
+**Continue with Apple** (iPhone) once each is set up; until then they stay hidden.
 
-How it works: the phone signs in with Google or Apple and sends the token they give it to the
-server (`/auth/social`), which checks it was signed by them, for this app, with a confirmed email.
-The first time, it links to the Triplet account with that email, or makes a new one.
+| | Website | Android | iPhone |
+| --- | --- | --- | --- |
+| Google | as soon as `GOOGLE_CLIENT_IDS` is set on Render | new build | new build, only if the iOS client id is set |
+| Apple | not set up | not available | new build |
+
+How it works: the website (with Google's own button) or the phone signs in with Google or Apple and
+sends the token they give it to the server (`/auth/social`), which checks it was signed by them, for
+this app, with a confirmed email. The first time, it links to the Triplet account with that email,
+or makes a new one. The website asks the server which Google client to use
+(`/auth/sign-in-options`), so turning it on or off needs no rebuild.
 
 ### Apple
 
@@ -184,8 +190,13 @@ emails. Invites inside the app still show up.
    - **Audience**: External. While it says **Testing**, only the test users you list can sign in; click
      **Publish app** when you want anyone to (basic sign-in needs no review from Google).
 2. **Clients** > **Create client**, three times:
-   - **Web application**, named e.g. "Triplet server". No addresses needed. This is the one tokens are
-     issued for: copy its client id.
+   - **Web application**, named e.g. "Triplet". This is the one tokens are issued for, and the
+     website's button uses it: copy its client id. Under **Authorized JavaScript origins**, add every
+     address the website is opened at:
+     - `https://triplet-ikz2.onrender.com` (and your own domain later)
+     - `http://localhost` and `http://localhost:8081`, for `npm run web` on your computer
+
+     No redirect addresses are needed. New origins can take a few minutes to start working.
    - **iOS**, bundle id `com.uwuexdeemeow.triplet`. Copy its client id.
    - **Android**, package name `com.uwuexdeemeow.triplet`, and the **SHA-1** of the app's signing key:
      run `npx eas-cli@latest credentials --platform android`, pick the profile, and copy the SHA-1
@@ -200,7 +211,12 @@ emails. Invites inside the app still show up.
    `.env.local` to try it from `npx expo start` on a development build.
 4. Tell the server which tokens to accept: on Render, **Environment** > add `GOOGLE_CLIENT_IDS` with
    the **web** client id in brackets and quotes, like `["1234-web.apps.googleusercontent.com"]`.
-5. Build again for both phones.
+5. The website's button appears once Render has restarted with it. The phones need a new build.
+
+**Google on Android only, not iPhone:** leave out `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` (and skip the iOS
+client in step 2). The iPhone build then has no Google button, and Apple's rule that an iPhone app
+offering Google sign-in must also offer Sign in with Apple doesn't apply. Android and the website are
+unaffected.
 
 ### Accounts made this way
 

@@ -9,6 +9,7 @@ import { ApiError } from '@/api/client';
 import { useSession } from '@/auth/session';
 import { loginSchema, type LoginValues } from '@/auth/validation';
 import { Button } from '@/components/button';
+import { LegalLinks } from '@/components/legal-links';
 import { FormMessage, Screen } from '@/components/screen';
 import { SocialSignInButtons } from '@/components/social-sign-in';
 import { Body, Heading } from '@/components/text';
@@ -120,6 +121,7 @@ export default function LoginScreen() {
           View their trip
         </Link>
       </Text>
+      <LegalLinks />
     </Screen>
   );
 }

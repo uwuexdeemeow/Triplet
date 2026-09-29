@@ -88,8 +88,12 @@ class Settings(BaseSettings):
     # Pin picker searches are free for 5,000 a month
     PLACES_SEARCH_DAILY_LIMIT: int = 150
 
-    # Sign in with Google: the OAuth client ids whose sign-in tokens are accepted (the "Web" client
-    # the app asks for tokens with; see mobile/README.md). Empty turns Google sign-in off.
+    # Shown on the privacy policy and terms pages for questions and deletion requests
+    CONTACT_EMAIL: str | None = None
+
+    # Sign in with Google: the OAuth client ids whose sign-in tokens are accepted. The first is the
+    # "Web application" client: the website's button uses it, and the phone apps ask for tokens
+    # meant for it (see mobile/README.md). Empty turns Google sign-in off.
     GOOGLE_CLIENT_IDS: list[str] = []
     # Sign in with Apple: the app's bundle id. Empty turns Apple sign-in off.
     APPLE_CLIENT_IDS: list[str] = ["com.uwuexdeemeow.triplet"]

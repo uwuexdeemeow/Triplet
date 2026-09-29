@@ -114,3 +114,15 @@ def test_a_provider_without_client_ids_is_off(client, monkeypatch):
 
     assert response.status_code == 401
     assert "isn't available" in response.json()["detail"]
+
+def test_the_website_learns_which_google_client_to_use(client, monkeypatch):
+    assert client.get("/auth/sign-in-options").json() == {"google_client_id": GOOGLE_CLIENT}
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_IDS", [])
+    assert client.get("/auth/sign-in-options").json() == {"google_client_id": None}
+
+def test_a_token_from_the_website_button_is_accepted(client):
+    # The website's button gives the same kind of token as the phones, for the same web client
+    response = sign_in(client, id_token=token(aud=GOOGLE_CLIENT))
+
+    assert response.status_code == 200

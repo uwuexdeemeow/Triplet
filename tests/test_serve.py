@@ -97,3 +97,9 @@ def test_links_in_emails_use_the_hosts_address_by_default():
     own = Settings(DB_SETTINGS="sqlite://", SECRET_KEY="x" * 40, RENDER_EXTERNAL_URL="https://triplet.onrender.com",
                    APP_URL="https://triplet.me")
     assert own.APP_URL == "https://triplet.me"
+
+def test_the_contact_email_is_public(client, monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings, "CONTACT_EMAIL", "hello@example.com")
+
+    assert client.get("/site-info").json() == {"contact_email": "hello@example.com"}

@@ -96,6 +96,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/sign-in-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sign In Options
+         * @description What the website's log-in page can offer. Read at runtime, so changing it needs no rebuild.
+         */
+        get: operations["sign_in_options_auth_sign_in_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/social": {
         parameters: {
             query?: never;
@@ -1005,6 +1025,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Site Info
+         * @description Public details the website's privacy policy and terms pages show.
+         */
+        get: operations["site_info_site_info_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1756,6 +1796,11 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** SignInOptions */
+        SignInOptions: {
+            /** Google Client Id */
+            google_client_id?: string | null;
+        };
         /** SignupResponse */
         SignupResponse: {
             /** Detail */
@@ -2256,6 +2301,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sign_in_options_auth_sign_in_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignInOptions"];
                 };
             };
         };
@@ -4475,6 +4540,26 @@ export interface operations {
         };
     };
     root__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    site_info_site_info_get: {
         parameters: {
             query?: never;
             header?: never;

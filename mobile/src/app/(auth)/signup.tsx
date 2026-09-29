@@ -10,6 +10,7 @@ import { useSession } from '@/auth/session';
 import { signupSchema, type SignupValues } from '@/auth/validation';
 import { Button } from '@/components/button';
 import { PasswordMeter } from '@/components/password-meter';
+import { LegalLinks } from '@/components/legal-links';
 import { FormMessage, Screen } from '@/components/screen';
 import { SocialSignInButtons } from '@/components/social-sign-in';
 import { Body, Heading } from '@/components/text';
@@ -150,6 +151,7 @@ export default function SignupScreen() {
           Log in
         </Link>
       </Text>
+      <LegalLinks agreeing />
     </Screen>
   );
 }
