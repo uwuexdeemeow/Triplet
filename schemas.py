@@ -148,6 +148,12 @@ class GuestAccessResponse(BaseModel):
         "from_attributes": True
     }
 
+class ShareLinkResponse(BaseModel):
+    token: str
+    # The website address of the page, for sharing
+    url: str
+    created_at: datetime
+
 class CurrencySuggestion(BaseModel):
     # None when the destination couldn't be placed in a country
     currency: str | None
@@ -425,6 +431,29 @@ class ItineraryResponse(BaseModel):
     trip_id: int
     days: list[ItineraryDay]
     conflict_count: int
+
+class SharedActivity(BaseModel):
+    """What a share link shows of a plan: no costs, notes or where it was saved from."""
+    title: str
+    location: str
+    start_time: datetime
+    end_time: datetime
+    latitude: float | None = None
+    longitude: float | None = None
+
+class SharedDay(BaseModel):
+    date: date
+    activities: list[SharedActivity]
+    weather: DayWeather | None = None
+
+class SharedTrip(BaseModel):
+    """A trip as its share link shows it: the plan only, no costs, budget, people or saved posts."""
+    title: str
+    destination: str
+    destinations: list[str] = []
+    start_date: date | None = None
+    end_date: date | None = None
+    days: list[SharedDay]
 
 class SavedLinkCreate(BaseModel):
     url: HttpUrl

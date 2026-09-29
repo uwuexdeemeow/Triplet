@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Share, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, Share, Text, View } from 'react-native';
 
 import { api, ApiError, type Schemas } from '@/api/client';
+import type { ShareLink } from '@/api/share';
 import { tripKeys, useMe, useMembers, useTrip, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { DestinationField, type PickedDestination } from '@/components/destination-field';
@@ -45,6 +46,7 @@ export default function TripSettingsScreen() {
             ) : (
               <TripDetails trip={trip.data} />
             )}
+            {role === 'owner' ? <ShareLinkSection trip={trip.data} /> : null}
             {role === 'owner' ? <GuestAccess trip={trip.data} /> : null}
             {role === 'owner' ? <DeleteTrip trip={trip.data} /> : null}
           </>
@@ -170,6 +172,110 @@ function TripDetails({ trip }: { trip: Trip }) {
       />
       {saved ? <FormMessage tone="success" message="Saved. Everyone on the trip sees the change." /> : null}
       <Button label="Save changes" loading={save.isPending} disabled={unchanged} onPress={submit} />
+    </View>
+  );
+}
+
+// A link anyone can open to see the plan, without a code or an account. It shows no costs or people.
+function ShareLinkSection({ trip }: { trip: Trip }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const key = ['trips', trip.id, 'share-link'];
+  const [confirmingNew, setConfirmingNew] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const link = useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      try {
+        return await api<ShareLink>(`/trips/${trip.id}/share-link`);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+  });
+
+  const create = useMutation({
+    mutationFn: () => api<ShareLink>(`/trips/${trip.id}/share-link`, { method: 'PUT' }),
+    onSuccess: (created) => {
+      queryClient.setQueryData(key, created);
+      setConfirmingNew(false);
+      setCopied(false);
+    },
+  });
+
+  const turnOff = useMutation({
+    mutationFn: () => api(`/trips/${trip.id}/share-link`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.setQueryData(key, null);
+      setConfirmingNew(false);
+    },
+  });
+
+  // The website copies to the clipboard; phones open their share sheet, which has Copy in it
+  const copy = async (url: string) => {
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        return;
+      } catch {
+        // Blocked by the browser: fall through to sharing
+      }
+    }
+    Share.share({ message: url }).catch(() => {});
+  };
+
+  const current = link.data;
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Share link</Text>
+      <Muted>
+        Anyone with the link can see the plan: places, days and times. They can’t see costs, the budget, who’s on the trip
+        or saved posts, and can’t change anything.
+      </Muted>
+
+      {link.isPending ? (
+        <ActivityIndicator color={colors.accent} />
+      ) : link.isError ? (
+        <FormMessage message={link.error.message} />
+      ) : current ? (
+        <View style={styles.guestCard}>
+          <Text selectable style={styles.guestMeta}>
+            {current.url}
+          </Text>
+          <FormMessage message={(create.error ?? turnOff.error)?.message ?? null} />
+          <Button label={copied ? 'Copied' : Platform.OS === 'web' ? 'Copy link' : 'Share link'} onPress={() => copy(current.url)} />
+          {confirmingNew ? (
+            <View style={styles.section}>
+              <Muted>The old link stops working. Anyone who has it will need the new one.</Muted>
+              <View style={styles.buttons}>
+                <Button label="Cancel" variant="secondary" onPress={() => setConfirmingNew(false)} style={styles.flex} />
+                <Button label="Make new link" loading={create.isPending} onPress={() => create.mutate()} style={styles.flex} />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.buttons}>
+              <Button label="New link" variant="secondary" onPress={() => setConfirmingNew(true)} style={styles.flex} />
+              <Button
+                label="Turn off"
+                variant="secondary"
+                loading={turnOff.isPending}
+                onPress={() => turnOff.mutate()}
+                style={styles.flex}
+              />
+            </View>
+          )}
+        </View>
+      ) : (
+        <>
+          <FormMessage message={create.error?.message ?? null} />
+          <Button label="Create a share link" loading={create.isPending} onPress={() => create.mutate()} />
+        </>
+      )}
     </View>
   );
 }

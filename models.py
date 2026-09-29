@@ -672,6 +672,32 @@ class TripGuestAccess(Base):
         nullable=True
     )
 
+class TripShareLink(Base):
+    """A trip's read-only link. The token is kept as is (not hashed) so the owner can copy the link again."""
+    __tablename__ = "trip_share_links"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True
+    )
+
+    token: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
 class TripInvitation(Base):
     __tablename__ = "trip_invitations"
 

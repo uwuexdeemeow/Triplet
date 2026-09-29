@@ -5,12 +5,9 @@ import { useGuestItinerary, useGuestTrip } from '@/api/guest';
 import { useSession } from '@/auth/session';
 import { Button } from '@/components/button';
 import { FormMessage } from '@/components/screen';
-import { Body, Heading, Muted, Title } from '@/components/text';
-import { WeatherLine } from '@/components/weather-line';
+import { TripReadOnly } from '@/components/trip-read-only';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
-import { activityClock, formatDateRange, formatLongDate } from '@/utils/dates';
-import { formatMoney } from '@/utils/money';
 import { usePullToRefresh } from '@/utils/pull-to-refresh';
 
 // A read-only look at one trip's plan, day by day
@@ -20,7 +17,6 @@ export default function GuestTripScreen() {
   const { signOut } = useSession();
   const trip = useGuestTrip();
   const itinerary = useGuestItinerary();
-  const currency = trip.data?.currency ?? 'USD';
 
   const pull = usePullToRefresh(() => Promise.all([trip.refetch(), itinerary.refetch()]));
 
@@ -44,22 +40,6 @@ export default function GuestTripScreen() {
           </Pressable>
         </View>
 
-        {trip.data ? (
-          <View style={styles.titles}>
-            <Heading>{trip.data.title}</Heading>
-            <Muted>
-              {[
-                trip.data.destination,
-                trip.data.start_date && trip.data.end_date
-                  ? formatDateRange(trip.data.start_date, trip.data.end_date)
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </Muted>
-          </View>
-        ) : null}
-
         {trip.isPending || itinerary.isPending ? (
           <ActivityIndicator color={colors.accent} style={styles.loading} />
         ) : trip.isError || itinerary.isError ? (
@@ -67,37 +47,13 @@ export default function GuestTripScreen() {
             <FormMessage message={(trip.error ?? itinerary.error)?.message ?? null} />
             <Button label="Try again" variant="secondary" onPress={pull.onRefresh} />
           </View>
-        ) : itinerary.data.days.length === 0 ? (
-          <Body style={styles.empty}>Nothing’s planned yet. Pull down to check again later.</Body>
         ) : (
-          // No entrance animation here: on the web it stalled in this stack and left the plans invisible
-          itinerary.data.days.map((day) => (
-            <View key={day.date} style={styles.day}>
-              <View style={styles.dayHeader}>
-                <Title>{formatLongDate(day.date)}</Title>
-                {day.estimated_cost > 0 ? (
-                  <Text style={styles.dayCost}>About {formatMoney(day.estimated_cost, currency)}</Text>
-                ) : null}
-              </View>
-              {day.weather ? <WeatherLine weather={day.weather} /> : null}
-              {day.activities.map((activity) => (
-                <View key={activity.id} style={styles.row}>
-                    <Text style={styles.time}>{activityClock(activity.start_time)}</Text>
-                    <View style={styles.card}>
-                      <Text style={styles.cardTitle}>{activity.title}</Text>
-                      <Text style={styles.cardDetails} numberOfLines={2}>
-                        {[`Until ${activityClock(activity.end_time)}`, activity.location].filter(Boolean).join(' · ')}
-                      </Text>
-                      {activity.description ? (
-                        <Text style={styles.cardDescription} numberOfLines={3}>
-                          {activity.description}
-                        </Text>
-                      ) : null}
-                    </View>
-                </View>
-              ))}
-            </View>
-          ))
+          <TripReadOnly
+            trip={trip.data}
+            days={itinerary.data.days}
+            currency={trip.data.currency}
+            emptyMessage="Nothing’s planned yet. Pull down to check again later."
+          />
         )}
       </ScrollView>
     </SafeAreaView>
@@ -148,67 +104,10 @@ const useStyles = makeStyles((colors) => ({
   pressed: {
     opacity: 0.6,
   },
-  titles: {
-    gap: spacing.xs,
-  },
   loading: {
     marginTop: spacing.xl,
   },
   state: {
     gap: spacing.md,
-  },
-  empty: {
-    color: colors.muted,
-  },
-  day: {
-    gap: spacing.md,
-  },
-  dayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: spacing.md,
-  },
-  dayCost: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.muted,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  time: {
-    width: 48,
-    paddingTop: 14,
-    fontFamily: fonts.bold,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    boxShadow: colors.cardShadow,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: spacing.md,
-    gap: 3,
-  },
-  cardTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 16,
-    color: colors.ink,
-  },
-  cardDetails: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.muted,
-  },
-  cardDescription: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.ink,
-    marginTop: 4,
   },
 }));

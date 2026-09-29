@@ -47,6 +47,10 @@ def test_page_paths_get_the_app_with_security_headers(site):
     assert response.headers["Content-Security-Policy"] == "default-src 'self'"
     assert response.headers["Cache-Control"] == "no-cache"
 
+def test_share_pages_are_kept_out_of_search_engines(site):
+    assert site.get("/shared/abc123").headers["X-Robots-Tag"] == "noindex"
+    assert "X-Robots-Tag" not in site.get("/trips/2").headers
+
 def test_built_files_are_cached_for_good(site):
     response = site.get("/_expo/static/js/entry-abc.js")
 

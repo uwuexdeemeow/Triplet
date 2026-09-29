@@ -4128,10 +4128,203 @@
     }
    }
   },
+  "/trips/{trip_id}/share-link": {
+   "put": {
+    "tags": [
+     "Share Link"
+    ],
+    "summary": "Create Share Link",
+    "operationId": "create_share_link_trips__trip_id__share_link_put",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ShareLinkResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "Share Link"
+    ],
+    "summary": "Get Share Link",
+    "operationId": "get_share_link_trips__trip_id__share_link_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ShareLinkResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "Share Link"
+    ],
+    "summary": "Turn Off Share Link",
+    "operationId": "turn_off_share_link_trips__trip_id__share_link_delete",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/shared/{token}": {
+   "get": {
+    "tags": [
+     "Share Link"
+    ],
+    "summary": "Get Shared Trip",
+    "description": "The plan only: names, places, dates and times. No costs, budget, people or saved posts.",
+    "operationId": "get_shared_trip_shared__token__get",
+    "parameters": [
+     {
+      "name": "token",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Token"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SharedTrip"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/": {
    "get": {
     "summary": "Root",
     "operationId": "root__get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/health": {
+   "get": {
+    "tags": [
+     "Site"
+    ],
+    "summary": "Health",
+    "description": "Answers without touching the database, so a scheduled ping keeps the server awake but not Neon.",
+    "operationId": "health_health_get",
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -6994,6 +7187,174 @@
      "created_at"
     ],
     "title": "SettlementResponse"
+   },
+   "ShareLinkResponse": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "title": "Token"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token",
+     "url",
+     "created_at"
+    ],
+    "title": "ShareLinkResponse"
+   },
+   "SharedActivity": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "location": {
+      "type": "string",
+      "title": "Location"
+     },
+     "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+     },
+     "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     }
+    },
+    "type": "object",
+    "required": [
+     "title",
+     "location",
+     "start_time",
+     "end_time"
+    ],
+    "title": "SharedActivity",
+    "description": "What a share link shows of a plan: no costs, notes or where it was saved from."
+   },
+   "SharedDay": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date"
+     },
+     "activities": {
+      "items": {
+       "$ref": "#/components/schemas/SharedActivity"
+      },
+      "type": "array",
+      "title": "Activities"
+     },
+     "weather": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DayWeather"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "activities"
+    ],
+    "title": "SharedDay"
+   },
+   "SharedTrip": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "destination": {
+      "type": "string",
+      "title": "Destination"
+     },
+     "destinations": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Destinations",
+      "default": []
+     },
+     "start_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start Date"
+     },
+     "end_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End Date"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/SharedDay"
+      },
+      "type": "array",
+      "title": "Days"
+     }
+    },
+    "type": "object",
+    "required": [
+     "title",
+     "destination",
+     "days"
+    ],
+    "title": "SharedTrip",
+    "description": "A trip as its share link shows it: the plan only, no costs, budget, people or saved posts."
    },
    "SignInOptions": {
     "properties": {
