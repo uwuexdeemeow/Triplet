@@ -108,7 +108,19 @@ export function SocialSignInButtons() {
   return (
     <View style={styles.container}>
       <FormMessage message={error} />
-      <div ref={button} style={{ width: '100%', minHeight: 44, display: 'flex', justifyContent: 'center' }} />
+      <div
+        ref={button}
+        style={{
+          width: '100%',
+          minHeight: 44,
+          display: 'flex',
+          justifyContent: 'center',
+          // Google draws its button in a frame. With the page in dark mode the browser paints that
+          // frame's background white, which shows as a border; a light scheme keeps it see-through.
+          // The button still uses its own dark style.
+          colorScheme: 'light',
+        }}
+      />
       <View style={styles.divider}>
         <View style={styles.line} />
         <Text style={styles.or}>or with email</Text>
