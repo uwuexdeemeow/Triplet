@@ -126,3 +126,40 @@ def test_a_token_from_the_website_button_is_accepted(client):
     response = sign_in(client, id_token=token(aud=GOOGLE_CLIENT))
 
     assert response.status_code == 200
+
+def test_google_accounts_can_set_a_password_with_an_emailed_code(client, outbox):
+    from tests.conftest import emailed_code
+    response = sign_in(client)
+    headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
+    assert client.get("/users/me", headers=headers).json()["has_password"] is False
+
+    # Changing the email needs a password, so they're told to set one first
+    change = client.patch("/users/me", headers=headers, json={"email": "new@example.com", "current_password": "x"})
+    assert change.status_code == 403 and "Set a password" in change.json()["detail"]
+
+    assert client.post("/users/me/password/code", headers=headers).status_code == 202
+    code = emailed_code(outbox, "sam@example.com")
+    wrong = "000000" if code != "000000" else "111111"
+    assert client.post("/users/me/password", headers=headers, json={"code": wrong, "password": PASSWORD}).status_code == 400
+
+    me = client.post("/users/me/password", headers=headers, json={"code": code, "password": PASSWORD})
+    assert me.status_code == 200, me.text
+    assert me.json()["has_password"] is True
+    # Both ways in work now
+    assert client.post("/auth/login", json={"email": "sam@example.com", "password": PASSWORD}).status_code == 200
+    assert sign_in(client).status_code == 200
+
+def test_accounts_with_a_password_change_it_the_usual_way(client, alice):
+    assert client.get("/users/me", headers=alice["headers"]).json()["has_password"] is True
+    assert client.post("/users/me/password/code", headers=alice["headers"]).status_code == 409
+
+def test_linking_google_to_an_existing_account_is_emailed(client, alice, outbox):
+    sign_in(client, id_token=token(email=alice["email"]))
+
+    to, subject, _ = outbox[-1]
+    assert (to, subject) == (alice["email"], "Google sign-in was added to your Triplet account")
+
+    # Only the first time
+    sent = len(outbox)
+    sign_in(client, id_token=token(email=alice["email"]))
+    assert len(outbox) == sent

@@ -140,6 +140,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/undo-email-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo Email Change
+         * @description The link emailed to the old address after an email change. It puts the old email back, signs
+         *     out every device, removes Google or Apple sign-ins linked since, and clears the password, since
+         *     whoever made the change knows it. The owner then chooses a new one with "Forgot password".
+         */
+        post: operations["undo_email_change_auth_undo_email_change_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/refresh": {
         parameters: {
             query?: never;
@@ -242,6 +264,48 @@ export interface paths {
         head?: never;
         /** Update Profile */
         patch: operations["update_profile_users_me_patch"];
+        trace?: never;
+    };
+    "/users/me/password/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Password Code
+         * @description For accounts made with Google or Apple: email a code to set a first password with. A code
+         *     to the account's inbox, not just a signed-in session, so someone using a phone left
+         *     unlocked can't give themselves a password to the account.
+         */
+        post: operations["send_password_code_users_me_password_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Password
+         * @description Set a first password with the emailed code. Signing in with Google or Apple keeps working.
+         */
+        post: operations["set_password_users_me_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/users/me/email/verify": {
@@ -1607,6 +1671,13 @@ export interface components {
              */
             email: string;
         };
+        /** PasswordSet */
+        PasswordSet: {
+            /** Code */
+            code: string;
+            /** Password */
+            password: string;
+        };
         /** PlaceSearchResult */
         PlaceSearchResult: {
             /** Google Place Id */
@@ -2092,6 +2163,11 @@ export interface components {
             avatar_url?: string | null;
             /** Pending Email */
             pending_email?: string | null;
+            /**
+             * Has Password
+             * @default true
+             */
+            has_password: boolean;
         };
         /** UserUpdate */
         UserUpdate: {
@@ -2358,6 +2434,39 @@ export interface operations {
             };
         };
     };
+    undo_email_change_auth_undo_email_change_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     refresh_auth_refresh_post: {
         parameters: {
             query?: never;
@@ -2567,6 +2676,59 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_password_code_users_me_password_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    set_password_users_me_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordSet"];
             };
         };
         responses: {

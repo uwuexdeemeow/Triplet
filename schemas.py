@@ -33,6 +33,8 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     # A new address waiting to be confirmed from its inbox
     pending_email: str | None = None
+    # False until someone who signed up with Google or Apple sets a password
+    has_password: bool = True
 
     model_config={
         "from_attributes": True
@@ -55,6 +57,11 @@ class UserUpdate(BaseModel):
     avatar_url: HttpUrl | None = None
     # Needed to change the email or password, so a stolen session can't take over the account
     current_password: str | None = Field(default=None, max_length=128)
+
+class PasswordSet(BaseModel):
+    # The emailed six-digit code (see EmailCode below)
+    code: Annotated[str, StringConstraints(max_length=12)]
+    password: Password
 
 class AccountDelete(BaseModel):
     password: str = Field(max_length=128)

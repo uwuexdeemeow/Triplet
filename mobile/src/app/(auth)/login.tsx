@@ -37,7 +37,8 @@ export default function LoginScreen() {
     } catch (error) {
       setFormError(
         error instanceof ApiError && error.status === 401
-          ? "That email and password don't match."
+          ? // Said the same whether or not the email has an account, so it can't be used to find accounts
+            "That email and password don't match. If you started signing up but never entered the emailed code, sign up again for a new one. If you signed up with Google, use Continue with Google."
           : error instanceof Error
             ? error.message
             : 'Something went wrong.',

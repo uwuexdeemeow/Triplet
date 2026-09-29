@@ -15,12 +15,16 @@ from sqlalchemy.orm import Session
 import codes
 from config import settings
 from mailer import send_email
-from models import EmailVerificationToken, PendingSignup, TripInvitation, User
+from models import EmailChangeUndo, EmailVerificationToken, PendingSignup, TripInvitation, User
+import security_emails
 from security import generate_token, hash_password, hash_token
 from validators import as_utc
 
 CODE_PURPOSE = "verify-email"
 SIGNUP_CODE_PURPOSE = "signup"
+# How long the undo link in "your email was changed" works
+UNDO_EMAIL_CHANGE_LIFETIME = timedelta(days=7)
+
 # How long a sign-up can wait for its code (asking for a new code within this keeps it going)
 PENDING_SIGNUP_LIFETIME = timedelta(hours=24)
 
@@ -182,13 +186,13 @@ def latest_code(db: Session, user_id: int, email: str) -> EmailVerificationToken
         .first()
     )
 
-def confirm_new_email_code(db: Session, user: User, code: str) -> User:
+def confirm_new_email_code(db: Session, user: User, code: str, background_tasks: BackgroundTasks) -> User:
     """Enter the code sent to a new email address: the account switches to it. Commits."""
     row = latest_code(db, user.id, user.pending_email) if user.pending_email else None
     check_code(db, row, CODE_PURPOSE, code)
-    return _apply(db, row, user)
+    return _apply(db, row, user, background_tasks)
 
-def confirm(db: Session, token: str) -> User:
+def confirm(db: Session, token: str, background_tasks: BackgroundTasks) -> User:
     """Use a confirmation link from before codes to switch the account's email. Commits."""
     stored = db.query(EmailVerificationToken).filter(
         EmailVerificationToken.token_hash == hash_token(token)
@@ -201,10 +205,11 @@ def confirm(db: Session, token: str) -> User:
         )
 
     user = db.query(User).filter(User.id == stored.user_id).first()
-    return _apply(db, stored, user)
+    return _apply(db, stored, user, background_tasks)
 
-def _apply(db: Session, stored: EmailVerificationToken, user: User) -> User:
+def _apply(db: Session, stored: EmailVerificationToken, user: User, background_tasks: BackgroundTasks) -> User:
     now = datetime.now(timezone.utc)
+    old_email = user.email
 
     if stored.email != user.email:
         # Switching to a new address, unless someone else took it in the meantime
@@ -223,7 +228,17 @@ def _apply(db: Session, stored: EmailVerificationToken, user: User) -> User:
     user.email_verified_at = user.email_verified_at or now
     stored.used_at = now
     attach_invitations(db, user)
+
+    undo_token = None
+    if user.email != old_email:
+        # The old inbox gets a way to undo it, in case this was someone taking over the account
+        undo_token = generate_token()
+        db.add(EmailChangeUndo(user_id=user.id, old_email=old_email, token_hash=hash_token(undo_token),
+                               expires_at=now + UNDO_EMAIL_CHANGE_LIFETIME))
     db.commit()
+
+    if undo_token:
+        security_emails.email_changed(background_tasks, old_email, user.name, user.email, undo_token)
     return user
 
 def attach_invitations(db: Session, user: User):

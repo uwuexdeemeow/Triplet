@@ -38,6 +38,15 @@ class User(Base):
         nullable=True
     )
 
+    # False for accounts made with Google or Apple until they choose a password in Profile.
+    # Their password column then holds a random one nobody knows.
+    has_password: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true"
+    )
+
     # A new address the user asked to switch to, used once they confirm it
     pending_email: Mapped[str | None] = mapped_column(
         String(255),
@@ -951,4 +960,48 @@ class UserIdentity(Base):
 
     __table_args__ = (
         UniqueConstraint("provider", "subject", name="uq_identity_provider_subject"),
+    )
+
+class EmailChangeUndo(Base):
+    """
+    The undo link emailed to the old address when an account's email changes. Using it puts the
+    old email back, in case someone else changed it to take over the account.
+    """
+    __tablename__ = "email_change_undos"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    old_email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    # Only a hash, like the other emailed links
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
     )

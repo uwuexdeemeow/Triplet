@@ -5,14 +5,19 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import connect_db
 from models import Trip, TripMembership, User, UserAvatar
-from schemas import AccountDelete, CodeRequest, UserResponse, UserPublic, UserUpdate
+from schemas import AccountDelete, CodeRequest, MessageResponse, PasswordSet, UserResponse, UserPublic, UserUpdate
 import rate_limit
 from rate_limit import client_ip
 from security import hash_password, verify_password
 from validators import password_strength, clean_name, NAME_ERROR
 from dependencies import get_current_user, Pagination
-from routers.auth import revoke_refresh_tokens
+from routers.auth import (
+    RESET_CODE_PURPOSE, RESET_EMAIL_LIMIT, RESET_WINDOW, latest_password_code, new_password_code, revoke_refresh_tokens
+)
+from config import settings
+from mailer import send_email
 import verification
+import security_emails
 
 router = APIRouter(
     prefix="/users",
@@ -38,6 +43,11 @@ def update_profile(
     # Taking over an account needs the current password, not just a signed-in session
     changing_email = update_data.get("email") is not None and update_data["email"].lower() != current_user.email.lower()
     changing_password = update_data.get("password") is not None
+    if (changing_email or changing_password) and not current_user.has_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Set a password first: we'll email you a code to prove it's you"
+        )
     if (changing_email or changing_password) and not (
         user_update.current_password and verify_password(current_user.password, user_update.current_password)
     ):
@@ -95,12 +105,80 @@ def update_profile(
         current_user.password = hash_password(update_data["password"])
         # Sign out other devices after a password change
         revoke_refresh_tokens(db, current_user.id)
+        security_emails.password_changed(background_tasks, current_user.email, current_user.name, "changed")
 
     db.commit()
 
     if new_email is not None:
         verification.send_verification(db, background_tasks, current_user, new_email)
+    if changing_email:
+        # The current inbox hears about it too, whether or not the new address is free
+        security_emails.email_change_requested(background_tasks, current_user.email, current_user.name, update_data["email"])
 
+    db.refresh(current_user)
+    return current_user
+
+@router.post("/me/password/code", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
+def send_password_code(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(connect_db)
+):
+    """
+    For accounts made with Google or Apple: email a code to set a first password with. A code
+    to the account's inbox, not just a signed-in session, so someone using a phone left
+    unlocked can't give themselves a password to the account.
+    """
+    if current_user.has_password:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have a password. Change it with your current one."
+        )
+    rate_limit.hit(db, f"reset-email:{current_user.email}", RESET_EMAIL_LIMIT, RESET_WINDOW,
+                   "That's a lot of codes. Wait a while, then try again.")
+
+    code = new_password_code(db, current_user)
+    background_tasks.add_task(
+        send_email,
+        current_user.email,
+        f"{code} is your code to set a Triplet password",
+        f"Hi {current_user.name},\n\n"
+        f"Enter this code in Triplet to set a password, so you can also sign in with your email:\n\n    {code}\n\n"
+        f"It works for {settings.EMAIL_CODE_EXPIRE_MINUTES} minutes. "
+        "If you didn't ask for this, someone may be using your signed-in Triplet account: "
+        "don't share the code, and sign out of Triplet on devices you don't recognise."
+    )
+    return {"detail": "A code is on its way to your email"}
+
+@router.post("/me/password", response_model=UserResponse)
+def set_password(
+    password_set: PasswordSet,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(connect_db)
+):
+    """Set a first password with the emailed code. Signing in with Google or Apple keeps working."""
+    if current_user.has_password:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have a password. Change it with your current one."
+        )
+    row = latest_password_code(db, current_user.id)
+    verification.check_code(db, row, RESET_CODE_PURPOSE, password_set.code)
+
+    email_prefix = current_user.email.split("@")[0]
+    result = password_strength(password_set.password.lower(), [current_user.name.lower(), email_prefix.lower()])
+    if not result["is_valid"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid credentials"
+        )
+
+    current_user.password = hash_password(password_set.password)
+    current_user.has_password = True
+    row.used_at = datetime.now(timezone.utc)
+    db.commit()
+    security_emails.password_changed(background_tasks, current_user.email, current_user.name, "set")
     db.refresh(current_user)
     return current_user
 
@@ -108,13 +186,14 @@ def update_profile(
 def verify_new_email(
     code_request: CodeRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(connect_db)
 ):
     """Enter the code sent to a new email address; the account switches to it."""
     rate_limit.hit(db, f"token-ip:{client_ip(request)}", 60, timedelta(minutes=5),
                    "Too many requests. Wait a moment and try again.")
-    user = verification.confirm_new_email_code(db, current_user, code_request.code)
+    user = verification.confirm_new_email_code(db, current_user, code_request.code, background_tasks)
     db.refresh(user)
     return user
 

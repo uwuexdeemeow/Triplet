@@ -26,7 +26,8 @@ def outbox(monkeypatch):
     def capture(to, subject, body):
         sent.append((to, subject, body))
 
-    for place in ("routers.auth.send_email", "routers.members.send_email", "verification.send_email"):
+    for place in ("routers.auth.send_email", "routers.members.send_email", "routers.users.send_email", "verification.send_email",
+                  "security_emails.send_email"):
         monkeypatch.setattr(place, capture)
     return sent
 

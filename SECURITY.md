@@ -12,7 +12,8 @@ How Triplet protects accounts and data, what to set when deploying, and what's s
 - Sign in with Google or Apple (`social_login.py`): the server only trusts an ID token signed with the key Google or Apple publish, issued for this app (`GOOGLE_CLIENT_IDS`, `APPLE_CLIENT_IDS`), not expired, and with a confirmed email. Apple tokens must also answer the nonce the app started that sign-in with, so a captured token can't be replayed. Accounts are linked by the provider's own id, so changing the email at Google or Apple doesn't create a second account.
 - People search only finds people you already share a trip with, by name.
 - Password reset links expire after 30 minutes and work once.
-- Changing your email or password, or deleting your account, needs your current password.
+- Changing your email or password, or deleting your account, needs your current password. Accounts made with Google or Apple start without one; setting it from Profile needs a code emailed to the account, so a phone left unlocked isn't enough.
+- Security emails (`security_emails.py`): the account's inbox hears about a password being changed, set or reset, a request to change the email, and Google or Apple sign-in being added. When the email does change, the old address gets a link, valid 7 days, that undoes it: the old email comes back, every device is signed out, sign-ins added since are removed and the password is cleared, so whoever changed it can't get back in.
 - Emails are stored and compared lowercase. An unknown email takes as long to reject as a wrong password.
 
 **Limits** (`rate_limit.py`, kept in the database so they survive restarts)

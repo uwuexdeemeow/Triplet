@@ -97,7 +97,7 @@ export default function ProfileScreen() {
       {
         key: "delete",
         label: "Delete account",
-        content: me.data ? <DeleteAccount /> : null,
+        content: me.data ? <DeleteAccount user={me.data} /> : null,
       },
     ];
 
@@ -186,7 +186,7 @@ export default function ProfileScreen() {
           <FormMessage message={signOutEverywhere.error?.message ?? null} />
         </View>
 
-        {me.data ? <DeleteAccount /> : null}
+        {me.data ? <DeleteAccount user={me.data} /> : null}
       </View>
     </Screen>
   );

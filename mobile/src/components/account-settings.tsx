@@ -38,12 +38,16 @@ export function AccountSettings({ user }: { user: User }) {
         </Row>
         <Row
           label="Password"
-          value="••••••••"
-          action="Change"
+          value={user.has_password ? '••••••••' : 'Not set: you sign in with Google or Apple'}
+          action={user.has_password ? 'Change' : 'Set'}
           expanded={open === 'password'}
           onPress={() => toggle('password')}
           divider>
-          <PasswordForm user={user} onDone={() => setOpen(null)} />
+          {user.has_password ? (
+            <PasswordForm user={user} onDone={() => setOpen(null)} />
+          ) : (
+            <SetPasswordForm user={user} onDone={() => setOpen(null)} />
+          )}
         </Row>
       </View>
     </View>
@@ -125,6 +129,11 @@ function EmailForm({ user, onDone }: { user: User; onDone: () => void }) {
     },
     onError: (err) => setError(err.message),
   });
+
+  // Changing the email is confirmed with the current password, so an account needs one first
+  if (!user.has_password && step === 'address') {
+    return <Muted>Changing your email needs a password, so nobody else can do it from your phone. Set one below first.</Muted>;
+  }
 
   if (step === 'code') {
     const submitCode = () => {
@@ -261,9 +270,79 @@ function PasswordForm({ user, onDone }: { user: User; onDone: () => void }) {
   );
 }
 
+// Accounts made with Google or Apple start without a password. Setting one first takes a code sent
+// to the account's email, so someone using a phone left unlocked can't give themselves a password.
+function SetPasswordForm({ user, onDone }: { user: User; onDone: () => void }) {
+  const queryClient = useQueryClient();
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [next, setNext] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const sendCode = useMutation({
+    mutationFn: () => api('/users/me/password/code', { method: 'POST' }),
+    onSuccess: () => setSent(true),
+    onError: (err) => setError(err.message),
+  });
+
+  const save = useMutation({
+    mutationFn: (body: { code: string; password: string }) => api<User>('/users/me/password', { method: 'POST', body }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(tripKeys.me, updated);
+      onDone();
+    },
+    onError: (err) =>
+      setError(
+        err.message === 'Invalid credentials' ? 'That password is too easy to guess. Try adding another word or two.' : err.message,
+      ),
+  });
+
+  if (!sent) {
+    return (
+      <>
+        <Muted>
+          A password lets you sign in with your email too, and is needed to change your email or delete your account.
+          We’ll email a code to {user.email} first to check it’s you.
+        </Muted>
+        <FormMessage message={error} />
+        <Button label="Email me a code" loading={sendCode.isPending} onPress={() => sendCode.mutate()} />
+      </>
+    );
+  }
+
+  const submit = () => {
+    setError(null);
+    if (code.length !== 6) return setError('Enter all 6 digits from the email.');
+    if (next.length < 8 || next.length > 64) return setError('Use 8 to 64 characters.');
+    if (!checkPassword(next, user.name, user.email).strongEnough) {
+      return setError('That password is too easy to guess. Try adding another word or two.');
+    }
+    save.mutate({ code, password: next });
+  };
+
+  return (
+    <>
+      <Muted>Enter the code we emailed to {user.email}. It works for 15 minutes.</Muted>
+      <CodeField value={code} onChangeText={setCode} autoFocus />
+      <TextField
+        label="New password"
+        secureTextEntry
+        autoComplete="new-password"
+        textContentType="newPassword"
+        value={next}
+        onChangeText={setNext}
+        onSubmitEditing={submit}
+      />
+      <PasswordMeter password={next} name={user.name} email={user.email} />
+      <FormMessage message={error} />
+      <Button label="Set password" loading={save.isPending} onPress={submit} />
+    </>
+  );
+}
+
 // Everything goes: trips only you were on, your saves, photo and sign-ins. It can't be undone.
 // Kept at the bottom of the profile, away from everyday settings.
-export function DeleteAccount() {
+export function DeleteAccount({ user }: { user: User }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const { signOut } = useSession();
@@ -283,7 +362,10 @@ export function DeleteAccount() {
         This removes your account, your photo and your place on every trip. Trips other people are on stay for them. It
         can’t be undone.
       </Text>
-      {open ? (
+      {open && !user.has_password ? (
+        <Muted>Deleting your account is confirmed with your password. Set one under Account above first.</Muted>
+      ) : null}
+      {open && user.has_password ? (
         <View style={styles.form}>
           <TextField
             label="Your password"

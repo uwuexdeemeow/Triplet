@@ -277,6 +277,48 @@
     }
    }
   },
+  "/auth/undo-email-change": {
+   "post": {
+    "tags": [
+     "Authentication"
+    ],
+    "summary": "Undo Email Change",
+    "description": "The link emailed to the old address after an email change. It puts the old email back, signs\nout every device, removes Google or Apple sign-ins linked since, and clears the password, since\nwhoever made the change knows it. The owner then chooses a new one with \"Forgot password\".",
+    "operationId": "undo_email_change_auth_undo_email_change_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerifyEmailRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MessageResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/auth/refresh": {
    "post": {
     "tags": [
@@ -540,6 +582,80 @@
       "application/json": {
        "schema": {
         "$ref": "#/components/schemas/UserUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ]
+   }
+  },
+  "/users/me/password/code": {
+   "post": {
+    "tags": [
+     "User Data"
+    ],
+    "summary": "Send Password Code",
+    "description": "For accounts made with Google or Apple: email a code to set a first password with. A code\nto the account's inbox, not just a signed-in session, so someone using a phone left\nunlocked can't give themselves a password to the account.",
+    "operationId": "send_password_code_users_me_password_code_post",
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MessageResponse"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ]
+   }
+  },
+  "/users/me/password": {
+   "post": {
+    "tags": [
+     "User Data"
+    ],
+    "summary": "Set Password",
+    "description": "Set a first password with the emailed code. Signing in with Google or Apple keeps working.",
+    "operationId": "set_password_users_me_password_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PasswordSet"
        }
       }
      },
@@ -5866,6 +5982,26 @@
     ],
     "title": "PasswordResetRequest"
    },
+   "PasswordSet": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "maxLength": 12,
+      "title": "Code"
+     },
+     "password": {
+      "type": "string",
+      "maxLength": 128,
+      "title": "Password"
+     }
+    },
+    "type": "object",
+    "required": [
+     "code",
+     "password"
+    ],
+    "title": "PasswordSet"
+   },
    "PlaceSearchResult": {
     "properties": {
      "google_place_id": {
@@ -7456,6 +7592,11 @@
        }
       ],
       "title": "Pending Email"
+     },
+     "has_password": {
+      "type": "boolean",
+      "title": "Has Password",
+      "default": true
      }
     },
     "type": "object",

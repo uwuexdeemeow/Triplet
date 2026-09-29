@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from sqlalchemy.orm import Session
 from config import settings
 from database import connect_db
-from models import User, RefreshToken, PasswordResetToken, PendingSignup, UserIdentity
+from models import User, RefreshToken, PasswordResetToken, PendingSignup, UserIdentity, EmailChangeUndo
 from schemas import (
     UserCreate, UserLogin, Token, RefreshRequest, PasswordResetRequest, PasswordResetConfirm, MessageResponse,
     VerifyEmailRequest, ResendVerificationRequest, VerifyCodeRequest, SignupResponse, SocialLoginRequest,
@@ -18,6 +18,7 @@ from mailer import send_email
 import verification
 import rate_limit
 import social_login
+import security_emails
 from rate_limit import client_ip
 
 # Says why an email wasn't sent; the API can't, since it never reveals which emails have accounts
@@ -183,11 +184,12 @@ def signup(
 def verify_email(
     verify_request: VerifyEmailRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
     rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
                    "Too many requests. Wait a moment and try again.")
-    verification.confirm(db, verify_request.token)
+    verification.confirm(db, verify_request.token, background_tasks)
     return {"detail": "Email confirmed"}
 
 @router.post("/verify-email/code", response_model=Token)
@@ -273,6 +275,7 @@ def social_sign_in(
     social: SocialLoginRequest,
     request: Request,
     response: Response,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
     """
@@ -297,15 +300,19 @@ def social_sign_in(
         return issue_tokens(db, db.get(User, linked.user_id), request, response)
 
     user = db.query(User).filter(User.email == identity.email).first()
-    if user is None:
+    if user is not None:
+        # An existing account gains a new way in: tell its owner
+        security_emails.sign_in_linked(background_tasks, user.email, user.name, identity.provider)
+    else:
         user = User(
             # Apple's hidden emails look like "x7k2p9@privaterelay.appleid.com", so that's a last resort
             name=(clean_name(social.name or identity.name or "")
                   or clean_name(identity.email.split("@")[0][:60].replace("_", " ").replace(".", " "))
                   or "Traveller"),
             email=identity.email,
-            # There's no password yet; "Forgot password" sets one, which proves the email again
+            # A random password nobody knows, until they choose one in Profile
             password=hash_password(generate_token()),
+            has_password=False,
             email_verified_at=datetime.now(timezone.utc)
         )
         db.add(user)
@@ -318,6 +325,49 @@ def social_sign_in(
     db.add(UserIdentity(user_id=user.id, provider=identity.provider, subject=identity.subject, email=identity.email))
     db.commit()
     return issue_tokens(db, user, request, response)
+
+@router.post("/undo-email-change", response_model=MessageResponse)
+def undo_email_change(
+    undo_request: VerifyEmailRequest,
+    request: Request,
+    db: Session = Depends(connect_db)
+):
+    """
+    The link emailed to the old address after an email change. It puts the old email back, signs
+    out every device, removes Google or Apple sign-ins linked since, and clears the password, since
+    whoever made the change knows it. The owner then chooses a new one with "Forgot password".
+    """
+    rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
+                   "Too many requests. Wait a moment and try again.")
+    now = datetime.now(timezone.utc)
+    undo = db.query(EmailChangeUndo).filter(EmailChangeUndo.token_hash == hash_token(undo_request.token)).first()
+    if undo is None or undo.used_at is not None or as_utc(undo.expires_at) <= now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This link has expired or was already used"
+        )
+
+    user = db.get(User, undo.user_id)
+    taken = db.query(User).filter(User.email == undo.old_email, User.id != user.id).first()
+    if taken is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That email now belongs to another account, so it can't be put back. Contact us for help."
+        )
+
+    user.email = undo.old_email
+    user.pending_email = None
+    user.password = hash_password(generate_token())
+    user.has_password = True
+    db.query(UserIdentity).filter(
+        UserIdentity.user_id == user.id,
+        UserIdentity.created_at >= undo.created_at
+    ).delete(synchronize_session=False)
+    revoke_refresh_tokens(db, user.id)
+    undo.used_at = now
+    db.commit()
+    logger.info("Account %s: email change undone", user.id)
+    return {"detail": f"Your email is back to {user.email}. Choose a new password to sign in again."}
 
 @router.post("/refresh", response_model=Token)
 def refresh(
@@ -399,6 +449,34 @@ def logout_all(
     revoke_refresh_tokens(db, current_user.id)
     db.commit()
 
+def new_password_code(db: Session, user: User) -> str:
+    """A fresh code for choosing a password; earlier ones stop working. Commits."""
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used_at.is_(None)
+    ).update({"used_at": datetime.now(timezone.utc)})
+
+    code = codes.new_code()
+    row = PasswordResetToken(
+        user_id=user.id,
+        # A random placeholder until the row has the id its code's hash is keyed on
+        token_hash=hash_token(generate_token()),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.EMAIL_CODE_EXPIRE_MINUTES)
+    )
+    db.add(row)
+    db.flush()
+    row.token_hash = codes.code_hash(RESET_CODE_PURPOSE, row.id, code)
+    db.commit()
+    return code
+
+def latest_password_code(db: Session, user_id: int) -> PasswordResetToken | None:
+    return (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None))
+        .order_by(PasswordResetToken.id.desc())
+        .first()
+    )
+
 @router.post("/password-reset/request", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
 def request_password_reset(
     reset_request: PasswordResetRequest,
@@ -424,24 +502,7 @@ def request_password_reset(
     if user is None:
         return response
 
-    # Only the most recent code should work
-    db.query(PasswordResetToken).filter(
-        PasswordResetToken.user_id == user.id,
-        PasswordResetToken.used_at.is_(None)
-    ).update({"used_at": datetime.now(timezone.utc)})
-
-    code = codes.new_code()
-    row = PasswordResetToken(
-        user_id=user.id,
-        # A random placeholder until the row has the id its code's hash is keyed on
-        token_hash=hash_token(generate_token()),
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.EMAIL_CODE_EXPIRE_MINUTES)
-    )
-    db.add(row)
-    db.flush()
-    row.token_hash = codes.code_hash(RESET_CODE_PURPOSE, row.id, code)
-    db.commit()
-
+    code = new_password_code(db, user)
     background_tasks.add_task(
         send_email,
         user.email,
@@ -458,6 +519,7 @@ def request_password_reset(
 def confirm_password_reset(
     reset_confirm: PasswordResetConfirm,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(connect_db)
 ):
     rate_limit.hit(db, f"token-ip:{client_ip(request)}", TOKEN_IP_LIMIT, TOKEN_WINDOW,
@@ -480,12 +542,7 @@ def confirm_password_reset(
             )
     else:
         owner = db.query(User).filter(User.email == reset_confirm.email).first()
-        reset_token = (
-            db.query(PasswordResetToken)
-            .filter(PasswordResetToken.user_id == owner.id, PasswordResetToken.used_at.is_(None))
-            .order_by(PasswordResetToken.id.desc())
-            .first()
-        ) if owner is not None else None
+        reset_token = latest_password_code(db, owner.id) if owner is not None else None
         # Wrong codes count against the code; an unknown email looks like an expired code
         verification.check_code(db, reset_token, RESET_CODE_PURPOSE, reset_confirm.code)
 
@@ -500,7 +557,9 @@ def confirm_password_reset(
         )
 
     user.password = hash_password(reset_confirm.new_password)
+    user.has_password = True
     reset_token.used_at = datetime.now(timezone.utc)
+    security_emails.password_changed(background_tasks, user.email, user.name, "reset")
     revoke_refresh_tokens(db, user.id)
     db.commit()
 
