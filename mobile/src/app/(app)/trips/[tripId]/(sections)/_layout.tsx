@@ -9,7 +9,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, spacing, touchTarget } from '@/theme/tokens';
 import { formatDateRange } from '@/utils/dates';
-import { useLayoutSize, useShowsMapPanel, useWideLayout } from '@/utils/layout';
+import { useLayoutSize, useWideLayout } from '@/utils/layout';
 
 const SECTIONS = [
   { label: 'Plan', pathname: '/trips/[tripId]', suffix: '' },
@@ -31,9 +31,6 @@ export default function TripSectionsLayout() {
   const active = SECTIONS.find((section) => section.suffix && pathname.endsWith(section.suffix)) ?? SECTIONS[0];
   const wide = useWideLayout();
   const size = useLayoutSize();
-  // With the map beside the plan, it doesn't need its own tab (unless you're already on it)
-  const mapPanel = useShowsMapPanel();
-  const sections = SECTIONS.filter((section) => !(mapPanel && section.label === 'Map' && active !== section));
   const me = useMe();
   const isOwner = members.data?.some((member) => member.user_id === me.data?.id && member.role === 'owner') ?? false;
   const openSettings = () => router.push({ pathname: '/trips/[tripId]/settings', params: { tripId } });
@@ -41,7 +38,9 @@ export default function TripSectionsLayout() {
 
   const tabs = (
     <View accessibilityRole="tablist" style={wide ? styles.segments : styles.tabs}>
-      {sections.map((section) => {
+      {/* Map stays a tab even beside the Plan tab's side map, which only shows the day: the tab has
+          search, the filters and day routes, and adding a plan on the map */}
+      {SECTIONS.map((section) => {
         const selected = section === active;
         return (
           <Pressable
