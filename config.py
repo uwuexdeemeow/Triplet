@@ -72,7 +72,8 @@ class Settings(BaseSettings):
 
     # Daily forecasts on the plan, from Open-Meteo (free, no key)
     WEATHER_ENABLED: bool = True
-    # Budget estimates convert their typical prices with Frankfurter's rates (free, no key)
+    # Budget estimates and trip currency changes use ExchangeRate-API's rates, or currency-api's if it's
+    # down (both free, no key)
     EXCHANGE_RATES_ENABLED: bool = True
     # ...and scale them by each country's cost of living (World Bank), refreshed monthly in the background
     PRICE_LEVELS_ENABLED: bool = True

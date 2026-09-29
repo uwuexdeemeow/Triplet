@@ -662,6 +662,8 @@ class BudgetEstimate(BaseModel):
     # Plans with no cost and no way to guess one
     unpriced_plans: int
     notes: list[str]
+    # The exchange rate service used to convert typical prices ("ExchangeRate-API" asks for a credit)
+    rates_source: str | None = None
 
 class SettlementCreate(BaseModel):
     from_user_id: int

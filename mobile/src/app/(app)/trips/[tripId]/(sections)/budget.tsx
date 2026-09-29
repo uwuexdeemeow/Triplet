@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { api } from '@/api/client';
 import {
@@ -300,6 +300,15 @@ function EstimateCard({ estimate, money }: { estimate: BudgetEstimate; money: (a
           {note}
         </Text>
       ))}
+      {/* ExchangeRate-API's free rates ask for a link back */}
+      {estimate.rates_source === 'ExchangeRate-API' ? (
+        <Text
+          accessibilityRole="link"
+          onPress={() => Linking.openURL('https://www.exchangerate-api.com')}
+          style={[styles.estimateNote, styles.estimateCredit]}>
+          Rates by Exchange Rate API
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -536,6 +545,10 @@ const useStyles = makeStyles((colors) => ({
     fontSize: 12,
     lineHeight: 17,
     color: colors.muted,
+  },
+  estimateCredit: {
+    color: colors.accent,
+    textDecorationLine: 'underline',
   },
   screenWide: {
     maxWidth: 760,

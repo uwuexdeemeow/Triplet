@@ -474,5 +474,7 @@ def get_budget_estimate(
         budget=budget,
         over_budget_by=round(total - budget, 2) if budget is not None else None,
         unpriced_plans=unpriced,
-        notes=notes
+        notes=notes,
+        # Typical prices are US dollars, so a US-dollar trip needed no rates
+        rates_source=exchange_rates.rates_source() if typical_prices and currency != "USD" else None
     )

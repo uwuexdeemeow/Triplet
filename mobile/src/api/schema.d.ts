@@ -1359,6 +1359,8 @@ export interface components {
             unpriced_plans: number;
             /** Notes */
             notes: string[];
+            /** Rates Source */
+            rates_source?: string | null;
         };
         /** BudgetEstimateDay */
         BudgetEstimateDay: {
