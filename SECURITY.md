@@ -18,19 +18,20 @@ How Triplet protects accounts and data, what to set when deploying, and what's s
 
 | What | Limit |
 | --- | --- |
-| Wrong passwords | 5 per email, 30 per network, per 15 min |
+| Wrong passwords | 5 per email from one network and 30 per network, per 15 min; 100 per email from everywhere, per hour. Someone guessing at your account only blocks their own network, not you. |
 | New accounts | 5 per network per hour |
 | Reset emails | 3 per address per hour (extras are silently not sent) |
 | Confirmation emails | 3 per address per hour (extras are silently not sent) |
 | Token refreshes and reset-link checks | 60 per network per 5 min |
 | Wrong guest PINs | 5 per trip code, 20 per network, per 15 min |
-| Map searches | 120 per person per minute |
+| Place searches (map, destinations, currency) | 120 per person per minute |
 | Invites | 30 per person per hour |
 | Saving or re-checking posts | 40 per person per day (`LINK_SAVES_DAILY_LIMIT`) |
 
 **Data access**
 - Every trip endpoint checks membership. Non-members get 404, so they can't tell a trip exists. Viewers can't change anything.
-- Saving a link only downloads from TikTok, YouTube and Instagram (matched by exact domain), so the server can't be pointed at other addresses.
+- Only TikTok, Instagram and YouTube links can be saved, checked in the app and again by the server (`link_parser.supported_link`): the site must match exactly (no look-alikes like `tiktok.com.example.net`), and links with a login in them or an unusual port are refused. Anything else is never stored, so the server never downloads from other sites.
+- Blog links saved before this rule are still read. Reading a page checks every address, including each redirect, is on the public internet (never the server itself or a private network), and caps size, redirects and time (`web_extractor.py`).
 
 **Server**
 - Every input has a length or size limit; requests over 1 MB are refused.
@@ -64,6 +65,9 @@ None open right now. Closed:
 - ~~npm audit issues in `decode-uri-component` and `uuid`~~: `mobile/package.json` overrides `uuid` to 11 for Expo's iOS build tools, and swaps `decode-uri-component` for a small linear-time version in `mobile/shims/`. Drop both overrides once Expo ships fixed versions.
 
 ## Checking dependencies
+
+GitHub Actions runs both on every push and every Monday (`.github/workflows/audit.yml`), since new
+problems get published about packages that haven't changed. To run them yourself:
 
 ```bash
 venv/Scripts/python -m pip_audit -r requirements.txt   # Python

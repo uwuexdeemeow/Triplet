@@ -2,6 +2,8 @@ from pydantic import AfterValidator, BaseModel, EmailStr, Field, HttpUrl, String
 from datetime import date, datetime
 from typing import Annotated, Literal
 
+from link_parser import UNSUPPORTED_LINK, supported_link
+
 # Emails are stored and compared lowercased, so Sam@Example.com and sam@example.com are one account
 Email = Annotated[EmailStr, AfterValidator(str.lower)]
 # Limits that match the database columns, so long input gets a clear 422 instead of a server error
@@ -408,6 +410,13 @@ class SavedLinkCreate(BaseModel):
     url: HttpUrl
     place_name: ShortText | None = None
     notes: LongText | None = None
+
+    @field_validator("url")
+    @classmethod
+    def only_video_posts(cls, url: HttpUrl) -> HttpUrl:
+        if not supported_link(str(url)):
+            raise ValueError(UNSUPPORTED_LINK)
+        return url
 
 class SavedLinkUpdate(BaseModel):
     place_name: ShortText | None = None

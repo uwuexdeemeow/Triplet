@@ -27,9 +27,14 @@ router = APIRouter(
 )
 
 # How much guessing each endpoint tolerates before answering 429 Too Many Requests
-LOGIN_EMAIL_LIMIT = 5          # failed sign-ins per email...
-LOGIN_IP_LIMIT = 30            # ...and per network address
+# Wrong passwords are counted per email on each network, so someone guessing at your account
+# only locks out their own network, never you. The per-email ceiling across all networks is
+# much higher: it only stops guessing spread over many networks.
+LOGIN_EMAIL_IP_LIMIT = 5       # failed sign-ins for one email from one network...
+LOGIN_IP_LIMIT = 30            # ...for any email from one network...
+LOGIN_EMAIL_LIMIT = 100        # ...and for one email from everywhere
 LOGIN_WINDOW = timedelta(minutes=15)
+LOGIN_EMAIL_WINDOW = timedelta(hours=1)
 SIGNUP_IP_LIMIT = 5
 SIGNUP_WINDOW = timedelta(hours=1)
 RESET_EMAIL_LIMIT = 3          # reset emails to one address
@@ -230,24 +235,28 @@ def login(
     response: Response,
     db: Session = Depends(connect_db)
 ):
+    ip = client_ip(request)
+    email_ip_key = f"login-email-ip:{user.email}:{ip}"
+    ip_key = f"login-ip:{ip}"
     email_key = f"login-email:{user.email}"
-    ip_key = f"login-ip:{client_ip(request)}"
-    rate_limit.check(db, email_key, LOGIN_EMAIL_LIMIT, LOGIN_WINDOW, TOO_MANY_LOGINS)
+    rate_limit.check(db, email_ip_key, LOGIN_EMAIL_IP_LIMIT, LOGIN_WINDOW, TOO_MANY_LOGINS)
     rate_limit.check(db, ip_key, LOGIN_IP_LIMIT, LOGIN_WINDOW, TOO_MANY_LOGINS)
+    rate_limit.check(db, email_key, LOGIN_EMAIL_LIMIT, LOGIN_EMAIL_WINDOW, TOO_MANY_LOGINS)
 
     user_detail = db.query(User).filter(User.email == user.email).first()
     # Always check a password, even for unknown emails, so both fail equally slowly
     password_ok = verify_password(user_detail.password if user_detail else DUMMY_PASSWORD_HASH, user.password)
 
     if user_detail is None or not password_ok:
-        rate_limit.record(db, email_key, LOGIN_WINDOW)
+        rate_limit.record(db, email_ip_key, LOGIN_WINDOW)
         rate_limit.record(db, ip_key, LOGIN_WINDOW)
+        rate_limit.record(db, email_key, LOGIN_EMAIL_WINDOW)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect credentials"
         )
 
-    rate_limit.clear(db, email_key)
+    rate_limit.clear(db, email_ip_key)
 
     return issue_tokens(db, user_detail, request, response)
 

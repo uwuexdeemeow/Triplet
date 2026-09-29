@@ -16,12 +16,12 @@ import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
 import { formatDateRange, tripPhase } from '@/utils/dates';
 import { success } from '@/utils/haptics';
+import { isSupportedLink, UNSUPPORTED_LINK } from '@/utils/links';
 
 const PLATFORMS: [RegExp, string][] = [
   [/tiktok\.com/i, 'TikTok'],
   [/youtube\.com|youtu\.be/i, 'YouTube'],
   [/instagram\.com/i, 'Instagram'],
-  [/google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps/i, 'Google Maps'],
 ];
 
 function platformOf(url: string): string {
@@ -36,7 +36,7 @@ function platformOf(url: string): string {
 
 function saveError(error: unknown): string {
   if (error instanceof ApiError && error.status === 403) return 'You can only look at this trip. Ask its owner to make you a member.';
-  if (error instanceof ApiError && error.status === 422) return 'That link can’t be saved. Share it from TikTok, YouTube or Instagram.';
+  if (error instanceof ApiError && error.status === 422) return UNSUPPORTED_LINK;
   return error instanceof Error ? error.message : 'That didn’t work. Try again.';
 }
 
@@ -90,6 +90,11 @@ export default function ShareScreen() {
         {!url ? (
           <View style={styles.state}>
             <FormMessage message="There’s no link in what you shared. Use the Share button on a TikTok, YouTube or Instagram post, then choose Triplet." />
+            <Button label="Close" variant="secondary" onPress={close} />
+          </View>
+        ) : !isSupportedLink(url) ? (
+          <View style={styles.state}>
+            <FormMessage message={`${UNSUPPORTED_LINK} Use the Share button on a TikTok, YouTube or Instagram post, then choose Triplet.`} />
             <Button label="Close" variant="secondary" onPress={close} />
           </View>
         ) : (

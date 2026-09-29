@@ -22,6 +22,27 @@ OEMBED_ENDPOINTS = {
     "youtube": "https://www.youtube.com/oembed",
 }
 
+UNSUPPORTED_LINK = "Only TikTok, Instagram and YouTube links can be saved"
+
+def supported_link(url: str) -> bool:
+    """
+    Whether a link can be saved: a plain web link to a TikTok, Instagram or YouTube post.
+
+    Anything else is refused before it's stored, so the server never downloads from other sites.
+    Links that hide where they go are refused too: a login in the link ("tiktok.com@evil.com"),
+    an unusual port, or a look-alike host like "tiktok.com.evil.com".
+    """
+    try:
+        parsed = urlparse(url)
+        port = parsed.port
+    except ValueError:
+        return False
+    if parsed.scheme not in ("https", "http") or parsed.username or parsed.password:
+        return False
+    if port not in (None, 80, 443):
+        return False
+    return detect_platform(url) in VIDEO_PLATFORMS
+
 def detect_platform(url: str) -> str:
     """
     Work out which platform a shared link comes from based on its domain.

@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from config import settings
-from link_parser import detect_platform
+from link_parser import detect_platform, supported_link
 from video_extractor import ExtractionError, ExtractionResult, Place
 from web_extractor import Article
 
@@ -54,6 +54,56 @@ def save_link(client, alice, trip):
 def get_link(client, alice, trip, link):
     return client.get(f"/trips/{trip['id']}/links/{link['id']}", headers=alice["headers"]).json()
 
+@pytest.fixture
+def saved_before(db, alice, trip):
+    """A link saved before only video posts were accepted, e.g. a blog, then processed."""
+    from models import SavedLink
+    from routers.links import process_link
+
+    def _saved_before(url):
+        link = SavedLink(trip_id=trip["id"], added_by_id=alice["id"], url=url,
+                         platform=detect_platform(url), status="pending")
+        db.add(link)
+        db.commit()
+        with patch("routers.links.fetch_metadata", return_value=None):
+            process_link(link.id)
+        return {"id": link.id}
+
+    return _saved_before
+
+@pytest.mark.parametrize("url", [
+    "https://www.tiktok.com/@foodie/video/123",
+    "https://vm.tiktok.com/ZMabc/",
+    "https://www.instagram.com/reel/abc/",
+    "https://www.youtube.com/shorts/abc",
+    "https://youtu.be/abc",
+])
+def test_video_posts_can_be_saved(url):
+    assert supported_link(url)
+
+@pytest.mark.parametrize("url", [
+    "https://example.com/blog",
+    "https://maps.app.goo.gl/abc",
+    # Look-alikes and links that hide where they really go
+    "https://tiktok.com.evil.example/video/1",
+    "https://nottiktok.com/video",
+    "https://www.tiktok.com@evil.example/video/1",
+    "https://user:pass@www.tiktok.com/video/1",
+    "https://www.tiktok.com:8443/video/1",
+    "https://127.0.0.1/video",
+    "http://localhost:8000/api/users/me",
+    "ftp://www.tiktok.com/video",
+    "javascript:alert(1)",
+])
+def test_other_links_are_refused(client, alice, trip, url):
+    assert not supported_link(url)
+
+    response = client.post(f"/trips/{trip['id']}/links", headers=alice["headers"], json={"url": url})
+
+    assert response.status_code == 422
+    # Nothing was stored, so nothing will be downloaded
+    assert client.get(f"/trips/{trip['id']}/links", headers=alice["headers"]).json() == []
+
 def test_save_link_returns_immediately_as_pending(save_link, alice):
     link = save_link()
 
@@ -75,20 +125,20 @@ def test_without_gemini_fails_when_metadata_unavailable(client, alice, trip, sav
     assert link["status"] == "failed"
     assert link["error"] == "Could not fetch the post's details"
 
-def test_blog_link_is_read_as_an_article_not_a_video(client, alice, trip, save_link, gemini_enabled):
+def test_blog_links_saved_before_are_still_read_as_articles(client, alice, trip, saved_before, gemini_enabled):
     article = Article(url="https://example.com/blog", title="Ramen in Tokyo", site_name=None, image_url=None, text="...")
     with patch("routers.links.extract_from_video") as video, \
          patch("routers.links.fetch_article", return_value=article), \
          patch("routers.links.extract_from_text", return_value=EXTRACTION) as text:
-        link = get_link(client, alice, trip, save_link(url="https://example.com/blog", metadata=None))
+        link = get_link(client, alice, trip, saved_before("https://example.com/blog"))
 
     assert link["status"] == "processed"
     video.assert_not_called()
     text.assert_called_once()
 
-def test_google_maps_link_is_processed_without_extraction(client, alice, trip, save_link, gemini_enabled):
+def test_google_maps_links_saved_before_are_processed_without_extraction(client, alice, trip, saved_before, gemini_enabled):
     with patch("routers.links.extract_from_video") as video, patch("routers.links.extract_from_text") as text:
-        link = get_link(client, alice, trip, save_link(url="https://maps.app.goo.gl/abc", metadata=None))
+        link = get_link(client, alice, trip, saved_before("https://maps.app.goo.gl/abc"))
 
     assert link["status"] == "processed"
     video.assert_not_called()
@@ -219,7 +269,7 @@ def test_place_must_belong_to_link(client, alice, trip, save_link, gemini_enable
     assert response.status_code == 404
 
 def test_add_link_to_itinerary_needs_a_location(client, alice, trip, save_link):
-    link = save_link(url="https://example.com/blog", metadata=None)
+    link = save_link(metadata=None)
 
     assert add_to_itinerary(client, alice, trip, link).status_code == 400
 

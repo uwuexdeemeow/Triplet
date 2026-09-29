@@ -29,6 +29,7 @@ import { fonts, radii, spacing } from '@/theme/tokens';
 import { warn } from '@/utils/haptics';
 import { useLayoutSize, useWideLayout } from '@/utils/layout';
 import { usePullToRefresh } from '@/utils/pull-to-refresh';
+import { isSupportedLink, UNSUPPORTED_LINK } from '@/utils/links';
 import { linkTitle, needsCheck, placeDetail, platformName } from '@/utils/places';
 import { pickAndUploadScreenshot } from '@/utils/screenshot-upload';
 
@@ -234,7 +235,7 @@ function SaveLinkForm({ tripId, onSaved }: { tripId: number; onSaved: () => void
         err instanceof ApiError && err.status === 403
           ? 'Viewers can’t save links. Ask the trip owner to make you a member.'
           : err instanceof ApiError && err.status === 422
-            ? 'That doesn’t look like a link. Copy it from TikTok’s Share button.'
+            ? UNSUPPORTED_LINK
             : err.message,
       ),
   });
@@ -244,6 +245,10 @@ function SaveLinkForm({ tripId, onSaved }: { tripId: number; onSaved: () => void
     setError(null);
     if (!/^https?:\/\/\S+$/i.test(value)) {
       setError('Paste a full link, starting with https://');
+      return;
+    }
+    if (!isSupportedLink(value)) {
+      setError(UNSUPPORTED_LINK);
       return;
     }
     saveLink.mutate(value);
@@ -282,8 +287,8 @@ function SaveLinkForm({ tripId, onSaved }: { tripId: number; onSaved: () => void
           )}
         </Pressable>
         <TextInput
-          accessibilityLabel="Paste a TikTok, YouTube, Instagram or blog link"
-          placeholder="Paste a TikTok or blog link"
+          accessibilityLabel="Paste a TikTok, Instagram or YouTube link"
+          placeholder="Paste a TikTok, Instagram or YouTube link"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
           autoCorrect={false}

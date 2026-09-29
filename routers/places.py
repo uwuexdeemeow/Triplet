@@ -1,5 +1,4 @@
 from collections import defaultdict
-from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from config import settings
@@ -17,15 +16,8 @@ router = APIRouter(
     tags=["Places"]
 )
 
-# Searches go to shared free services (OpenStreetMap, Photon) that ban heavy users,
-# so each person gets a generous but finite number per minute
-# Suggestions fire as people type, so this is well above what a fast typist needs
-LOOKUP_LIMIT = 120
-LOOKUP_WINDOW = timedelta(minutes=1)
-
 def limit_lookups(db: Session, membership: TripMembership):
-    rate_limit.hit(db, f"lookup-user:{membership.user_id}", LOOKUP_LIMIT, LOOKUP_WINDOW,
-                   "Too many searches in a row. Wait a moment and try again.")
+    rate_limit.limit_lookups(db, membership.user_id)
 
 def get_place_or_404(db: Session, trip_id: int, place_id: int) -> ExtractedPlace:
     place = (

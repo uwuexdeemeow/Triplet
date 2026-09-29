@@ -15,6 +15,10 @@ def login(client, email, password):
 
 # ---------- Rate limits ----------
 
+def login_from(client, network, email, password):
+    return client.post("/auth/login", json={"email": email, "password": password},
+                       headers={"X-Forwarded-For": network})
+
 def test_failed_logins_are_limited_per_email(client, alice, limits_on):
     for _ in range(5):
         assert login(client, alice["email"], "wrong password").status_code == 401
@@ -31,6 +35,23 @@ def test_a_good_login_clears_earlier_failures(client, alice, limits_on):
     # The count starts again, so a few more typos are allowed
     for _ in range(4):
         assert login(client, alice["email"], "wrong password").status_code == 401
+
+def test_someone_else_guessing_cant_lock_you_out(client, alice, limits_on, monkeypatch):
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 1)
+    for _ in range(5):
+        login_from(client, "6.6.6.6", alice["email"], "wrong password")
+
+    # The guesser's network is blocked, but alice signs in from her own
+    assert login_from(client, "6.6.6.6", alice["email"], PASSWORD).status_code == 429
+    assert login_from(client, "203.0.113.9", alice["email"], PASSWORD).status_code == 200
+
+def test_guessing_from_many_networks_still_stops(client, alice, limits_on, monkeypatch):
+    from routers.auth import LOGIN_EMAIL_LIMIT
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 1)
+    for attempt in range(LOGIN_EMAIL_LIMIT):
+        login_from(client, f"10.0.{attempt // 4}.{attempt % 4}", alice["email"], "wrong password")
+
+    assert login_from(client, "10.9.9.9", alice["email"], "wrong password").status_code == 429
 
 def test_unknown_emails_count_too(client, limits_on):
     for _ in range(5):
@@ -67,12 +88,14 @@ def test_guest_pin_guesses_are_limited(client, alice, trip, limits_on):
 
 def test_link_saves_are_capped_per_day(client, alice, trip, limits_on, monkeypatch):
     monkeypatch.setattr(settings, "LINK_SAVES_DAILY_LIMIT", 2)
+    # Only the count matters here, so don't download anything
+    monkeypatch.setattr("routers.links.process_link", lambda link_id: None)
     url = f"/trips/{trip['id']}/links"
 
     for number in range(2):
-        assert client.post(url, headers=alice["headers"], json={"url": f"https://example.com/{number}"}).status_code == 201
+        assert client.post(url, headers=alice["headers"], json={"url": f"https://www.tiktok.com/@a/video/{number}"}).status_code == 201
 
-    response = client.post(url, headers=alice["headers"], json={"url": "https://example.com/3"})
+    response = client.post(url, headers=alice["headers"], json={"url": "https://www.tiktok.com/@a/video/3"})
     assert response.status_code == 429
     assert "tomorrow" in response.json()["detail"]
 
@@ -153,3 +176,17 @@ def test_confirmation_emails_are_capped(client, limits_on, outbox):
 
     # Sign-up and two resends used up this hour's three emails for the address; nothing more goes out
     assert len([mail for mail in outbox if mail[0] == "sam@example.com"]) == 3
+
+def test_place_searches_while_making_a_trip_are_limited(client, alice, limits_on, monkeypatch):
+    import photon_lookup
+    from rate_limit import LOOKUP_LIMIT
+    photon_lookup._cache.clear()
+    monkeypatch.setattr("destinations.photon_request", lambda params, url=None: [])
+    monkeypatch.setattr(photon_lookup, "photon_request", lambda params, url=None: [])
+
+    for number in range(LOOKUP_LIMIT):
+        # A different search each time, so none are answered from the cache
+        assert client.get("/trips/destinations", headers=alice["headers"], params={"q": f"place {number}"}).status_code == 200
+
+    assert client.get("/trips/destinations", headers=alice["headers"], params={"q": "one more"}).status_code == 429
+    assert client.get("/trips/currency", headers=alice["headers"], params={"destination": "Tokyo"}).status_code == 429

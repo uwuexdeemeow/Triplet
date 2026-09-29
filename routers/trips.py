@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 import currencies
 import destinations as destination_lookup
+import rate_limit
 from database import connect_db
 from models import Activity, Expense, SavedLink, User, Trip, TripMembership
 from photon_lookup import PhotonError
@@ -21,6 +22,9 @@ def create_trip(
     db: Session = Depends(connect_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Places typed without picking a suggestion are each looked up, which counts as a search
+    unpinned = sum(1 for place in trip_create.destinations if place.latitude is None or place.longitude is None)
+    rate_limit.limit_lookups(db, current_user.id, unpinned)
     places = destination_lookup.fill_in([place.model_dump() for place in trip_create.destinations])
     trip = Trip(
         title=trip_create.title,
@@ -115,9 +119,11 @@ def summarise(db: Session, trips: list[Trip]) -> list[TripSummaryResponse]:
 @router.get("/destinations", response_model=list[DestinationSuggestion])
 def suggest_destinations(
     q: str = Query(min_length=2, max_length=120),
+    db: Session = Depends(connect_db),
     current_user: User = Depends(get_current_user)
 ):
     """Cities, regions and countries matching what's typed so far, for a new trip's destinations."""
+    rate_limit.limit_lookups(db, current_user.id)
     try:
         return destination_lookup.suggest(q)
     except PhotonError:
@@ -129,9 +135,11 @@ def suggest_destinations(
 @router.get("/currency", response_model=CurrencySuggestion)
 def suggest_currency(
     destination: str = Query(min_length=1, max_length=255),
+    db: Session = Depends(connect_db),
     current_user: User = Depends(get_current_user)
 ):
     """The currency a new trip to `destination` most likely uses, e.g. JPY for "Tokyo"."""
+    rate_limit.limit_lookups(db, current_user.id)
     return {"currency": currencies.for_destination(destination)}
 
 @router.get("/{trip_id}", response_model=TripResponse)
@@ -195,6 +203,8 @@ def update_trips(
 
     # The places and the one-line name go together
     if update_data.get("destinations"):
+        unpinned = sum(1 for place in update_data["destinations"] if place.get("latitude") is None or place.get("longitude") is None)
+        rate_limit.limit_lookups(db, membership.user_id, unpinned)
         update_data["destinations"] = destination_lookup.fill_in(update_data["destinations"])
         update_data["destination"] = destination_lookup.summary(update_data["destinations"])
     else:

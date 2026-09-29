@@ -88,6 +88,18 @@ def hit(db: Session, key: str, limit: int, window: timedelta, message: str):
     check(db, key, limit, window, message)
     record(db, key, window)
 
+# Place searches go to shared free services (OpenStreetMap, Photon) that ban heavy users, so each
+# person gets a generous but finite number per minute. Suggestions fire as people type, so this
+# is well above what a fast typist needs.
+LOOKUP_LIMIT = 120
+LOOKUP_WINDOW = timedelta(minutes=1)
+
+def limit_lookups(db: Session, user_id: int, count: int = 1):
+    """Count `count` place searches for a person, refusing once they're over the limit."""
+    for _ in range(count):
+        hit(db, f"lookup-user:{user_id}", LOOKUP_LIMIT, LOOKUP_WINDOW,
+            "Too many searches in a row. Wait a moment and try again.")
+
 def clear(db: Session, key: str):
     """Forget a key's attempts, e.g. after a successful login. Commits."""
     if not settings.RATE_LIMITS_ENABLED:

@@ -1,0 +1,39 @@
+# Checks the server's and the app's packages for known security problems.
+#
+# Runs on every push and pull request, and every Monday, since new problems are published about
+# packages that haven't changed. A red run names the package and the version that fixes it.
+name: Audit
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
+
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Only what ships in the app and website; build tools aren't in either
+      - run: npm audit --omit=dev

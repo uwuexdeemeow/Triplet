@@ -109,30 +109,36 @@ def test_viewers_cannot_add_screenshots(client, bob, trip, add_member):
 
     assert response.status_code == 403
 
-def test_article_links_are_read(client, alice, trip, gemini_on):
+def saved_before(db, alice, trip, url) -> int:
+    """An article link saved before only video posts could be saved, then processed."""
+    link = SavedLink(trip_id=trip["id"], added_by_id=alice["id"], url=url, platform="other", status="pending")
+    db.add(link)
+    db.commit()
+    with patch("routers.links.fetch_metadata", return_value=None):
+        links_router.process_link(link.id)
+    return link.id
+
+def test_article_links_saved_before_are_still_read(client, db, alice, trip, gemini_on):
     article = web_extractor.parse_article("https://wander.example/kyoto", ARTICLE_HTML)
     with patch("routers.links.fetch_article", return_value=article), \
          patch("routers.links.extract_from_text", return_value=EXTRACTED) as read:
-        response = client.post(f"/trips/{trip['id']}/links", headers=alice["headers"],
-                               json={"url": "https://wander.example/kyoto"})
+        link_id = saved_before(db, alice, trip, "https://wander.example/kyoto")
 
-    assert response.status_code == 201, response.text
     text = read.call_args.args[0]
     assert text.startswith("10 cafés in Kyoto you'll love")
     assert "Weekenders Coffee" in text
 
-    saved = client.get(f"/trips/{trip['id']}/links/{response.json()['id']}", headers=alice["headers"]).json()
+    saved = client.get(f"/trips/{trip['id']}/links/{link_id}", headers=alice["headers"]).json()
     assert saved["status"] == "processed"
     assert saved["title"] == "10 cafés in Kyoto you'll love"
     assert saved["author_name"] == "Wander Blog"
     assert saved["thumbnail_url"] == "https://wander.example/img/cover.jpg"
     assert [p["name"] for p in saved["places"]] == ["Weekenders Coffee"]
 
-def test_unreadable_articles_say_why(client, alice, trip, gemini_on):
+def test_unreadable_articles_say_why(client, db, alice, trip, gemini_on):
     with patch("routers.links.fetch_article", side_effect=ArticleError("That link points to a private address")):
-        response = client.post(f"/trips/{trip['id']}/links", headers=alice["headers"],
-                               json={"url": "https://intranet.example/"})
+        link_id = saved_before(db, alice, trip, "https://intranet.example/")
 
-    saved = client.get(f"/trips/{trip['id']}/links/{response.json()['id']}", headers=alice["headers"]).json()
+    saved = client.get(f"/trips/{trip['id']}/links/{link_id}", headers=alice["headers"]).json()
     assert saved["status"] == "failed"
     assert saved["error"] == "That link points to a private address"
