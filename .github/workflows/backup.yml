@@ -3,12 +3,12 @@
 # The copy is encrypted with a passphrase only you have (the BACKUP_PASSPHRASE secret) before it's
 # stored: this repository is public, and its Actions files can be downloaded by anyone signed in to
 # GitHub. Without the passphrase a copy is unreadable.
+#
+# cron-job.org starts it every night at 2 AM Singapore time (DEPLOY.md, step 7a), since GitHub's
+# own schedules can run late or be skipped.
 name: Backup
 
 on:
-  schedule:
-    # 18:00 UTC is 2 AM in Singapore, where the server is
-    - cron: "0 18 * * *"
   workflow_dispatch:
 
 permissions:

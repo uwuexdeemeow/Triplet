@@ -297,6 +297,9 @@ Two layers, so a bad change or a mistake can be undone:
 
 ### 7a. Turn on the nightly copy
 
+GitHub runs the copy; [cron-job.org](https://cron-job.org) starts it each night, since GitHub's own
+schedules can run late or be skipped.
+
 1. Make a passphrase: a long random one, e.g. from `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
    Keep it in your password manager. **Without it no copy can be opened**, and it can't be recovered.
 2. On GitHub: the repository's **Settings** > **Secrets and variables** > **Actions** >
@@ -307,8 +310,24 @@ Two layers, so a bad change or a mistake can be undone:
 3. **Actions** > **Backup** > **Run workflow**, to check it works now rather than tonight. A green run
    has a `database-...` file under **Artifacts** at the bottom of its page.
 
-It then runs every night at 2 AM Singapore time. A failed run (for example, if the database address
-changes) emails you, like any failed GitHub Action.
+4. Make a GitHub token cron-job.org can start it with: your profile's **Settings** > **Developer
+   settings** > **Personal access tokens** > **Fine-grained tokens** > **Generate new token**, signed
+   in as the account that owns the repository. **Repository access**: only `Triplet`. **Repository
+   permissions** > **Actions**: Read and write. Note when it expires, and renew it before then.
+5. In cron-job.org, create a job:
+   - **URL**: `https://api.github.com/repos/uwuexdeemeow/Triplet/actions/workflows/backup.yml/dispatches`
+   - **Schedule**: every day at 02:00, time zone Asia/Singapore
+   - **Advanced** > **Request method**: `POST`; **Request body**: `{"ref":"main"}`
+   - **Advanced** > **Headers**: `Authorization` = `Bearer ` and the token; `Accept` =
+     `application/vnd.github+json`; `X-GitHub-Api-Version` = `2022-11-28`; `Content-Type` =
+     `application/json`
+   - **Test run** should answer `204`, and a new **Backup** run appears under **Actions**. `401` means
+     the token is wrong or the header isn't exactly `Bearer <token>`; `403` means it lacks the Actions
+     permission or access to the repository.
+
+Turn on cron-job.org's failure notifications, so you hear if GitHub stops accepting the token (e.g.
+when it expires). A run that starts but fails, for example if the database address changes, emails
+you like any failed GitHub Action.
 
 ### 7b. Bring a copy back
 
