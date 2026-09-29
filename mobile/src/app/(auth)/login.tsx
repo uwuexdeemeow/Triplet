@@ -118,7 +118,7 @@ export default function LoginScreen() {
       </Text>
       <Text style={styles.guest}>
         Got a trip code from a friend?{' '}
-        <Link href="/guest" style={styles.link}>
+        <Link href="/shared" style={styles.link}>
           View their trip
         </Link>
       </Text>

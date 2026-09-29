@@ -47,8 +47,8 @@ export default function PrivacyScreen() {
     {
       heading: 'Who can see your trips',
       body: [
-        'Only the people you add to a trip, and anyone you give its guest code and PIN or its share link to. Other Triplet users can’t find your trips or your email address.',
-        'A share link shows a trip’s plan (its places, days and times) to anyone who has the link, without an account. It doesn’t show costs, the budget, who is on the trip or saved posts. The trip’s owner can replace the link, which stops the old one working, or turn it off in Trip settings.',
+        'Only the people you add to a trip, and anyone you give its link or trip code and its PIN to. Other Triplet users can’t find your trips or your email address.',
+        'With the link or code and the PIN, someone without an account can see a trip’s plan: its places, days and times. They can’t change anything, and they don’t see who is on the trip or its saved posts. Costs, and the budget, are only shown if the trip’s owner turns that on. The owner can set an end date, replace the code and PIN, or stop sharing in Trip settings.',
       ],
     },
     {

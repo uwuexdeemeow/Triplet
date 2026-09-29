@@ -154,9 +154,24 @@ def test_lookup_gives_the_title_only(client, guest_code):
     response = client.get(f"/guest/lookup/{guest_code}")
 
     assert response.status_code == 200
-    assert response.json() == {"title": "Tokyo"}
+    # Signed out, so there's nothing but the title
+    assert response.json() == {"title": "Tokyo", "trip_id": None}
     # Codes are shown in capitals but typed in any case
     assert client.get(f"/guest/lookup/{guest_code.lower()}").status_code == 200
+
+def test_lookup_names_the_trip_only_to_people_on_it(client, alice, bob, eve, trip, add_member, guest_code):
+    add_member(bob)
+    url = f"/guest/lookup/{guest_code}"
+
+    assert client.get(url, headers=alice["headers"]).json() == {"title": "Tokyo", "trip_id": trip["id"]}
+    assert client.get(url, headers=bob["headers"]).json()["trip_id"] == trip["id"]
+    # A stranger, someone signed out, and a broken token all get the title alone
+    assert client.get(url, headers=eve["headers"]).json()["trip_id"] is None
+    assert client.get(url).json()["trip_id"] is None
+    assert client.get(url, headers={"Authorization": "Bearer nonsense"}).json()["trip_id"] is None
+
+def test_a_guest_token_does_not_count_as_being_on_the_trip(client, guest_code, guest_headers):
+    assert client.get(f"/guest/lookup/{guest_code}", headers=guest_headers).json()["trip_id"] is None
 
 def test_lookup_is_the_same_for_unknown_and_expired_codes(client, alice, trip):
     expired = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={

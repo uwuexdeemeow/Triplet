@@ -24,14 +24,15 @@ How Triplet protects accounts and data, what to set when deploying, and what's s
 | New accounts | 5 per network per hour |
 | Reset emails | 3 per address per hour (extras are silently not sent) |
 | Confirmation emails | 3 per address per hour (extras are silently not sent) |
-| Token refreshes and reset-link checks | 60 per network per 5 min |
-| Wrong guest PINs | 5 per trip code, 20 per network, per 15 min |
+| Token refreshes, reset-link checks and trip-code lookups | 60 per network per 5 min |
+| Wrong guest PINs (from a trip's link or its code) | 5 per trip code, 20 per network, per 15 min |
 | Place searches (map, destinations, currency) | 120 per person per minute |
 | Invites | 30 per person per hour |
 | Saving or re-checking posts | 40 per person per day (`LINK_SAVES_DAILY_LIMIT`) |
 
 **Data access**
 - Every trip endpoint checks membership. Non-members get 404, so they can't tell a trip exists. Viewers can't change anything.
+- Sharing with people who don't have an account is one feature with two ways in: a link (`/shared/<code>`) that asks for the PIN, or the trip code and PIN typed in at `/shared`. The PIN is 4 to 12 letters and numbers, capitals matter, and is stored hashed like a password. Guests see the plan, and costs only if the owner turns that on; they can't change anything. Before the PIN, a link's page learns only the trip's title (unknown and expired codes look the same), and pages under `/shared` are marked `noindex`. A guest's token belongs to that page, lasts a day, and is kept per code, so it doesn't touch a signed-in session. Owners can set an expiry, replace the code and PIN, or stop sharing.
 - Only TikTok, Instagram and YouTube links can be saved, checked in the app and again by the server (`link_parser.supported_link`): the site must match exactly (no look-alikes like `tiktok.com.example.net`), and links with a login in them or an unusual port are refused. Anything else is never stored, so the server never downloads from other sites.
 - Blog links saved before this rule are still read. Reading a page checks every address, including each redirect, is on the public internet (never the server itself or a private network), and caps size, redirects and time (`web_extractor.py`).
 

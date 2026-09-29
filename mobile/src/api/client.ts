@@ -39,6 +39,8 @@ type RequestOptions = {
   query?: Record<string, string | number | undefined>;
   // Public endpoints like log in skip the Authorization header
   auth?: boolean;
+  // Send this token instead of the session's, e.g. a guest's for one trip. It can't be renewed.
+  token?: string;
   // Website only: send and receive the refresh token as an HttpOnly cookie
   refreshCookie?: boolean;
 };
@@ -77,8 +79,9 @@ async function errorMessage(response: Response): Promise<string> {
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const useAuth = options.auth ?? true;
-  let token = useAuth ? (authHandlers?.getAccessToken() ?? null) : null;
+  const ownToken = options.token ?? null;
+  const useAuth = ownToken === null && (options.auth ?? true);
+  let token = ownToken ?? (useAuth ? (authHandlers?.getAccessToken() ?? null) : null);
 
   let response: Response;
   try {

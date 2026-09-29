@@ -159,6 +159,8 @@ class GuestToken(Token):
 class GuestLookup(BaseModel):
     """What a code's link page shows before the PIN is asked for: the title only."""
     title: str
+    # Only for someone signed in who is on the trip, so their page can open it instead of asking for the PIN
+    trip_id: int | None = None
 
 class CurrencySuggestion(BaseModel):
     # None when the destination couldn't be placed in a country

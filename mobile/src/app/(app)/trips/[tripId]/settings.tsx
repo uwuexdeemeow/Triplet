@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, Share, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, Share, Switch, Text, View } from 'react-native';
 
 import { api, ApiError, type Schemas } from '@/api/client';
-import type { ShareLink } from '@/api/share';
 import { tripKeys, useMe, useMembers, useTrip, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { CurrencyField } from '@/components/currency-field';
@@ -47,8 +46,7 @@ export default function TripSettingsScreen() {
             ) : (
               <TripDetails trip={trip.data} />
             )}
-            {role === 'owner' ? <ShareLinkSection trip={trip.data} /> : null}
-            {role === 'owner' ? <GuestAccess trip={trip.data} /> : null}
+            {role === 'owner' ? <ShareTrip trip={trip.data} /> : null}
             {role === 'owner' ? <DeleteTrip trip={trip.data} /> : null}
           </>
         )}
@@ -249,110 +247,6 @@ function TripDetails({ trip }: { trip: Trip }) {
   );
 }
 
-// A link anyone can open to see the plan, without a code or an account. It shows no costs or people.
-function ShareLinkSection({ trip }: { trip: Trip }) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  const queryClient = useQueryClient();
-  const key = ['trips', trip.id, 'share-link'];
-  const [confirmingNew, setConfirmingNew] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const link = useQuery({
-    queryKey: key,
-    queryFn: async () => {
-      try {
-        return await api<ShareLink>(`/trips/${trip.id}/share-link`);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 404) return null;
-        throw error;
-      }
-    },
-  });
-
-  const create = useMutation({
-    mutationFn: () => api<ShareLink>(`/trips/${trip.id}/share-link`, { method: 'PUT' }),
-    onSuccess: (created) => {
-      queryClient.setQueryData(key, created);
-      setConfirmingNew(false);
-      setCopied(false);
-    },
-  });
-
-  const turnOff = useMutation({
-    mutationFn: () => api(`/trips/${trip.id}/share-link`, { method: 'DELETE' }),
-    onSuccess: () => {
-      queryClient.setQueryData(key, null);
-      setConfirmingNew(false);
-    },
-  });
-
-  // The website copies to the clipboard; phones open their share sheet, which has Copy in it
-  const copy = async (url: string) => {
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-        return;
-      } catch {
-        // Blocked by the browser: fall through to sharing
-      }
-    }
-    Share.share({ message: url }).catch(() => {});
-  };
-
-  const current = link.data;
-
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Share link</Text>
-      <Muted>
-        Anyone with the link can see the plan: places, days and times. They can’t see costs, the budget, who’s on the trip
-        or saved posts, and can’t change anything.
-      </Muted>
-
-      {link.isPending ? (
-        <ActivityIndicator color={colors.accent} />
-      ) : link.isError ? (
-        <FormMessage message={link.error.message} />
-      ) : current ? (
-        <View style={styles.guestCard}>
-          <Text selectable style={styles.guestMeta}>
-            {current.url}
-          </Text>
-          <FormMessage message={(create.error ?? turnOff.error)?.message ?? null} />
-          <Button label={copied ? 'Copied' : Platform.OS === 'web' ? 'Copy link' : 'Share link'} onPress={() => copy(current.url)} />
-          {confirmingNew ? (
-            <View style={styles.section}>
-              <Muted>The old link stops working. Anyone who has it will need the new one.</Muted>
-              <View style={styles.buttons}>
-                <Button label="Cancel" variant="secondary" onPress={() => setConfirmingNew(false)} style={styles.flex} />
-                <Button label="Make new link" loading={create.isPending} onPress={() => create.mutate()} style={styles.flex} />
-              </View>
-            </View>
-          ) : (
-            <View style={styles.buttons}>
-              <Button label="New link" variant="secondary" onPress={() => setConfirmingNew(true)} style={styles.flex} />
-              <Button
-                label="Turn off"
-                variant="secondary"
-                loading={turnOff.isPending}
-                onPress={() => turnOff.mutate()}
-                style={styles.flex}
-              />
-            </View>
-          )}
-        </View>
-      ) : (
-        <>
-          <FormMessage message={create.error?.message ?? null} />
-          <Button label="Create a share link" loading={create.isPending} onPress={() => create.mutate()} />
-        </>
-      )}
-    </View>
-  );
-}
-
 type GuestAccessInfo = Schemas['GuestAccessResponse'];
 type Expiry = 'never' | 'tripEnd' | 'week';
 
@@ -363,8 +257,9 @@ function expiryDate(expiry: Expiry, trip: Trip): string | null {
   return null;
 }
 
-// A code and PIN that let people without an account see the plan, but not change it
-function GuestAccess({ trip }: { trip: Trip }) {
+// The one way to share the plan with people who don't have Triplet: a link that asks for a PIN, or
+// the trip code typed in at /shared with the PIN. They can't change anything.
+function ShareTrip({ trip }: { trip: Trip }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
@@ -372,9 +267,11 @@ function GuestAccess({ trip }: { trip: Trip }) {
   const [editing, setEditing] = useState(false);
   const [pin, setPin] = useState('');
   const [expiry, setExpiry] = useState<Expiry>(trip.end_date ? 'tripEnd' : 'never');
+  const [showCosts, setShowCosts] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   // Only known right after it's set; the server keeps a hash
   const [newPin, setNewPin] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [openedAt] = useState(() => Date.now());
 
   const access = useQuery({
@@ -390,14 +287,22 @@ function GuestAccess({ trip }: { trip: Trip }) {
   });
 
   const save = useMutation({
-    mutationFn: (body: { pin: string; expires_at: string | null }) =>
+    mutationFn: (body: { pin: string; expires_at: string | null; show_costs: boolean }) =>
       api<GuestAccessInfo>(`/trips/${trip.id}/guest-access`, { method: 'PUT', body }),
     onSuccess: (updated, body) => {
       queryClient.setQueryData(key, updated);
       setNewPin(body.pin);
       setPin('');
       setEditing(false);
+      setCopied(false);
     },
+  });
+
+  // Flips straight away and keeps the same code, so links already sent keep working
+  const changeCosts = useMutation({
+    mutationFn: (show_costs: boolean) =>
+      api<GuestAccessInfo>(`/trips/${trip.id}/guest-access`, { method: 'PATCH', body: { show_costs } }),
+    onSuccess: (updated) => queryClient.setQueryData(key, updated),
   });
 
   const turnOff = useMutation({
@@ -409,20 +314,27 @@ function GuestAccess({ trip }: { trip: Trip }) {
   });
 
   const submit = () => {
-    if (!/^\d{4,12}$/.test(pin)) {
-      setPinError('Use 4 to 12 digits');
+    if (!/^[A-Za-z0-9]{4,12}$/.test(pin)) {
+      setPinError('Use 4 to 12 letters and numbers');
       return;
     }
     setPinError(null);
-    save.mutate({ pin, expires_at: expiryDate(expiry, trip) });
+    save.mutate({ pin, expires_at: expiryDate(expiry, trip), show_costs: showCosts });
   };
 
-  const share = (code: string) => {
-    const lines = [
-      `See our “${trip.title}” plan on Triplet: choose “View their trip” on the log in screen.`,
-      `Code: ${code}`,
-      newPin ? `PIN: ${newPin}` : 'I’ll send you the PIN separately.',
-    ];
+  // The website copies to the clipboard; phones open their share sheet, which has Copy in it. The PIN
+  // is never in the message: it goes separately.
+  const copy = async (url: string) => {
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        return;
+      } catch {
+        // Blocked by the browser: fall through to sharing
+      }
+    }
+    const lines = [`See our “${trip.title}” plan on Triplet: ${url}`, 'I’ll send you the PIN separately.'];
     Share.share({ message: lines.join('\n') }).catch(() => {});
   };
 
@@ -433,13 +345,15 @@ function GuestAccess({ trip }: { trip: Trip }) {
     { value: 'week', label: 'For a week' },
     { value: 'never', label: 'No end date' },
   ];
+  // "https://triplet.example" from ".../shared/K7Q2M9XA": where the code can be typed in
+  const site = current ? current.url.replace(/\/shared\/.*$/, '') : '';
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Guest access</Text>
+      <Text style={styles.sectionTitle}>Share this trip</Text>
       <Muted>
-        Share a code and PIN so people without Triplet can see the plan. They can’t change anything, and a new code
-        stops the old one working.
+        Send a link, or a code, and a PIN so people without Triplet can see the plan. They can’t change anything, and a
+        new code stops the old one working.
       </Muted>
 
       {access.isPending ? (
@@ -448,26 +362,51 @@ function GuestAccess({ trip }: { trip: Trip }) {
         <FormMessage message={access.error.message} />
       ) : current && !editing ? (
         <View style={styles.guestCard}>
+          <Text style={styles.guestLabel}>Link</Text>
+          <Text selectable style={styles.guestMeta}>
+            {current.url}
+          </Text>
           <Text style={styles.guestLabel}>Trip code</Text>
           <Text selectable style={styles.guestCode}>
             {current.access_code}
           </Text>
+          <Text style={styles.guestMeta}>Or they can open {site}/shared and type the code.</Text>
           {newPin ? (
             <Text style={styles.guestMeta}>
-              PIN <Text style={styles.guestPin}>{newPin}</Text>. Note it down, it won’t be shown again.
+              PIN <Text style={styles.guestPin}>{newPin}</Text>. Note it down, it won’t be shown again. Capitals matter.
             </Text>
-          ) : null}
+          ) : (
+            <Text style={styles.guestMeta}>Send the PIN too: the link and code don’t open the plan without it.</Text>
+          )}
           <Text style={[styles.guestMeta, expired && styles.guestExpired]}>
             {current.expires_at
               ? `${expired ? 'Stopped working' : 'Works until'} ${formatShortDate(current.expires_at.slice(0, 10))}`
               : 'Works until you turn it off'}
           </Text>
-          <FormMessage message={turnOff.error?.message ?? null} />
-          <Button label="Share code" onPress={() => share(current.access_code)} />
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Show costs to guests</Text>
+            <Switch
+              accessibilityLabel="Show costs to guests"
+              value={current.show_costs}
+              disabled={changeCosts.isPending}
+              onValueChange={(value) => changeCosts.mutate(value)}
+              trackColor={{ true: colors.accent }}
+            />
+          </View>
+          <FormMessage message={(changeCosts.error ?? turnOff.error)?.message ?? null} />
+          <Button label={copied ? 'Copied' : Platform.OS === 'web' ? 'Copy link' : 'Share link'} onPress={() => copy(current.url)} />
           <View style={styles.buttons}>
-            <Button label="New code or PIN" variant="secondary" onPress={() => setEditing(true)} style={styles.flex} />
             <Button
-              label="Turn off"
+              label="New code and PIN"
+              variant="secondary"
+              onPress={() => {
+                setShowCosts(current.show_costs);
+                setEditing(true);
+              }}
+              style={styles.flex}
+            />
+            <Button
+              label="Stop sharing"
               variant="secondary"
               loading={turnOff.isPending}
               onPress={() => turnOff.mutate()}
@@ -479,8 +418,9 @@ function GuestAccess({ trip }: { trip: Trip }) {
         <View style={styles.section}>
           <TextField
             label="PIN for guests"
-            hint="4 to 12 digits. Guests need it with the code."
-            keyboardType="number-pad"
+            hint="4 to 12 letters and numbers. Capitals matter. Guests need it with the link or code."
+            autoCapitalize="none"
+            autoCorrect={false}
             secureTextEntry
             maxLength={12}
             value={pin}
@@ -503,13 +443,25 @@ function GuestAccess({ trip }: { trip: Trip }) {
               );
             })}
           </View>
+          <View style={styles.switchRow}>
+            <View style={styles.flex}>
+              <Text style={styles.switchLabel}>Show costs to guests</Text>
+              <Muted>The budget and what plans cost. Off by default.</Muted>
+            </View>
+            <Switch
+              accessibilityLabel="Show costs to guests"
+              value={showCosts}
+              onValueChange={setShowCosts}
+              trackColor={{ true: colors.accent }}
+            />
+          </View>
           <FormMessage message={save.error?.message ?? null} />
           <View style={styles.buttons}>
             {current ? (
               <Button label="Cancel" variant="secondary" onPress={() => setEditing(false)} style={styles.flex} />
             ) : null}
             <Button
-              label={current ? 'Make new code' : 'Turn on guest access'}
+              label={current ? 'Make new code and PIN' : 'Start sharing'}
               loading={save.isPending}
               onPress={submit}
               style={styles.flex}
@@ -637,6 +589,17 @@ const useStyles = makeStyles((colors) => ({
   },
   guestPin: {
     fontFamily: fonts.bold,
+    color: colors.ink,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  switchLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
     color: colors.ink,
   },
   guestExpired: {

@@ -1045,6 +1045,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guest/lookup/{access_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookup Guest Code
+         * @description Which trip a link's code is for, so its page can ask for the PIN by name. The title only.
+         */
+        get: operations["lookup_guest_code_guest_lookup__access_code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guest/access": {
         parameters: {
             query?: never;
@@ -1129,46 +1149,11 @@ export interface paths {
         delete: operations["revoke_guest_access_trips__trip_id__guest_access_delete"];
         options?: never;
         head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{trip_id}/share-link": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Share Link */
-        get: operations["get_share_link_trips__trip_id__share_link_get"];
-        /** Create Share Link */
-        put: operations["create_share_link_trips__trip_id__share_link_put"];
-        post?: never;
-        /** Turn Off Share Link */
-        delete: operations["turn_off_share_link_trips__trip_id__share_link_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/shared/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
         /**
-         * Get Shared Trip
-         * @description The plan only: names, places, dates and times. No costs, budget, people or saved posts.
+         * Update Guest Access
+         * @description Show or hide costs without issuing a new code, so links already sent keep working.
          */
-        get: operations["get_shared_trip_shared__token__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
+        patch: operations["update_guest_access_trips__trip_id__guest_access_patch"];
         trace?: never;
     };
     "/": {
@@ -1647,6 +1632,13 @@ export interface components {
             access_code: string;
             /** Expires At */
             expires_at?: string | null;
+            /**
+             * Show Costs
+             * @default false
+             */
+            show_costs: boolean;
+            /** Url */
+            url: string;
         };
         /** GuestAccessSetup */
         GuestAccessSetup: {
@@ -1654,6 +1646,61 @@ export interface components {
             pin: string;
             /** Expires At */
             expires_at?: string | null;
+            /**
+             * Show Costs
+             * @default false
+             */
+            show_costs: boolean;
+        };
+        /** GuestAccessUpdate */
+        GuestAccessUpdate: {
+            /** Show Costs */
+            show_costs: boolean;
+        };
+        /** GuestItineraryDay */
+        GuestItineraryDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Activities */
+            activities: components["schemas"]["ItineraryActivity"][];
+            /** Estimated Cost */
+            estimated_cost?: number | null;
+            weather?: components["schemas"]["DayWeather"] | null;
+        };
+        /** GuestItineraryResponse */
+        GuestItineraryResponse: {
+            /** Trip Id */
+            trip_id: number;
+            /** Days */
+            days: components["schemas"]["GuestItineraryDay"][];
+            /** Conflict Count */
+            conflict_count: number;
+        };
+        /**
+         * GuestLookup
+         * @description What a code's link page shows before the PIN is asked for: the title only.
+         */
+        GuestLookup: {
+            /** Title */
+            title: string;
+            /** Trip Id */
+            trip_id?: number | null;
+        };
+        /** GuestToken */
+        GuestToken: {
+            /** Access Token */
+            access_token: string;
+            /** Token Type */
+            token_type: string;
+            /** Refresh Token */
+            refresh_token?: string | null;
+            /** Access Code */
+            access_code: string;
+            /** Show Costs */
+            show_costs: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2074,74 +2121,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-        };
-        /** ShareLinkResponse */
-        ShareLinkResponse: {
-            /** Token */
-            token: string;
-            /** Url */
-            url: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /**
-         * SharedActivity
-         * @description What a share link shows of a plan: no costs, notes or where it was saved from.
-         */
-        SharedActivity: {
-            /** Title */
-            title: string;
-            /** Location */
-            location: string;
-            /**
-             * Start Time
-             * Format: date-time
-             */
-            start_time: string;
-            /**
-             * End Time
-             * Format: date-time
-             */
-            end_time: string;
-            /** Latitude */
-            latitude?: number | null;
-            /** Longitude */
-            longitude?: number | null;
-        };
-        /** SharedDay */
-        SharedDay: {
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /** Activities */
-            activities: components["schemas"]["SharedActivity"][];
-            weather?: components["schemas"]["DayWeather"] | null;
-        };
-        /**
-         * SharedTrip
-         * @description A trip as its share link shows it: the plan only, no costs, budget, people or saved posts.
-         */
-        SharedTrip: {
-            /** Title */
-            title: string;
-            /** Destination */
-            destination: string;
-            /**
-             * Destinations
-             * @default []
-             */
-            destinations: string[];
-            /** Start Date */
-            start_date?: string | null;
-            /** End Date */
-            end_date?: string | null;
-            /** Days */
-            days: components["schemas"]["SharedDay"][];
         };
         /** SignInOptions */
         SignInOptions: {
@@ -4905,6 +4884,37 @@ export interface operations {
             };
         };
     };
+    lookup_guest_code_guest_lookup__access_code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                access_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestLookup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     guest_access_guest_access_post: {
         parameters: {
             query?: never;
@@ -4924,7 +4934,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Token"];
+                    "application/json": components["schemas"]["GuestToken"];
                 };
             };
             /** @description Validation Error */
@@ -4993,7 +5003,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ItineraryResponse"];
+                    "application/json": components["schemas"]["GuestItineraryResponse"];
                 };
             };
         };
@@ -5093,7 +5103,7 @@ export interface operations {
             };
         };
     };
-    get_share_link_trips__trip_id__share_link_get: {
+    update_guest_access_trips__trip_id__guest_access_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -5102,7 +5112,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestAccessUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5110,98 +5124,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ShareLinkResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_share_link_trips__trip_id__share_link_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trip_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ShareLinkResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    turn_off_share_link_trips__trip_id__share_link_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trip_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_shared_trip_shared__token__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SharedTrip"];
+                    "application/json": components["schemas"]["GuestAccessResponse"];
                 };
             };
             /** @description Validation Error */

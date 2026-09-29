@@ -23,7 +23,7 @@ type ReadOnlyDay = {
   date: string;
   weather?: DayWeather | null;
   // Only guests, who are on the trip, see costs
-  estimated_cost?: number;
+  estimated_cost?: number | null;
   activities: ReadOnlyActivity[];
 };
 

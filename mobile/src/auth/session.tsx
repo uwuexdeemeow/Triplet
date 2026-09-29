@@ -2,21 +2,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api, ApiError, setAuthHandlers, type Schemas } from '@/api/client';
-import {
-  clearGuestToken,
-  clearSession,
-  hasSavedSession,
-  loadGuestToken,
-  loadRefreshToken,
-  REFRESH_IN_COOKIE,
-  saveGuestToken,
-  saveSession,
-} from '@/auth/token-storage';
+import { clearSession, hasSavedSession, loadRefreshToken, REFRESH_IN_COOKIE, saveSession } from '@/auth/token-storage';
 import type { SocialSignIn } from '@/auth/social';
 import { forgetSignup, pendingSignup, rememberSignup } from '@/auth/verification';
 
-// Guests opened one trip with its code and PIN, and can only look at it
-type Status = 'loading' | 'signedIn' | 'signedOut' | 'guest';
+type Status = 'loading' | 'signedIn' | 'signedOut';
 type Tokens = Schemas['Token'];
 
 type Session = {
@@ -26,7 +16,6 @@ type Session = {
   confirmSignup: (code: string) => Promise<void>;
   // After Google or Apple sign-in on the phone: the server checks their token and signs in
   signInWithProvider: (signIn: SocialSignIn) => Promise<void>;
-  enterAsGuest: (accessCode: string, pin: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -34,7 +23,6 @@ type Session = {
 // and in a cookie scripts can't read on the website
 let accessToken: string | null = null;
 let refreshInFlight: Promise<string | null> | null = null;
-let isGuest = false;
 
 /**
  * Swap the stored refresh token for a new pair of tokens.
@@ -85,14 +73,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAuthHandlers({
       getAccessToken: () => accessToken,
       refreshAccessToken: async () => {
-        // A guest's token can't be renewed; once it expires they enter the code again
-        if (isGuest) {
-          isGuest = false;
-          accessToken = null;
-          await clearGuestToken();
-          setStatus('signedOut');
-          return null;
-        }
         const token = await refreshSession();
         if (!token && !(await hasSavedSession())) setStatus('signedOut');
         return token;
@@ -101,12 +81,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       if (!(await hasSavedSession())) {
-        const guestToken = await loadGuestToken();
-        if (guestToken) {
-          accessToken = guestToken;
-          isGuest = true;
-        }
-        if (!cancelled) setStatus(guestToken ? 'guest' : 'signedOut');
+        if (!cancelled) setStatus('signedOut');
         return;
       }
       await refreshSession();
@@ -124,8 +99,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const startSession = useCallback(
     async (tokens: Tokens) => {
       accessToken = tokens.access_token;
-      isGuest = false;
-      await clearGuestToken();
       await saveSession(tokens.refresh_token);
       queryClient.clear();
       setStatus('signedIn');
@@ -187,32 +160,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     rememberSignup(email.trim().toLowerCase(), signup_token);
   }, []);
 
-  const enterAsGuest = useCallback(
-    async (accessCode: string, pin: string) => {
-      const tokens = await api<Tokens>('/guest/access', {
-        method: 'POST',
-        body: { access_code: accessCode, pin },
-        auth: false,
-      });
-      accessToken = tokens.access_token;
-      isGuest = true;
-      await saveGuestToken(tokens.access_token);
-      queryClient.clear();
-      setStatus('guest');
-    },
-    [queryClient],
-  );
-
   const signOut = useCallback(async () => {
-    if (isGuest) {
-      isGuest = false;
-      accessToken = null;
-      await clearGuestToken();
-      queryClient.clear();
-      setStatus('signedOut');
-      return;
-    }
-
     const refreshToken = await loadRefreshToken();
     accessToken = null;
     await clearSession();
@@ -231,8 +179,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const value = useMemo(
-    () => ({ status, signIn, signUp, confirmSignup, signInWithProvider, enterAsGuest, signOut }),
-    [status, signIn, signUp, confirmSignup, signInWithProvider, enterAsGuest, signOut],
+    () => ({ status, signIn, signUp, confirmSignup, signInWithProvider, signOut }),
+    [status, signIn, signUp, confirmSignup, signInWithProvider, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

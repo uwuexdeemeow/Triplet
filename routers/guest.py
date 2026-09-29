@@ -10,7 +10,7 @@ from schemas import (
     GuestAccessCreate, GuestAccessSetup, GuestAccessUpdate, GuestAccessResponse, GuestToken, GuestLookup,
     TripResponse, ActivityResponse, GuestItineraryResponse
 )
-from security import create_access_token, verify_password, hash_password
+from security import create_access_token, decode_access_token, verify_password, hash_password
 from dependencies import get_current_guest, get_trip_membership, require_role
 import rate_limit
 from rate_limit import client_ip
@@ -63,6 +63,22 @@ def generate_access_code(db: Session) -> str:
         if exists is None:
             return code
 
+def is_member(request: Request, db: Session, trip_id: int) -> bool:
+    """Whether the request carries a signed-in person's token, and that person is on the trip. Never an error."""
+    header = request.headers.get("authorization", "")
+    if not header.lower().startswith("bearer "):
+        return False
+    try:
+        payload = decode_access_token(header[7:].strip())
+        if payload.get("type") == "guest":
+            return False
+        user_id = int(payload["sub"])
+    except (HTTPException, KeyError, TypeError, ValueError):
+        return False
+    return db.query(TripMembership).filter(
+        TripMembership.trip_id == trip_id, TripMembership.user_id == user_id
+    ).first() is not None
+
 @router.get("/lookup/{access_code}", response_model=GuestLookup)
 def lookup_guest_code(
     access_code: str,
@@ -78,7 +94,7 @@ def lookup_guest_code(
     # An unknown code and an expired one look the same, so codes can't be told apart
     if trip is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This link or code doesn’t work")
-    return GuestLookup(title=trip.title)
+    return GuestLookup(title=trip.title, trip_id=trip.id if is_member(request, db, trip.id) else None)
 
 @router.post("/access", response_model=GuestToken)
 def guest_access(
