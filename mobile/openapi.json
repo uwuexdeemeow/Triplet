@@ -4061,6 +4061,50 @@
       "HTTPBearer": []
      }
     ]
+   },
+   "post": {
+    "tags": [
+     "Guest Access"
+    ],
+    "summary": "Create Guest Activity",
+    "operationId": "create_guest_activity_guest_activities_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ActivityCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActivityResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ]
    }
   },
   "/guest/itinerary": {
@@ -4087,6 +4131,101 @@
       "HTTPBearer": []
      }
     ]
+   }
+  },
+  "/guest/activities/{activity_id}": {
+   "patch": {
+    "tags": [
+     "Guest Access"
+    ],
+    "summary": "Update Guest Activity",
+    "operationId": "update_guest_activity_guest_activities__activity_id__patch",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "activity_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Activity Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ActivityUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActivityResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "Guest Access"
+    ],
+    "summary": "Delete Guest Activity",
+    "operationId": "delete_guest_activity_guest_activities__activity_id__delete",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "activity_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Activity Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
    }
   },
   "/trips/{trip_id}/guest-access": {
@@ -4150,7 +4289,7 @@
      "Guest Access"
     ],
     "summary": "Update Guest Access",
-    "description": "Show or hide costs without issuing a new code, so links already sent keep working.",
+    "description": "Show or hide costs, or let guests edit or not, without issuing a new code, so links already sent keep working.",
     "operationId": "update_guest_access_trips__trip_id__guest_access_patch",
     "security": [
      {
@@ -5797,6 +5936,11 @@
       "title": "Show Costs",
       "default": false
      },
+     "allow_edits": {
+      "type": "boolean",
+      "title": "Allow Edits",
+      "default": false
+     },
      "url": {
       "type": "string",
       "title": "Url"
@@ -5833,6 +5977,11 @@
       "type": "boolean",
       "title": "Show Costs",
       "default": false
+     },
+     "allow_edits": {
+      "type": "boolean",
+      "title": "Allow Edits",
+      "default": false
      }
     },
     "type": "object",
@@ -5844,14 +5993,29 @@
    "GuestAccessUpdate": {
     "properties": {
      "show_costs": {
-      "type": "boolean",
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Show Costs"
+     },
+     "allow_edits": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Allow Edits"
      }
     },
     "type": "object",
-    "required": [
-     "show_costs"
-    ],
     "title": "GuestAccessUpdate"
    },
    "GuestItineraryDay": {
@@ -5913,6 +6077,16 @@
      "conflict_count": {
       "type": "integer",
       "title": "Conflict Count"
+     },
+     "allow_edits": {
+      "type": "boolean",
+      "title": "Allow Edits",
+      "default": false
+     },
+     "show_costs": {
+      "type": "boolean",
+      "title": "Show Costs",
+      "default": false
      }
     },
     "type": "object",
@@ -5976,6 +6150,10 @@
      "show_costs": {
       "type": "boolean",
       "title": "Show Costs"
+     },
+     "allow_edits": {
+      "type": "boolean",
+      "title": "Allow Edits"
      }
     },
     "type": "object",
@@ -5983,7 +6161,8 @@
      "access_token",
      "token_type",
      "access_code",
-     "show_costs"
+     "show_costs",
+     "allow_edits"
     ],
     "title": "GuestToken"
    },

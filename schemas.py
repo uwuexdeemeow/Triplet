@@ -140,21 +140,26 @@ class GuestAccessSetup(BaseModel):
     pin: str = Field(pattern=r"^[A-Za-z0-9]{4,12}$")
     expires_at: datetime | None = None
     show_costs: bool = False
+    allow_edits: bool = False
 
 class GuestAccessUpdate(BaseModel):
-    show_costs: bool
+    # Left out, a setting stays as it is
+    show_costs: bool | None = None
+    allow_edits: bool | None = None
 
 class GuestAccessResponse(BaseModel):
     trip_id: int
     access_code: str
     expires_at: datetime | None = None
     show_costs: bool = False
+    allow_edits: bool = False
     # The website address that asks for this code's PIN, for sharing
     url: str
 
 class GuestToken(Token):
     access_code: str
     show_costs: bool
+    allow_edits: bool
 
 class GuestLookup(BaseModel):
     """What a code's link page shows before the PIN is asked for: the title only."""
@@ -457,6 +462,9 @@ class GuestItineraryResponse(BaseModel):
     trip_id: int
     days: list[GuestItineraryDay]
     conflict_count: int
+    # Whether the owner currently lets guests add and change plans
+    allow_edits: bool = False
+    show_costs: bool = False
 
 class SavedLinkCreate(BaseModel):
     url: HttpUrl

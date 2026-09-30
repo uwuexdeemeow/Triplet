@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { api, ApiError, type Schemas } from '@/api/client';
-import { guestKeys, useGuestItinerary, useGuestLookup, useGuestTrip } from '@/api/guest';
+import { guestKeys, useGuestItinerary, useGuestLookup, useGuestTrip, type GuestActivity } from '@/api/guest';
 import { useSession } from '@/auth/session';
 import { clearGuestToken, loadGuestToken, saveGuestToken } from '@/auth/token-storage';
 import { Button } from '@/components/button';
+import { GuestPlanForm } from '@/components/guest-plan-form';
 import { FormMessage, Screen } from '@/components/screen';
 import { Body, Heading } from '@/components/text';
 import { TextField } from '@/components/text-field';
@@ -157,6 +158,8 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
   const queryClient = useQueryClient();
   const trip = useGuestTrip(code, token);
   const itinerary = useGuestItinerary(code, token);
+  // The plan being added or changed, for guests the owner lets edit
+  const [form, setForm] = useState<{ existing?: { day: string; activity: GuestActivity } } | null>(null);
 
   // A day later the token stops working: ask for the PIN again
   const stopped = [trip.error, itinerary.error].some((error) => error instanceof ApiError && error.status === 401);
@@ -187,15 +190,43 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
     );
   }
 
+  const canEdit = itinerary.data.allow_edits;
+
+  if (form && canEdit) {
+    return (
+      <GuestPlanForm
+        token={token}
+        trip={trip.data}
+        existing={form.existing}
+        showCosts={itinerary.data.show_costs}
+        onDone={() => {
+          setForm(null);
+          queryClient.invalidateQueries({ queryKey: guestKeys.itinerary(code) });
+        }}
+        onCancel={() => setForm(null)}
+        onExpired={() => {
+          setForm(null);
+          queryClient.removeQueries({ queryKey: guestKeys.trip(code) });
+          queryClient.removeQueries({ queryKey: guestKeys.itinerary(code) });
+          onExpired();
+        }}
+      />
+    );
+  }
+
   // Costs come back empty unless the owner shows them, so they only appear when there are some
   return (
-    <TripReadOnly
-      trip={trip.data}
-      days={itinerary.data.days}
-      currency={trip.data.currency}
-      directions
-      emptyMessage="Nothing’s planned yet. Check back later."
-    />
+    <>
+      <TripReadOnly
+        trip={trip.data}
+        days={itinerary.data.days}
+        currency={trip.data.currency}
+        directions
+        emptyMessage={canEdit ? 'Nothing’s planned yet. Add the first plan.' : 'Nothing’s planned yet. Check back later.'}
+        onEdit={canEdit ? (day, activity) => setForm({ existing: { day: day.date, activity } }) : undefined}
+      />
+      {canEdit ? <Button label="Add a plan" onPress={() => setForm({})} /> : null}
+    </>
   );
 }
 

@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import type { DayWeather } from '@/api/trips';
 import { DirectionsLink } from '@/components/directions-link';
@@ -34,18 +34,21 @@ type ReadOnlyTrip = {
   end_date?: string | null;
 };
 
-type Props = {
+type Props<Day extends ReadOnlyDay> = {
   trip?: ReadOnlyTrip;
-  days: ReadOnlyDay[];
+  days: Day[];
   /** Show each day's estimated cost, in this currency. Left out, no costs are shown. */
   currency?: string;
   /** A "Directions" link on each plan */
   directions?: boolean;
   emptyMessage: string;
+  /** For guests the owner lets edit: tapping a plan opens it */
+  onEdit?: (day: Day, activity: Day['activities'][number]) => void;
 };
 
-// A trip's plan, day by day, with nothing to edit: for guests and for people opening a share link
-export function TripReadOnly({ trip, days, currency, directions, emptyMessage }: Props) {
+// A trip's plan, day by day, with nothing to edit: for guests and for people opening a share link.
+// Guests the owner lets edit can tap a plan to change it.
+export function TripReadOnly<Day extends ReadOnlyDay>({ trip, days, currency, directions, emptyMessage, onEdit }: Props<Day>) {
   const styles = useStyles();
 
   return (
@@ -77,7 +80,12 @@ export function TripReadOnly({ trip, days, currency, directions, emptyMessage }:
             {day.activities.map((activity, index) => (
               <View key={`${activity.start_time}-${index}`} style={styles.row}>
                 <Text style={styles.time}>{activityClock(activity.start_time)}</Text>
-                <View style={styles.card}>
+                <Pressable
+                  disabled={!onEdit}
+                  accessibilityRole={onEdit ? 'button' : undefined}
+                  accessibilityHint={onEdit ? 'Edit this plan' : undefined}
+                  onPress={() => onEdit?.(day, activity)}
+                  style={styles.card}>
                   <Text style={styles.cardTitle}>{activity.title}</Text>
                   <Text style={styles.cardDetails} numberOfLines={2}>
                     {[`Until ${activityClock(activity.end_time)}`, activity.location].filter(Boolean).join(' · ')}
@@ -97,7 +105,8 @@ export function TripReadOnly({ trip, days, currency, directions, emptyMessage }:
                       }}
                     />
                   ) : null}
-                </View>
+                  {onEdit ? <Text style={styles.cardEdit}>Edit</Text> : null}
+                </Pressable>
               </View>
             ))}
           </View>
@@ -157,6 +166,12 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.muted,
+  },
+  cardEdit: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.accent,
+    marginTop: 4,
   },
   cardDescription: {
     fontFamily: fonts.body,

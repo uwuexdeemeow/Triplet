@@ -8,13 +8,13 @@ from database import connect_db
 from models import Trip, TripMembership, TripGuestAccess, Activity
 from schemas import (
     GuestAccessCreate, GuestAccessSetup, GuestAccessUpdate, GuestAccessResponse, GuestToken, GuestLookup,
-    TripResponse, ActivityResponse, GuestItineraryResponse
+    TripResponse, ActivityCreate, ActivityUpdate, ActivityResponse, GuestItineraryResponse
 )
 from security import create_access_token, decode_access_token, verify_password, hash_password
 from dependencies import get_current_guest, get_trip_membership, require_role
 import rate_limit
 from rate_limit import client_ip
-from routers.activities import build_itinerary
+from routers.activities import build_itinerary, add_activity, change_activity, get_activity_or_404
 from routers.auth import TOKEN_IP_LIMIT, TOKEN_WINDOW
 from validators import as_utc
 
@@ -44,6 +44,7 @@ def access_response(access: TripGuestAccess) -> GuestAccessResponse:
         access_code=access.access_code,
         expires_at=access.expires_at,
         show_costs=access.show_costs,
+        allow_edits=access.allow_edits,
         url=f"{settings.APP_URL.rstrip('/')}/shared/{access.access_code}"
     )
 
@@ -138,7 +139,8 @@ def guest_access(
         "access_token": token,
         "token_type": "bearer",
         "access_code": guest_access.access_code,
-        "show_costs": guest_access.show_costs
+        "show_costs": guest_access.show_costs,
+        "allow_edits": guest_access.allow_edits
     }
 
 @router.get("/trip", response_model=TripResponse)
@@ -182,12 +184,67 @@ def get_guest_itinerary(
     )
 
     itinerary = GuestItineraryResponse.model_validate(build_itinerary(db, guest.trip_id, activities).model_dump())
+    itinerary.allow_edits = guest.allow_edits
+    itinerary.show_costs = guest.show_costs
     if not guest.show_costs:
         for day in itinerary.days:
             day.estimated_cost = None
             for activity in day.activities:
                 activity.estimated_cost = None
     return itinerary
+
+def require_edits(guest: TripGuestAccess):
+    if not guest.allow_edits:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The trip owner hasn’t let guests change the plan"
+        )
+
+def guest_fields(guest: TripGuestAccess, data: dict) -> dict:
+    """What a guest may set on a plan: not saved posts, which they can't see, nor costs they can't see."""
+    data.pop("source_link_id", None)
+    if not guest.show_costs:
+        data.pop("estimated_cost", None)
+    return data
+
+def shown_to_guest(guest: TripGuestAccess, activity: Activity) -> ActivityResponse:
+    shown = ActivityResponse.model_validate(activity)
+    if not guest.show_costs:
+        shown.estimated_cost = None
+    return shown
+
+@router.post("/activities", response_model=ActivityResponse, status_code=201)
+def create_guest_activity(
+    activity_create: ActivityCreate,
+    db: Session = Depends(connect_db),
+    guest: TripGuestAccess = Depends(get_current_guest)
+):
+    require_edits(guest)
+    activity = add_activity(db, guest.trip_id, guest_fields(guest, activity_create.model_dump()))
+    return shown_to_guest(guest, activity)
+
+@router.patch("/activities/{activity_id}", response_model=ActivityResponse)
+def update_guest_activity(
+    activity_id: int,
+    activity_update: ActivityUpdate,
+    db: Session = Depends(connect_db),
+    guest: TripGuestAccess = Depends(get_current_guest)
+):
+    require_edits(guest)
+    activity = get_activity_or_404(db, guest.trip_id, activity_id)
+    update_data = guest_fields(guest, activity_update.model_dump(exclude_unset=True))
+    return shown_to_guest(guest, change_activity(db, guest.trip_id, activity, update_data))
+
+@router.delete("/activities/{activity_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_guest_activity(
+    activity_id: int,
+    db: Session = Depends(connect_db),
+    guest: TripGuestAccess = Depends(get_current_guest)
+):
+    require_edits(guest)
+    activity = get_activity_or_404(db, guest.trip_id, activity_id)
+    db.delete(activity)
+    db.commit()
 
 @setup_router.put("", response_model=GuestAccessResponse)
 def set_guest_access(
@@ -211,6 +268,7 @@ def set_guest_access(
     guest_access.pin_hash = hash_password(guest_access_setup.pin)
     guest_access.expires_at = guest_access_setup.expires_at
     guest_access.show_costs = guest_access_setup.show_costs
+    guest_access.allow_edits = guest_access_setup.allow_edits
 
     db.commit()
     db.refresh(guest_access)
@@ -224,7 +282,7 @@ def update_guest_access(
     db: Session = Depends(connect_db),
     membership: TripMembership = Depends(get_trip_membership)
 ):
-    """Show or hide costs without issuing a new code, so links already sent keep working."""
+    """Show or hide costs, or let guests edit or not, without issuing a new code, so links already sent keep working."""
     require_role(membership, ["owner"])
 
     guest_access = db.query(TripGuestAccess).filter(
@@ -237,7 +295,8 @@ def update_guest_access(
             detail="Guest access not set up"
         )
 
-    guest_access.show_costs = guest_access_update.show_costs
+    for field, value in guest_access_update.model_dump(exclude_none=True).items():
+        setattr(guest_access, field, value)
     db.commit()
     db.refresh(guest_access)
 

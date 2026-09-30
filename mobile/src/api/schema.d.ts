@@ -1109,7 +1109,8 @@ export interface paths {
         /** Get Guest Activities */
         get: operations["get_guest_activities_guest_activities_get"];
         put?: never;
-        post?: never;
+        /** Create Guest Activity */
+        post: operations["create_guest_activity_guest_activities_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1133,6 +1134,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guest/activities/{activity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Guest Activity */
+        delete: operations["delete_guest_activity_guest_activities__activity_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Guest Activity */
+        patch: operations["update_guest_activity_guest_activities__activity_id__patch"];
+        trace?: never;
+    };
     "/trips/{trip_id}/guest-access": {
         parameters: {
             query?: never;
@@ -1151,7 +1170,7 @@ export interface paths {
         head?: never;
         /**
          * Update Guest Access
-         * @description Show or hide costs without issuing a new code, so links already sent keep working.
+         * @description Show or hide costs, or let guests edit or not, without issuing a new code, so links already sent keep working.
          */
         patch: operations["update_guest_access_trips__trip_id__guest_access_patch"];
         trace?: never;
@@ -1637,6 +1656,11 @@ export interface components {
              * @default false
              */
             show_costs: boolean;
+            /**
+             * Allow Edits
+             * @default false
+             */
+            allow_edits: boolean;
             /** Url */
             url: string;
         };
@@ -1651,11 +1675,18 @@ export interface components {
              * @default false
              */
             show_costs: boolean;
+            /**
+             * Allow Edits
+             * @default false
+             */
+            allow_edits: boolean;
         };
         /** GuestAccessUpdate */
         GuestAccessUpdate: {
             /** Show Costs */
-            show_costs: boolean;
+            show_costs?: boolean | null;
+            /** Allow Edits */
+            allow_edits?: boolean | null;
         };
         /** GuestItineraryDay */
         GuestItineraryDay: {
@@ -1678,6 +1709,16 @@ export interface components {
             days: components["schemas"]["GuestItineraryDay"][];
             /** Conflict Count */
             conflict_count: number;
+            /**
+             * Allow Edits
+             * @default false
+             */
+            allow_edits: boolean;
+            /**
+             * Show Costs
+             * @default false
+             */
+            show_costs: boolean;
         };
         /**
          * GuestLookup
@@ -1701,6 +1742,8 @@ export interface components {
             access_code: string;
             /** Show Costs */
             show_costs: boolean;
+            /** Allow Edits */
+            allow_edits: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4988,6 +5031,39 @@ export interface operations {
             };
         };
     };
+    create_guest_activity_guest_activities_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_guest_itinerary_guest_itinerary_get: {
         parameters: {
             query?: never;
@@ -5004,6 +5080,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GuestItineraryResponse"];
+                };
+            };
+        };
+    };
+    delete_guest_activity_guest_activities__activity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_guest_activity_guest_activities__activity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

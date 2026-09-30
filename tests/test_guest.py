@@ -223,3 +223,77 @@ def test_revoke_guest_access(client, alice, trip, guest_code):
     assert client.delete(f"/trips/{trip['id']}/guest-access", headers=alice["headers"]).status_code == 204
     assert client.get(f"/trips/{trip['id']}/guest-access", headers=alice["headers"]).status_code == 404
     assert client.post("/guest/access", json={"access_code": guest_code, "pin": "1234"}).status_code == 401
+
+PLAN = {
+    "title": "Sushi",
+    "location": "Ginza",
+    "start_time": "2026-10-02T12:00:00Z",
+    "end_time": "2026-10-02T13:00:00Z",
+    "estimated_cost": 40
+}
+
+def editing_guest(client, alice, trip, **settings):
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "1234", **settings}).json()["access_code"]
+    token = client.post("/guest/access", json={"access_code": code, "pin": "1234"}).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+def test_guests_cannot_change_the_plan_unless_the_owner_lets_them(client, alice, trip, guest_headers):
+    activity = client.post(f"/trips/{trip['id']}/activities", headers=alice["headers"], json=PLAN).json()
+
+    assert client.post("/guest/activities", headers=guest_headers, json=PLAN).status_code == 403
+    assert client.patch(f"/guest/activities/{activity['id']}", headers=guest_headers, json={"title": "Ramen"}).status_code == 403
+    assert client.delete(f"/guest/activities/{activity['id']}", headers=guest_headers).status_code == 403
+    assert client.get("/guest/itinerary", headers=guest_headers).json()["allow_edits"] is False
+
+def test_guests_the_owner_lets_edit_can_add_change_and_delete_plans(client, alice, trip):
+    headers = editing_guest(client, alice, trip, allow_edits=True, show_costs=True)
+
+    added = client.post("/guest/activities", headers=headers, json=PLAN)
+    assert added.status_code == 201, added.text
+    activity_id = added.json()["id"]
+
+    changed = client.patch(f"/guest/activities/{activity_id}", headers=headers, json={"title": "Ramen", "estimated_cost": 15})
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["title"] == "Ramen"
+    assert changed.json()["estimated_cost"] == 15
+
+    # Members see what guests did
+    plans = client.get(f"/trips/{trip['id']}/activities", headers=alice["headers"]).json()
+    assert [plan["title"] for plan in plans] == ["Ramen"]
+    assert client.get("/guest/itinerary", headers=headers).json()["allow_edits"] is True
+
+    assert client.delete(f"/guest/activities/{activity_id}", headers=headers).status_code == 204
+    assert client.get(f"/trips/{trip['id']}/activities", headers=alice["headers"]).json() == []
+
+def test_guests_cannot_set_or_change_costs_they_cannot_see(client, alice, trip):
+    headers = editing_guest(client, alice, trip, allow_edits=True)
+    activity = client.post(f"/trips/{trip['id']}/activities", headers=alice["headers"], json=PLAN).json()
+
+    changed = client.patch(f"/guest/activities/{activity['id']}", headers=headers, json={"title": "Ramen", "estimated_cost": 1})
+    added = client.post("/guest/activities", headers=headers, json=PLAN)
+
+    assert changed.json()["estimated_cost"] is None
+    assert added.json()["estimated_cost"] is None
+    costs = {plan["id"]: plan["estimated_cost"] for plan in client.get(f"/trips/{trip['id']}/activities", headers=alice["headers"]).json()}
+    assert costs == {activity["id"]: 40, added.json()["id"]: None}
+
+def test_guests_can_only_edit_plans_on_their_trip(client, alice, trip):
+    headers = editing_guest(client, alice, trip, allow_edits=True)
+    other = client.post("/trips", headers=alice["headers"], json={
+        "title": "Other", "destination": "Osaka", "start_date": "2026-10-01", "end_date": "2026-10-05"
+    }).json()
+    activity = client.post(f"/trips/{other['id']}/activities", headers=alice["headers"], json=PLAN).json()
+
+    assert client.patch(f"/guest/activities/{activity['id']}", headers=headers, json={"title": "Mine"}).status_code == 404
+    assert client.delete(f"/guest/activities/{activity['id']}", headers=headers).status_code == 404
+
+def test_turning_off_edits_takes_effect_for_guests_already_in(client, alice, trip):
+    headers = editing_guest(client, alice, trip, allow_edits=True)
+    url = f"/trips/{trip['id']}/guest-access"
+
+    off = client.patch(url, headers=alice["headers"], json={"allow_edits": False})
+
+    assert off.status_code == 200
+    assert off.json()["allow_edits"] is False
+    assert off.json()["show_costs"] is False
+    assert client.post("/guest/activities", headers=headers, json=PLAN).status_code == 403

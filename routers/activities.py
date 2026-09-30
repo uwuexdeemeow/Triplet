@@ -59,6 +59,43 @@ def get_activity_or_404(db: Session, trip_id: int, activity_id: int) -> Activity
 
     return activity
 
+def add_activity(db: Session, trip_id: int, data: dict) -> Activity:
+    """Checks and saves a new plan. Also used by guests the owner lets add plans."""
+    validate_activity(db, trip_id, data["start_time"], data["end_time"], data.get("source_link_id"))
+
+    activity = Activity(trip_id=trip_id, **data)
+
+    db.add(activity)
+    db.commit()
+    db.refresh(activity)
+
+    return activity
+
+def change_activity(db: Session, trip_id: int, activity: Activity, update_data: dict) -> Activity:
+    """Checks and saves the fields that were sent. Also used by guests the owner lets change plans."""
+    # These columns are NOT NULL, so an explicit null means "leave unchanged"
+    required_fields = ["title", "location", "start_time", "end_time"]
+    update_data = {
+        field: value for field, value in update_data.items()
+        if not (value is None and field in required_fields)
+    }
+
+    validate_activity(
+        db,
+        trip_id,
+        update_data.get("start_time", activity.start_time),
+        update_data.get("end_time", activity.end_time),
+        update_data.get("source_link_id")
+    )
+
+    for field, value in update_data.items():
+        setattr(activity, field, value)
+
+    db.commit()
+    db.refresh(activity)
+
+    return activity
+
 @router.post("/activities", response_model=ActivityResponse, status_code=201)
 def create_activity(
     trip_id: int,
@@ -68,24 +105,7 @@ def create_activity(
 ):
     require_role(membership, EDITOR_ROLES)
 
-    validate_activity(
-        db,
-        trip_id,
-        activity_create.start_time,
-        activity_create.end_time,
-        activity_create.source_link_id
-    )
-
-    activity = Activity(
-        trip_id=trip_id,
-        **activity_create.model_dump()
-    )
-
-    db.add(activity)
-    db.commit()
-    db.refresh(activity)
-
-    return activity
+    return add_activity(db, trip_id, activity_create.model_dump())
 
 @router.get("/activities", response_model=list[ActivityResponse])
 def get_activities(
@@ -126,32 +146,7 @@ def update_activity(
 
     activity = get_activity_or_404(db, trip_id, activity_id)
 
-    update_data = activity_update.model_dump(
-        exclude_unset=True
-    )
-
-    # These columns are NOT NULL, so an explicit null means "leave unchanged"
-    required_fields = ["title", "location", "start_time", "end_time"]
-    update_data = {
-        field: value for field, value in update_data.items()
-        if not (value is None and field in required_fields)
-    }
-
-    validate_activity(
-        db,
-        trip_id,
-        update_data.get("start_time", activity.start_time),
-        update_data.get("end_time", activity.end_time),
-        update_data.get("source_link_id")
-    )
-
-    for field, value in update_data.items():
-        setattr(activity, field, value)
-
-    db.commit()
-    db.refresh(activity)
-
-    return activity
+    return change_activity(db, trip_id, activity, activity_update.model_dump(exclude_unset=True))
 
 @router.delete("/activities/{activity_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_activity(

@@ -680,6 +680,14 @@ class TripGuestAccess(Base):
         server_default=false()
     )
 
+    # Whether guests can add plans and change or delete the ones there
+    allow_edits: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false()
+    )
+
 class TripInvitation(Base):
     __tablename__ = "trip_invitations"
 

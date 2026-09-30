@@ -258,7 +258,7 @@ function expiryDate(expiry: Expiry, trip: Trip): string | null {
 }
 
 // The one way to share the plan with people who don't have Triplet: a link that asks for a PIN, or
-// the trip code typed in at /shared with the PIN. They can't change anything.
+// the trip code typed in at /shared with the PIN. They only see it, unless the owner lets them edit.
 function ShareTrip({ trip }: { trip: Trip }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -268,6 +268,7 @@ function ShareTrip({ trip }: { trip: Trip }) {
   const [pin, setPin] = useState('');
   const [expiry, setExpiry] = useState<Expiry>(trip.end_date ? 'tripEnd' : 'never');
   const [showCosts, setShowCosts] = useState(false);
+  const [allowEdits, setAllowEdits] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   // Only known right after it's set; the server keeps a hash
   const [newPin, setNewPin] = useState<string | null>(null);
@@ -287,7 +288,7 @@ function ShareTrip({ trip }: { trip: Trip }) {
   });
 
   const save = useMutation({
-    mutationFn: (body: { pin: string; expires_at: string | null; show_costs: boolean }) =>
+    mutationFn: (body: { pin: string; expires_at: string | null; show_costs: boolean; allow_edits: boolean }) =>
       api<GuestAccessInfo>(`/trips/${trip.id}/guest-access`, { method: 'PUT', body }),
     onSuccess: (updated, body) => {
       queryClient.setQueryData(key, updated);
@@ -299,9 +300,9 @@ function ShareTrip({ trip }: { trip: Trip }) {
   });
 
   // Flips straight away and keeps the same code, so links already sent keep working
-  const changeCosts = useMutation({
-    mutationFn: (show_costs: boolean) =>
-      api<GuestAccessInfo>(`/trips/${trip.id}/guest-access`, { method: 'PATCH', body: { show_costs } }),
+  const changeSetting = useMutation({
+    mutationFn: (body: { show_costs?: boolean; allow_edits?: boolean }) =>
+      api<GuestAccessInfo>(`/trips/${trip.id}/guest-access`, { method: 'PATCH', body }),
     onSuccess: (updated) => queryClient.setQueryData(key, updated),
   });
 
@@ -319,7 +320,7 @@ function ShareTrip({ trip }: { trip: Trip }) {
       return;
     }
     setPinError(null);
-    save.mutate({ pin, expires_at: expiryDate(expiry, trip), show_costs: showCosts });
+    save.mutate({ pin, expires_at: expiryDate(expiry, trip), show_costs: showCosts, allow_edits: allowEdits });
   };
 
   // The website copies to the clipboard; phones open their share sheet, which has Copy in it. The PIN
@@ -352,8 +353,8 @@ function ShareTrip({ trip }: { trip: Trip }) {
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Share this trip</Text>
       <Muted>
-        Send a link, or a code, and a PIN so people without Triplet can see the plan. They can’t change anything, and a
-        new code stops the old one working.
+        Send a link, or a code, and a PIN so people without Triplet can see the plan. They can’t change it unless you let
+        them, and a new code stops the old one working.
       </Muted>
 
       {access.isPending ? (
@@ -388,12 +389,22 @@ function ShareTrip({ trip }: { trip: Trip }) {
             <Switch
               accessibilityLabel="Show costs to guests"
               value={current.show_costs}
-              disabled={changeCosts.isPending}
-              onValueChange={(value) => changeCosts.mutate(value)}
+              disabled={changeSetting.isPending}
+              onValueChange={(value) => changeSetting.mutate({ show_costs: value })}
               trackColor={{ true: colors.accent }}
             />
           </View>
-          <FormMessage message={(changeCosts.error ?? turnOff.error)?.message ?? null} />
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Let guests add and change plans</Text>
+            <Switch
+              accessibilityLabel="Let guests add and change plans"
+              value={current.allow_edits}
+              disabled={changeSetting.isPending}
+              onValueChange={(value) => changeSetting.mutate({ allow_edits: value })}
+              trackColor={{ true: colors.accent }}
+            />
+          </View>
+          <FormMessage message={(changeSetting.error ?? turnOff.error)?.message ?? null} />
           <Button label={copied ? 'Copied' : Platform.OS === 'web' ? 'Copy link' : 'Share link'} onPress={() => copy(current.url)} />
           <View style={styles.buttons}>
             <Button
@@ -401,6 +412,7 @@ function ShareTrip({ trip }: { trip: Trip }) {
               variant="secondary"
               onPress={() => {
                 setShowCosts(current.show_costs);
+                setAllowEdits(current.allow_edits);
                 setEditing(true);
               }}
               style={styles.flex}
@@ -452,6 +464,18 @@ function ShareTrip({ trip }: { trip: Trip }) {
               accessibilityLabel="Show costs to guests"
               value={showCosts}
               onValueChange={setShowCosts}
+              trackColor={{ true: colors.accent }}
+            />
+          </View>
+          <View style={styles.switchRow}>
+            <View style={styles.flex}>
+              <Text style={styles.switchLabel}>Let guests add and change plans</Text>
+              <Muted>Anyone with the link and PIN can add, change and delete plans. Off by default.</Muted>
+            </View>
+            <Switch
+              accessibilityLabel="Let guests add and change plans"
+              value={allowEdits}
+              onValueChange={setAllowEdits}
               trackColor={{ true: colors.accent }}
             />
           </View>

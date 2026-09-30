@@ -4,6 +4,7 @@ import { api, type Schemas } from '@/api/client';
 
 export type GuestTrip = Schemas['TripResponse'];
 export type GuestItinerary = Schemas['GuestItineraryResponse'];
+export type GuestActivity = GuestItinerary['days'][number]['activities'][number];
 export type GuestLookup = Schemas['GuestLookup'];
 
 // A guest's token only opens one trip, and belongs to the page that got it, not to the session
