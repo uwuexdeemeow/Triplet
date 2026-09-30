@@ -277,21 +277,29 @@ function EstimateCard({ estimate, money }: { estimate: BudgetEstimate; money: (a
       </Pressable>
       {showDays ? (
         <View style={styles.legend}>
-          {estimate.days.map((day) => (
-            <View
-              key={day.date}
-              style={styles.legendRow}
-              accessible
-              accessibilityLabel={`${formatShortDate(day.date)}: about ${money(day.total)}`}>
-              <Text style={styles.legendLabel}>{formatShortDate(day.date)}</Text>
-              <Text style={styles.legendPercent}>
-                {[day.plans > 0 ? `plans ${money(day.plans)}` : null, day.transport > 0 ? `rides ${money(day.transport)}` : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-              <Text style={styles.legendAmount}>{money(day.total)}</Text>
-            </View>
-          ))}
+          {estimate.days.map((day) => {
+            // What makes up the day's total, on its own line so it has room
+            const parts = [
+              day.plans > 0 ? `Plans ${money(day.plans)}` : null,
+              day.meals > 0 ? `Meals ${money(day.meals)}` : null,
+              day.transport > 0 ? `Getting around ${money(day.transport)}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ');
+            return (
+              <View
+                key={day.date}
+                style={styles.estimateDay}
+                accessible
+                accessibilityLabel={`${formatShortDate(day.date)}: about ${money(day.total)}${parts ? `. ${parts}` : ''}`}>
+                <View style={styles.legendRow}>
+                  <Text style={styles.legendLabel}>{formatShortDate(day.date)}</Text>
+                  <Text style={styles.legendAmount}>{money(day.total)}</Text>
+                </View>
+                {parts ? <Text style={styles.estimateDayParts}>{parts}</Text> : null}
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
@@ -720,6 +728,15 @@ const useStyles = makeStyles((colors) => ({
     textAlign: 'right',
     fontFamily: fonts.body,
     fontSize: 13.5,
+    color: colors.muted,
+  },
+  estimateDay: {
+    paddingVertical: 4,
+  },
+  estimateDayParts: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
     color: colors.muted,
   },
   legendAmount: {
