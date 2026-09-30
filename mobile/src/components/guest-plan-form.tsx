@@ -21,6 +21,8 @@ type Props = {
   trip: GuestTrip;
   /** Editing this plan, on this day; left out, a new plan */
   existing?: { day: string; activity: GuestActivity };
+  /** A new plan starts on this day */
+  day?: string;
   /** Only when the owner shows costs to guests */
   showCosts: boolean;
   onDone: () => void;
@@ -31,7 +33,7 @@ type Props = {
 
 // Adding or changing a plan on a shared trip, for guests the owner lets edit. Simpler than the members'
 // form: guests can't search places or drop pins, as those need an account.
-export function GuestPlanForm({ token, trip, existing, showCosts, onDone, onCancel, onExpired }: Props) {
+export function GuestPlanForm({ token, trip, day, existing, showCosts, onDone, onCancel, onExpired }: Props) {
   const styles = useStyles();
   const activity = existing?.activity;
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,7 +55,7 @@ export function GuestPlanForm({ token, trip, existing, showCosts, onDone, onCanc
       : {
           title: '',
           location: '',
-          day: trip.start_date ?? '',
+          day: day ?? trip.start_date ?? '',
           startTime: '12:00',
           endTime: '13:00',
           estimatedCost: '',

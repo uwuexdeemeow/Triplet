@@ -1,7 +1,8 @@
+import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { api, ApiError, type Schemas } from '@/api/client';
 import { guestKeys, useGuestItinerary, useGuestLookup, useGuestTrip, type GuestActivity } from '@/api/guest';
@@ -10,11 +11,14 @@ import { clearGuestToken, loadGuestToken, saveGuestToken } from '@/auth/token-st
 import { Button } from '@/components/button';
 import { GuestPlanForm } from '@/components/guest-plan-form';
 import { FormMessage, Screen } from '@/components/screen';
-import { Body, Heading } from '@/components/text';
+import { ActivityRow, DayChips, EditHint, TravelConnector, type ActivityActions } from '@/components/plan-rows';
+import { Body, Heading, Muted, Title } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { TripReadOnly } from '@/components/trip-read-only';
+import { WeatherLine } from '@/components/weather-line';
 import { makeStyles, useTheme } from '@/theme/theme';
-import { fonts, spacing } from '@/theme/tokens';
+import { fonts, radii, spacing } from '@/theme/tokens';
+import { eachDay, formatDateRange, formatLongDate, formatShortDate, todayString } from '@/utils/dates';
+import { formatMoney } from '@/utils/money';
 
 // Opened from a trip's link: /shared/<code>. Asks for the PIN, then shows the plan. Outside the
 // signed-in and signed-out groups, so it looks the same to everyone, and the guest token it gets
@@ -160,6 +164,7 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
   const itinerary = useGuestItinerary(code, token);
   // The plan being added or changed, for guests the owner lets edit
   const [form, setForm] = useState<{ existing?: { day: string; activity: GuestActivity } } | null>(null);
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
 
   // A day later the token stops working: ask for the PIN again
   const stopped = [trip.error, itinerary.error].some((error) => error instanceof ApiError && error.status === 401);
@@ -191,42 +196,128 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
   }
 
   const canEdit = itinerary.data.allow_edits;
+  const { show_costs: showCosts } = itinerary.data;
+  const currency = trip.data.currency;
+
+  const gone = () => {
+    setForm(null);
+    queryClient.removeQueries({ queryKey: guestKeys.trip(code) });
+    queryClient.removeQueries({ queryKey: guestKeys.itinerary(code) });
+    onExpired();
+  };
+  const refresh = () => queryClient.invalidateQueries({ queryKey: guestKeys.itinerary(code) });
+  // Saves as the guest; a token that's stopped working asks for the PIN again
+  const send = async (path: string, options: { method: 'PATCH' | 'DELETE'; body?: object }) => {
+    try {
+      await api(path, { ...options, token });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) gone();
+      // The owner turned editing off: show the plan without the edit controls
+      if (error instanceof ApiError && error.status === 403) refresh();
+      throw error;
+    }
+    refresh();
+  };
+
+  const tripDays = trip.data.start_date && trip.data.end_date ? eachDay(trip.data.start_date, trip.data.end_date) : [];
+  // Plans can sit outside the trip's dates if they changed, so those days still show
+  const days = [...new Set([...tripDays, ...itinerary.data.days.map((item) => item.date)])].sort();
+  const today = todayString();
+  const selectedDay = pickedDay && days.includes(pickedDay) ? pickedDay : days.includes(today) ? today : days[0];
+  const day = itinerary.data.days.find((item) => item.date === selectedDay);
+  const activities = day?.activities ?? [];
+  const titles = new Map(activities.map((activity) => [activity.id, activity.title]));
 
   if (form && canEdit) {
     return (
       <GuestPlanForm
         token={token}
         trip={trip.data}
+        day={selectedDay}
         existing={form.existing}
-        showCosts={itinerary.data.show_costs}
+        showCosts={showCosts}
         onDone={() => {
           setForm(null);
-          queryClient.invalidateQueries({ queryKey: guestKeys.itinerary(code) });
+          refresh();
         }}
         onCancel={() => setForm(null)}
-        onExpired={() => {
-          setForm(null);
-          queryClient.removeQueries({ queryKey: guestKeys.trip(code) });
-          queryClient.removeQueries({ queryKey: guestKeys.itinerary(code) });
-          onExpired();
-        }}
+        onExpired={gone}
       />
     );
   }
 
-  // Costs come back empty unless the owner shows them, so they only appear when there are some
+  const guestActions = (activity: GuestActivity): ActivityActions => ({
+    onEdit: () => setForm({ existing: { day: selectedDay, activity } }),
+    onRename: (title) => send(`/guest/activities/${activity.id}`, { method: 'PATCH', body: { title } }),
+    onDelete: () => send(`/guest/activities/${activity.id}`, { method: 'DELETE' }),
+  });
+
   return (
-    <>
-      <TripReadOnly
-        trip={trip.data}
-        days={itinerary.data.days}
-        currency={trip.data.currency}
-        directions
-        emptyMessage={canEdit ? 'Nothing’s planned yet. Add the first plan.' : 'Nothing’s planned yet. Check back later.'}
-        onEdit={canEdit ? (day, activity) => setForm({ existing: { day: day.date, activity } }) : undefined}
-      />
-      {canEdit ? <Button label="Add a plan" onPress={() => setForm({})} /> : null}
-    </>
+    <View style={styles.plan}>
+      <View style={styles.titles}>
+        <Heading>{trip.data.title}</Heading>
+        <Muted>
+          {[trip.data.destination, trip.data.start_date && trip.data.end_date ? formatDateRange(trip.data.start_date, trip.data.end_date) : null]
+            .filter(Boolean)
+            .join(' · ')}
+        </Muted>
+      </View>
+
+      {!selectedDay ? (
+        <Body style={styles.muted}>
+          {canEdit ? 'Nothing’s planned yet. Add the first plan.' : 'Nothing’s planned yet. Check back later.'}
+        </Body>
+      ) : (
+        <>
+          <DayChips
+            days={days}
+            selected={selectedDay}
+            planned={new Set(itinerary.data.days.filter((item) => item.activities.length).map((item) => item.date))}
+            onSelect={setPickedDay}
+            inset={0}
+          />
+          <View style={styles.dayHeader}>
+            <Title>{formatLongDate(selectedDay)}</Title>
+            {/* Costs come back empty unless the owner shows them */}
+            {showCosts && day?.estimated_cost ? (
+              <Text style={styles.dayCost}>About {formatMoney(day.estimated_cost, currency)}</Text>
+            ) : null}
+          </View>
+          {day?.weather ? <WeatherLine weather={day.weather} /> : null}
+
+          {activities.length === 0 ? (
+            <Body style={[styles.muted, styles.empty]}>Nothing planned for this day yet.</Body>
+          ) : (
+            <>
+              {activities.map((activity, index) => (
+                <View key={activity.id}>
+                  {activity.travel_from_previous ? (
+                    <TravelConnector leg={activity.travel_from_previous} from={activities[index - 1]} to={activity} />
+                  ) : null}
+                  <ActivityRow
+                    activity={activity}
+                    titles={titles}
+                    currency={showCosts ? currency : undefined}
+                    actions={canEdit ? guestActions(activity) : undefined}
+                  />
+                </View>
+              ))}
+              {canEdit ? <EditHint /> : null}
+            </>
+          )}
+
+          {canEdit ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setForm({})}
+              style={({ hovered }) => [styles.addPlan, hovered && styles.addPlanHover]}>
+              <Feather name="plus" size={16} color={colors.accent} />
+              <Text style={styles.addPlanLabel}>Add a plan to {formatShortDate(selectedDay)}</Text>
+            </Pressable>
+          ) : null}
+        </>
+      )}
+    </View>
   );
 }
 
@@ -270,6 +361,47 @@ const useStyles = makeStyles((colors) => ({
   },
   muted: {
     color: colors.muted,
+  },
+  plan: {
+    gap: spacing.md,
+  },
+  titles: {
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: spacing.md,
+  },
+  dayCost: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.muted,
+  },
+  empty: {
+    paddingVertical: spacing.xl,
+  },
+  addPlan: {
+    marginLeft: 48 + spacing.md,
+    height: 44,
+    borderRadius: radii.card,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.accentMuted,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  addPlanHover: {
+    backgroundColor: colors.accentSoft,
+  },
+  addPlanLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.accent,
   },
   footer: {
     gap: spacing.xs,
