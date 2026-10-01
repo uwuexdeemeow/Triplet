@@ -11,8 +11,7 @@ import { tripKeys, useFlights, useTrip, type Flight, type FlightDraft, type Flig
 import { AirportField, NO_AIRPORT, type AirportValue } from '@/components/airport-field';
 import { Button } from '@/components/button';
 import { DateField, TimeField } from '@/components/date-time-field';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FieldRow, FormActions, FormScreen, FormSection } from '@/components/form-layout';
 import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
@@ -42,25 +41,15 @@ export default function FlightScreen() {
   const title = editing ? 'Edit flight' : 'Add a flight';
 
   if (editing && flights.isSuccess && !existing) {
-    return (
-      <Screen>
-        <View style={styles.container}>
-          <ScreenHeader title={title} icon="close" />
-          <FormMessage message="This flight couldn’t be found. It may have been deleted." />
-        </View>
-      </Screen>
-    );
+    return <FormScreen title={title} message="This flight couldn’t be found. It may have been deleted." />;
   }
 
   if (!trip.data || (editing && !existing)) {
     const error = trip.error ?? flights.error;
     return (
-      <Screen>
-        <View style={styles.container}>
-          <ScreenHeader title={title} icon="close" />
-          {error ? <FormMessage message={error.message} /> : <ActivityIndicator color={colors.accent} style={styles.loading} />}
-        </View>
-      </Screen>
+      <FormScreen title={title} message={error?.message ?? null}>
+        {error ? null : <ActivityIndicator color={colors.accent} style={styles.loading} />}
+      </FormScreen>
     );
   }
 
@@ -127,7 +116,6 @@ function FlightForm({
   const { colors } = useTheme();
   const id = trip.id;
   const queryClient = useQueryClient();
-  const [confirmDelete, setConfirmDelete] = useState(false);
   // An e-ticket with several flights, e.g. there and back
   const [ticket, setTicket] = useState<FlightDrafts | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
@@ -271,12 +259,30 @@ function FlightForm({
   };
 
   return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title={title} icon="close" />
-        <FormMessage message={errorMessage} />
-
-        {!existing ? (
+    <FormScreen
+      title={title}
+      message={errorMessage}
+      actions={
+        <FormActions
+          label={existing ? 'Save' : 'Add flight'}
+          onSave={onSubmit}
+          saving={save.isPending}
+          remove={
+            existing
+              ? {
+                  label: 'Remove flight',
+                  question: 'Remove this flight?',
+                  detail: 'Your plans stay.',
+                  onConfirm: () => remove.mutate(),
+                  pending: remove.isPending,
+                  pendingLabel: 'Removing…',
+                }
+              : undefined
+          }
+        />
+      }>
+      {!existing ? (
+        <FormSection title="Start from" description="Let Triplet read the flights off your e-ticket. A return ticket adds both.">
           <Pressable
             accessibilityRole="button"
             accessibilityHint="Pick a screenshot of your e-ticket or booking, and Triplet fills in the flights"
@@ -289,7 +295,6 @@ function FlightForm({
               <Text style={styles.starterDetail}>From the airline, a booking site or a confirmation email</Text>
             </View>
           </Pressable>
-        ) : null}
 
         {notes.length ? (
           <View style={styles.notes}>
@@ -325,7 +330,11 @@ function FlightForm({
             <Text style={styles.hint}>Or fill one in below, check it, and add it on its own.</Text>
           </View>
         ) : null}
+        </FormSection>
+      ) : null}
 
+      <FormSection title="Flight">
+        <FieldRow columns={2}>
         <Controller
           control={control}
           name="flightNumber"
@@ -343,9 +352,20 @@ function FlightForm({
           )}
         />
 
+        </FieldRow>
+      </FormSection>
+
+      <FormSection title="Leaves" description="Pick the airport from the list, so the plan can find the way there.">
         {end('from')}
+      </FormSection>
+
+      <FormSection title="Lands">
         {end('to')}
         <Text style={styles.hint}>Times are each airport’s local time, as on your ticket.</Text>
+      </FormSection>
+
+      <FormSection title="Booking">
+        <FieldRow>
 
         <Controller
           control={control}
@@ -382,38 +402,13 @@ function FlightForm({
           )}
         />
 
-        <Button label={existing ? 'Save' : 'Add flight'} loading={save.isPending} onPress={onSubmit} />
-
-        {existing ? (
-          confirmDelete ? (
-            <View style={styles.confirm}>
-              <Text style={styles.confirmText}>Remove this flight? Your plans stay.</Text>
-              <View style={styles.confirmButtons}>
-                <Button label="Keep" variant="secondary" onPress={() => setConfirmDelete(false)} style={styles.flex} />
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={remove.isPending}
-                  onPress={() => remove.mutate()}
-                  style={[styles.deleteButton, styles.flex]}>
-                  <Text style={styles.deleteLabel}>{remove.isPending ? 'Removing…' : 'Remove'}</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(true)} style={styles.deleteLink}>
-              <Text style={styles.deleteLinkLabel}>Remove flight</Text>
-            </Pressable>
-          )
-        ) : null}
-      </View>
-    </Screen>
+        </FieldRow>
+      </FormSection>
+    </FormScreen>
   );
 }
 
 const useStyles = makeStyles((colors) => ({
-  container: {
-    gap: 20,
-  },
   loading: {
     marginTop: spacing.xl,
   },
@@ -504,43 +499,5 @@ const useStyles = makeStyles((colors) => ({
   },
   flex: {
     flex: 1,
-  },
-  confirm: {
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: 12,
-    backgroundColor: colors.dangerSoft,
-  },
-  confirmText: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.dangerText,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  deleteButton: {
-    minHeight: 52,
-    borderRadius: radii.button,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    color: colors.onDanger,
-  },
-  deleteLink: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLinkLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    color: colors.dangerText,
   },
 }));

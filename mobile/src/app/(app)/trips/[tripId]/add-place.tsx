@@ -8,10 +8,8 @@ import { z } from 'zod';
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useLinks, usePlaces, useTrip, type SlotSuggestion } from '@/api/trips';
-import { Button } from '@/components/button';
 import { TimeRangeField } from '@/components/time-range-field';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FieldRow, FormActions, FormScreen, FormSection } from '@/components/form-layout';
 import { Muted } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -96,14 +94,11 @@ export default function AddPlaceScreen() {
 
   if (!place) {
     return (
-      <Screen>
-        <ScreenHeader title="Add to plan" icon="close" />
-        {places.isPending ? (
-          <ActivityIndicator color={colors.accent} style={styles.loading} />
-        ) : (
-          <FormMessage message="This place couldn’t be found. It may have been removed." />
-        )}
-      </Screen>
+      <FormScreen
+        title="Add to plan"
+        message={places.isPending ? null : 'This place couldn’t be found. It may have been removed.'}>
+        {places.isPending ? <ActivityIndicator color={colors.accent} style={styles.loading} /> : null}
+      </FormScreen>
     );
   }
 
@@ -118,10 +113,18 @@ export default function AddPlaceScreen() {
       : (addToPlan.error?.message ?? null);
 
   return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title={place.name} icon="close" />
-
+    <FormScreen
+      title={place.name}
+      subtitle="Add to plan"
+      message={errorMessage}
+      actions={
+        <FormActions
+          label={day ? `Add to ${formatShortDate(day)}` : 'Add to plan'}
+          saving={addToPlan.isPending}
+          onSave={handleSubmit((values) => addToPlan.mutate(values))}
+        />
+      }>
+      <FormSection title="Place" description="From your saves. Check the details before planning it.">
         <View style={styles.meta}>
           <View style={styles.chips}>
             {place.category ? (
@@ -170,8 +173,9 @@ export default function AddPlaceScreen() {
           </View>
         </View>
 
-        <FormMessage message={errorMessage} />
+      </FormSection>
 
+      <FormSection title="Day and time" description="Days it’s closed are faded. The suggested time fits its hours and your other plans.">
         <Controller
           control={control}
           name="day"
@@ -237,6 +241,10 @@ export default function AddPlaceScreen() {
           />
         ) : null}
 
+      </FormSection>
+
+      <FormSection title="Cost">
+        <FieldRow columns={2}>
         <Controller
           control={control}
           name="estimatedCost"
@@ -254,13 +262,9 @@ export default function AddPlaceScreen() {
           )}
         />
 
-        <Button
-          label={day ? `Add to ${formatShortDate(day)}` : 'Add to plan'}
-          loading={addToPlan.isPending}
-          onPress={handleSubmit((values) => addToPlan.mutate(values))}
-        />
-      </View>
-    </Screen>
+        </FieldRow>
+      </FormSection>
+    </FormScreen>
   );
 }
 
@@ -377,9 +381,6 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.bold,
     fontSize: 14,
     color: colors.onAccent,
-  },
-  container: {
-    gap: 18,
   },
   loading: {
     marginTop: spacing.xl,
@@ -505,10 +506,5 @@ const useStyles = makeStyles((colors) => ({
   dayNumberClosed: {
     color: colors.dangerText,
     textDecorationLine: 'line-through',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    alignItems: 'flex-start',
   },
 }));

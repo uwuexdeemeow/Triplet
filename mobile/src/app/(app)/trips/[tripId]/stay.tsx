@@ -8,10 +8,8 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, usePlaces, useStays, useTrip, type Stay, type StayDraft, type Trip } from '@/api/trips';
-import { Button } from '@/components/button';
 import { LocationField, type Pin } from '@/components/location-field';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FieldRow, FormActions, FormScreen, FormSection } from '@/components/form-layout';
 import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
@@ -41,25 +39,15 @@ export default function StayScreen() {
   const title = editing ? 'Edit stay' : 'Where are you staying?';
 
   if (editing && stays.isSuccess && !existing) {
-    return (
-      <Screen>
-        <View style={styles.container}>
-          <ScreenHeader title={title} icon="close" />
-          <FormMessage message="This stay couldn’t be found. It may have been deleted." />
-        </View>
-      </Screen>
-    );
+    return <FormScreen title={title} message="This stay couldn’t be found. It may have been deleted." />;
   }
 
   if (!trip.data || !stays.data || (editing && !existing)) {
     const error = trip.error ?? stays.error;
     return (
-      <Screen>
-        <View style={styles.container}>
-          <ScreenHeader title={title} icon="close" />
-          {error ? <FormMessage message={error.message} /> : <ActivityIndicator color={colors.accent} style={styles.loading} />}
-        </View>
-      </Screen>
+      <FormScreen title={title} message={error?.message ?? null}>
+        {error ? null : <ActivityIndicator color={colors.accent} style={styles.loading} />}
+      </FormScreen>
     );
   }
 
@@ -85,7 +73,6 @@ function StayForm({
   const id = trip.id;
   const queryClient = useQueryClient();
   const places = usePlaces(id);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   // What reading a booking found to check, e.g. a converted price
   const [notes, setNotes] = useState<string[]>([]);
   // The saved place it's made from, if one was picked
@@ -220,12 +207,30 @@ function StayForm({
   );
 
   return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title={title} icon="close" />
-        <FormMessage message={errorMessage} />
-
-        {!existing ? (
+    <FormScreen
+      title={title}
+      message={errorMessage}
+      actions={
+        <FormActions
+          label={existing ? 'Save' : 'Add stay'}
+          onSave={onSubmit}
+          saving={save.isPending}
+          remove={
+            existing
+              ? {
+                  label: 'Remove stay',
+                  question: `Remove ${existing.name}?`,
+                  detail: 'Your plans stay; the days just won’t start and end there.',
+                  onConfirm: () => remove.mutate(),
+                  pending: remove.isPending,
+                  pendingLabel: 'Removing…',
+                }
+              : undefined
+          }
+        />
+      }>
+      {!existing ? (
+        <FormSection title="Start from" description="Let Triplet fill it in from your booking, or from a hotel you saved.">
           <View style={styles.starters}>
             <Pressable
               accessibilityRole="button"
@@ -277,8 +282,10 @@ function StayForm({
               </View>
             ) : null}
           </View>
-        ) : null}
+        </FormSection>
+      ) : null}
 
+      <FormSection title="Hotel" description="Pick it from the suggestions or the map, so the days can start and end there.">
         {notes.length ? (
           <View style={styles.notes}>
             {notes.map((note) => (
@@ -323,6 +330,9 @@ function StayForm({
           </View>
         ) : null}
 
+      </FormSection>
+
+      <FormSection title="Nights" description="Days start at the hotel you slept in, and end at the one you sleep in.">
         <Controller
           control={control}
           name="checkIn"
@@ -368,6 +378,10 @@ function StayForm({
           )}
         />
 
+      </FormSection>
+
+      <FormSection title="Booking">
+        <FieldRow>
         <Controller
           control={control}
           name="cost"
@@ -403,40 +417,13 @@ function StayForm({
           )}
         />
 
-        <Button label={existing ? 'Save' : 'Add stay'} loading={save.isPending} onPress={onSubmit} />
-
-        {existing ? (
-          confirmDelete ? (
-            <View style={styles.confirm}>
-              <Text style={styles.confirmText}>
-                Remove {existing.name}? Your plans stay; the days just won’t start and end there.
-              </Text>
-              <View style={styles.confirmButtons}>
-                <Button label="Keep" variant="secondary" onPress={() => setConfirmDelete(false)} style={styles.flex} />
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={remove.isPending}
-                  onPress={() => remove.mutate()}
-                  style={[styles.deleteButton, styles.flex]}>
-                  <Text style={styles.deleteLabel}>{remove.isPending ? 'Removing…' : 'Remove'}</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(true)} style={styles.deleteLink}>
-              <Text style={styles.deleteLinkLabel}>Remove stay</Text>
-            </Pressable>
-          )
-        ) : null}
-      </View>
-    </Screen>
+        </FieldRow>
+      </FormSection>
+    </FormScreen>
   );
 }
 
 const useStyles = makeStyles((colors) => ({
-  container: {
-    gap: 20,
-  },
   loading: {
     marginTop: spacing.xl,
   },
@@ -584,46 +571,5 @@ const useStyles = makeStyles((colors) => ({
   },
   dayNumberSelected: {
     color: colors.onAccent,
-  },
-  confirm: {
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: 12,
-    backgroundColor: colors.dangerSoft,
-  },
-  confirmText: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.dangerText,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  flex: {
-    flex: 1,
-  },
-  deleteButton: {
-    minHeight: 52,
-    borderRadius: radii.button,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    color: colors.onDanger,
-  },
-  deleteLink: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLinkLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    color: colors.dangerText,
   },
 }));

@@ -5,8 +5,8 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, type Schemas } from '@/api/client';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FormMessage } from '@/components/screen';
+import { FormScreen } from '@/components/form-layout';
 import { Muted } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
@@ -60,9 +60,8 @@ export default function AskScreen() {
   };
 
   return (
-    <Screen scroll={false}>
+    <FormScreen title="Ask about this trip" scroll={false}>
       <View style={styles.container}>
-        <ScreenHeader title="Ask about this trip" icon="close" />
 
         <ScrollView
           ref={scroll}
@@ -153,7 +152,7 @@ export default function AskScreen() {
           </Pressable>
         </View>
       </View>
-    </Screen>
+    </FormScreen>
   );
 }
 

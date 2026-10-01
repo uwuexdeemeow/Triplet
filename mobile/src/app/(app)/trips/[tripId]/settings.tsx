@@ -8,8 +8,8 @@ import { tripKeys, useMe, useMembers, useTrip, type Trip } from '@/api/trips';
 import { Button } from '@/components/button';
 import { CurrencyField } from '@/components/currency-field';
 import { DestinationField, type PickedDestination } from '@/components/destination-field';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FormScreen, FormSection, useFormDialog, useInDialog } from '@/components/form-layout';
+import { FormMessage } from '@/components/screen';
 import { Muted } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -27,17 +27,15 @@ export default function TripSettingsScreen() {
   const members = useMembers(id);
 
   const role = members.data?.find((member) => member.user_id === me.data?.id)?.role;
+  // Dialog sections space themselves out
+  const dialog = useFormDialog();
 
+  // Each part saves on its own, so there's no footer to save the lot
   return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title="Trip settings" icon="close" />
+    <FormScreen title="Trip settings" subtitle={trip.data?.title} size="wide" message={trip.isError ? trip.error.message : null}>
+      <View style={dialog ? null : styles.container}>
         {!trip.data || !role ? (
-          trip.isError ? (
-            <FormMessage message={trip.error.message} />
-          ) : (
-            <ActivityIndicator color={colors.accent} style={styles.loading} />
-          )
+          trip.isError ? null : <ActivityIndicator color={colors.accent} style={styles.loading} />
         ) : (
           <>
             {/* Owners and members can rename, viewers can only look */}
@@ -51,7 +49,7 @@ export default function TripSettingsScreen() {
           </>
         )}
       </View>
-    </Screen>
+    </FormScreen>
   );
 }
 
@@ -162,6 +160,8 @@ function TripDetails({ trip }: { trip: Trip }) {
     sameDestinations(destinations, startingDestinations(trip));
 
   return (
+    <>
+    <FormSection title="Trip details" description="Everyone on the trip sees changes straight away.">
     <View style={styles.section}>
       <FormMessage message={errors.form ?? null} />
       <TextField
@@ -205,7 +205,13 @@ function TripDetails({ trip }: { trip: Trip }) {
       />
       {saved ? <FormMessage tone="success" message="Saved. Everyone on the trip sees the change." /> : null}
       <Button label="Save changes" loading={save.isPending} disabled={unchanged} onPress={submit} />
+    </View>
+    </FormSection>
 
+    <FormSection
+      title="Currency"
+      description="Changing it converts the budget, expenses, plan costs and paybacks at today’s rate.">
+    <View style={styles.section}>
       <CurrencyField
         label="Currency"
         value={pendingCurrency ?? trip.currency}
@@ -244,6 +250,8 @@ function TripDetails({ trip }: { trip: Trip }) {
       ) : null}
       {convertedAt ? <FormMessage tone="success" message={`Converted at ${convertedAt}.`} /> : null}
     </View>
+    </FormSection>
+    </>
   );
 }
 
@@ -261,6 +269,7 @@ function expiryDate(expiry: Expiry, trip: Trip): string | null {
 // the trip code typed in at /shared with the PIN. They only see it, unless the owner lets them edit.
 function ShareTrip({ trip }: { trip: Trip }) {
   const styles = useStyles();
+  const dialog = useInDialog();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const key = ['trips', trip.id, 'guest-access'];
@@ -349,13 +358,18 @@ function ShareTrip({ trip }: { trip: Trip }) {
   // "https://triplet.example" from ".../shared/K7Q2M9XA": where the code can be typed in
   const site = current ? current.url.replace(/\/shared\/.*$/, '') : '';
 
+  const explanation =
+    'Send a link, or a code, and a PIN so people without Triplet can see the plan. They can’t change it unless you let them, and a new code stops the old one working.';
+
   return (
+    <FormSection title="Share this trip" description={explanation}>
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Share this trip</Text>
-      <Muted>
-        Send a link, or a code, and a PIN so people without Triplet can see the plan. They can’t change it unless you let
-        them, and a new code stops the old one working.
-      </Muted>
+      {dialog ? null : (
+        <>
+          <Text style={styles.sectionTitle}>Share this trip</Text>
+          <Muted>{explanation}</Muted>
+        </>
+      )}
 
       {access.isPending ? (
         <ActivityIndicator color={colors.accent} />
@@ -494,11 +508,13 @@ function ShareTrip({ trip }: { trip: Trip }) {
         </View>
       )}
     </View>
+    </FormSection>
   );
 }
 
 function DeleteTrip({ trip }: { trip: Trip }) {
   const styles = useStyles();
+  const dialog = useInDialog();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -522,8 +538,9 @@ function DeleteTrip({ trip }: { trip: Trip }) {
       : (remove.error?.message ?? null);
 
   return (
+    <FormSection title="Delete trip" description="For everyone on it. This can’t be undone.">
     <View style={styles.danger}>
-      <Text style={styles.dangerTitle}>Delete trip</Text>
+      {dialog ? null : <Text style={styles.dangerTitle}>Delete trip</Text>}
       <Text style={styles.dangerText}>
         This deletes the trip for everyone on it: its plan, saved posts and places, expenses and the list of people. It
         can’t be undone.
@@ -570,6 +587,7 @@ function DeleteTrip({ trip }: { trip: Trip }) {
         </Pressable>
       )}
     </View>
+    </FormSection>
   );
 }
 

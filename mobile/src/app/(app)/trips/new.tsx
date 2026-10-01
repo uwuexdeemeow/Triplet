@@ -7,13 +7,11 @@ import { StyleSheet, View } from 'react-native';
 
 import { api, type Schemas } from '@/api/client';
 import { tripKeys, type Trip } from '@/api/trips';
-import { Button } from '@/components/button';
 import { CurrencyField } from '@/components/currency-field';
 import { DateField } from '@/components/date-time-field';
 import { DestinationField } from '@/components/destination-field';
 import { TripMap } from '@/components/place-map';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FormActions, FormScreen, FormSection } from '@/components/form-layout';
 import { TextField } from '@/components/text-field';
 import { radii, spacing } from '@/theme/tokens';
 import { addDays, todayString } from '@/utils/dates';
@@ -101,11 +99,11 @@ export default function NewTripScreen() {
   };
 
   return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title="New trip" icon="close" />
-        <FormMessage message={createTrip.error?.message ?? null} />
-
+    <FormScreen
+      title="New trip"
+      message={createTrip.error?.message ?? null}
+      actions={<FormActions label="Create trip" onSave={onSubmit} saving={createTrip.isPending} />}>
+      <FormSection title="Trip" description="Everyone you invite sees this name.">
         <Controller
           control={control}
           name="title"
@@ -122,6 +120,9 @@ export default function NewTripScreen() {
           )}
         />
 
+      </FormSection>
+
+      <FormSection title="Where" description="Each place you’re going. They help find the right places when you save TikToks.">
         <Controller
           control={control}
           name="destinations"
@@ -138,6 +139,16 @@ export default function NewTripScreen() {
           )}
         />
 
+        {pins.length ? (
+          // Just a preview, at the end so adding places doesn't move the fields below them.
+          // The trip's own map is the one to explore.
+          <View style={styles.map} pointerEvents="none" accessibilityLabel={`Map of ${destinations.map((place) => place.name).join(', ')}`}>
+            <TripMap places={[]} selectedId={null} onSelect={() => {}} fallbackArea={pins} compact />
+          </View>
+        ) : null}
+      </FormSection>
+
+      <FormSection title="When">
         <View style={styles.row}>
           <Controller
             control={control}
@@ -169,6 +180,9 @@ export default function NewTripScreen() {
           />
         </View>
 
+      </FormSection>
+
+      <FormSection title="Budget" description="Optional. The Budget tab tracks spending against it.">
         <View style={styles.row}>
           <View style={styles.budget}>
             <Controller
@@ -208,24 +222,12 @@ export default function NewTripScreen() {
           </View>
         </View>
 
-        {pins.length ? (
-          // Just a preview, at the end so adding places doesn't move the fields below them.
-          // The trip's own map is the one to explore.
-          <View style={styles.map} pointerEvents="none" accessibilityLabel={`Map of ${destinations.map((place) => place.name).join(', ')}`}>
-            <TripMap places={[]} selectedId={null} onSelect={() => {}} fallbackArea={pins} compact />
-          </View>
-        ) : null}
-
-        <Button label="Create trip" loading={createTrip.isPending} onPress={onSubmit} />
-      </View>
-    </Screen>
+      </FormSection>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    gap: 20,
-  },
   row: {
     flexDirection: 'row',
     gap: spacing.md,

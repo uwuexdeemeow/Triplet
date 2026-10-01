@@ -8,14 +8,12 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useItinerary, useTrip, type ItineraryActivity, type Trip } from '@/api/trips';
-import { Button } from '@/components/button';
 import { TimeRangeField } from '@/components/time-range-field';
 import { LocationField, type Pin } from '@/components/location-field';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FieldRow, FormActions, FormScreen, FormSection } from '@/components/form-layout';
 import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
-import { fonts, radii, spacing } from '@/theme/tokens';
+import { fonts, spacing } from '@/theme/tokens';
 import { activitySchema, parseAmount, type ActivityValues } from '@/trips/validation';
 import { activityClock, dayOfMonth, eachDay, toActivityTime, weekdayShort } from '@/utils/dates';
 
@@ -50,28 +48,14 @@ export default function ActivityScreen() {
   const title = editing ? 'Edit plan' : 'Add activity';
 
   if (editing && itinerary.isSuccess && !found) {
-    return (
-      <Screen>
-        <View style={styles.container}>
-          <ScreenHeader title={title} icon="close" />
-          <FormMessage message="This plan couldn’t be found. It may have been deleted." />
-        </View>
-      </Screen>
-    );
+    return <FormScreen title={title} message="This plan couldn’t be found. It may have been deleted." />;
   }
 
   if (!trip.data || (editing && !found)) {
     return (
-      <Screen>
-        <View style={styles.container}>
-          <ScreenHeader title={title} icon="close" />
-          {trip.isError ? (
-            <FormMessage message={trip.error.message} />
-          ) : (
-            <ActivityIndicator color={colors.accent} style={styles.loading} />
-          )}
-        </View>
-      </Screen>
+      <FormScreen title={title} message={trip.isError ? trip.error.message : null}>
+        {trip.isError ? null : <ActivityIndicator color={colors.accent} style={styles.loading} />}
+      </FormScreen>
     );
   }
 
@@ -93,7 +77,6 @@ function ActivityForm({
   const id = trip.id;
   const queryClient = useQueryClient();
   const activity = existing?.activity;
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const tripDays = trip.start_date && trip.end_date ? eachDay(trip.start_date, trip.end_date) : [];
   // Keep a plan's own day selectable even if the trip's dates have since changed
@@ -180,11 +163,28 @@ function ActivityForm({
       : (error?.message ?? null);
 
   return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title={activity ? 'Edit plan' : 'Add activity'} icon="close" />
-        <FormMessage message={errorMessage} />
-
+    <FormScreen
+      title={activity ? 'Edit plan' : 'Add activity'}
+      message={errorMessage}
+      actions={
+        <FormActions
+          label={activity ? 'Save' : 'Add to plan'}
+          onSave={onSubmit}
+          saving={save.isPending}
+          remove={
+            activity
+              ? {
+                  label: 'Delete plan',
+                  question: `Delete ${activity.title}?`,
+                  detail: activity.place_id != null ? 'The saved place stays in the Saved tab.' : undefined,
+                  onConfirm: () => remove.mutate(),
+                  pending: remove.isPending,
+                }
+              : undefined
+          }
+        />
+      }>
+      <FormSection title="What and where" description="Pick the place from the suggestions or the map, so travel times work.">
         <Controller
           control={control}
           name="title"
@@ -228,7 +228,9 @@ function ActivityForm({
             </Text>
           </View>
         ) : null}
+      </FormSection>
 
+      <FormSection title="Day and time">
         <Controller
           control={control}
           name="day"
@@ -271,6 +273,10 @@ function ActivityForm({
           )}
         />
 
+      </FormSection>
+
+      <FormSection title="Cost" description="Roughly, for the whole group. It goes in the trip’s cost estimate.">
+        <FieldRow columns={2}>
         <Controller
           control={control}
           name="estimatedCost"
@@ -287,89 +293,16 @@ function ActivityForm({
           )}
         />
 
-        <Button label={activity ? 'Save' : 'Add to plan'} loading={save.isPending} onPress={onSubmit} />
-
-        {activity ? (
-          confirmDelete ? (
-            <View style={styles.confirm}>
-              <Text style={styles.confirmText}>
-                Delete {activity.title}?{activity.place_id != null ? ' The saved place stays in the Saved tab.' : ''}
-              </Text>
-              <View style={styles.confirmButtons}>
-                <Button label="Keep" variant="secondary" onPress={() => setConfirmDelete(false)} style={styles.flex} />
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={remove.isPending}
-                  onPress={() => remove.mutate()}
-                  style={[styles.deleteButton, styles.flex]}>
-                  <Text style={styles.deleteLabel}>{remove.isPending ? 'Deleting…' : 'Delete'}</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(true)} style={styles.deleteLink}>
-              <Text style={styles.deleteLinkLabel}>Delete plan</Text>
-            </Pressable>
-          )
-        ) : null}
-      </View>
-    </Screen>
+        </FieldRow>
+      </FormSection>
+    </FormScreen>
   );
 }
 
 
 const useStyles = makeStyles((colors) => ({
-  container: {
-    gap: 20,
-  },
   loading: {
     marginTop: spacing.xl,
-  },
-  confirm: {
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: 12,
-    backgroundColor: colors.dangerSoft,
-  },
-  confirmText: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.dangerText,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  flex: {
-    flex: 1,
-  },
-  deleteButton: {
-    minHeight: 52,
-    borderRadius: radii.button,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    color: colors.onDanger,
-  },
-  deleteLink: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLinkLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    color: colors.dangerText,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    alignItems: 'flex-start',
   },
   noPin: {
     flexDirection: 'row',

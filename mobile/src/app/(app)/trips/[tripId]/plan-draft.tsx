@@ -7,8 +7,8 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { api, ApiError } from '@/api/client';
 import { tripKeys, type PlanDraft, type PlanDraftItem } from '@/api/trips';
 import { Button } from '@/components/button';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FormMessage } from '@/components/screen';
+import { FormActions, FormScreen, FormSection, useFormDialog } from '@/components/form-layout';
 import { Body, Muted } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
@@ -18,6 +18,8 @@ import { success } from '@/utils/haptics';
 // A suggested day and time for every saved place, to check and add in one go
 export default function PlanDraftScreen() {
   const styles = useStyles();
+  // In a dialog each day is a section, with the date beside its places
+  const dialog = useFormDialog();
   const { colors } = useTheme();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const id = Number(tripId);
@@ -74,9 +76,24 @@ export default function PlanDraftScreen() {
       : (apply.error?.message ?? null);
 
   return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title="Plan everyone’s saves" icon="close" />
+    <FormScreen
+      title="Plan everyone’s saves"
+      message={errorMessage}
+      actions={
+        draft.data ? (
+          draft.data.items.length > 0 ? (
+            <FormActions
+              label={kept.length === 0 ? 'Nothing ticked' : `Add ${kept.length} to the plan`}
+              disabled={kept.length === 0}
+              saving={apply.isPending}
+              onSave={() => apply.mutate(kept)}
+            />
+          ) : (
+            <FormActions label="Done" onSave={() => router.back()} />
+          )
+        ) : undefined
+      }>
+      <View style={dialog ? styles.dialogContent : styles.container}>
 
         {draft.isPending ? (
           <View style={styles.loading}>
@@ -90,7 +107,7 @@ export default function PlanDraftScreen() {
           </View>
         ) : (
           <>
-            <Body style={styles.intro}>
+            <Body style={[styles.intro, dialog && styles.dialogIntro]}>
               {draft.data.items.length === 0
                 ? 'Everything saved is already in the plan, or couldn’t fit.'
                 : `Here’s where ${draft.data.items.length === 1 ? 'it' : `the ${draft.data.items.length} places`} could go. Untick anything you don’t want, then add the rest. You can move plans afterwards.`}
@@ -100,8 +117,9 @@ export default function PlanDraftScreen() {
             </Body>
 
             {days.map((day) => (
-              <View key={day.date} style={styles.section}>
-                <Text style={styles.dayTitle}>{formatLongDate(day.date)}</Text>
+              <FormSection key={day.date} title={formatLongDate(day.date)}>
+              <View style={styles.section}>
+                {dialog ? null : <Text style={styles.dayTitle}>{formatLongDate(day.date)}</Text>}
                 {day.items.map((item) => {
                   const selected = !left.has(item.place_id);
                   return (
@@ -127,11 +145,13 @@ export default function PlanDraftScreen() {
                   );
                 })}
               </View>
+              </FormSection>
             ))}
 
             {draft.data.skipped.length > 0 ? (
+              <FormSection title="Not added" description="Saved, but there was no time that fit.">
               <View style={styles.section}>
-                <Text style={styles.dayTitle}>Not added</Text>
+                {dialog ? null : <Text style={styles.dayTitle}>Not added</Text>}
                 {draft.data.skipped.map((item) => (
                   <View key={item.place_id} style={styles.skipped}>
                     <Text style={styles.itemTitle}>{item.name}</Text>
@@ -139,23 +159,12 @@ export default function PlanDraftScreen() {
                   </View>
                 ))}
               </View>
+              </FormSection>
             ) : null}
-
-            <FormMessage message={errorMessage} />
-            {draft.data.items.length > 0 ? (
-              <Button
-                label={kept.length === 0 ? 'Nothing ticked' : `Add ${kept.length} to the plan`}
-                disabled={kept.length === 0}
-                loading={apply.isPending}
-                onPress={() => apply.mutate(kept)}
-              />
-            ) : (
-              <Button label="Done" variant="secondary" onPress={() => router.back()} />
-            )}
           </>
         )}
       </View>
-    </Screen>
+    </FormScreen>
   );
 }
 
@@ -167,6 +176,12 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.xxl,
+  },
+  dialogContent: {
+    gap: 0,
+  },
+  dialogIntro: {
+    paddingVertical: spacing.lg,
   },
   intro: {
     color: colors.muted,

@@ -18,9 +18,8 @@ import {
   type Expense,
   type Trip,
 } from '@/api/trips';
-import { Button } from '@/components/button';
-import { FormMessage, Screen } from '@/components/screen';
-import { ScreenHeader } from '@/components/screen-header';
+import { FieldRow, FormActions, FormScreen, FormSection } from '@/components/form-layout';
+import { FormMessage } from '@/components/screen';
 import { TextField } from '@/components/text-field';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
@@ -77,31 +76,26 @@ export default function ExpenseScreen() {
   const loading = !trip.data || (expenseId && expenses.isPending);
   const missing = expenseId && !expenses.isPending && !expense;
 
-  return (
-    <Screen>
-      <View style={styles.container}>
-        <ScreenHeader title={expenseId ? 'Edit expense' : 'Add expense'} icon="close" />
-        {missing ? (
-          <FormMessage message="This expense couldn’t be found. It may have been deleted." />
-        ) : loading || !trip.data ? (
-          <ActivityIndicator color={colors.accent} style={styles.loading} />
-        ) : (
-          // Mounted once the data is here, so the fields start with the right values
-          <ExpenseForm trip={trip.data} expense={expense} />
-        )}
-      </View>
-    </Screen>
-  );
+  const title = expenseId ? 'Edit expense' : 'Add expense';
+  if (missing) return <FormScreen title={title} message="This expense couldn’t be found. It may have been deleted." />;
+  if (loading || !trip.data) {
+    return (
+      <FormScreen title={title}>
+        <ActivityIndicator color={colors.accent} style={styles.loading} />
+      </FormScreen>
+    );
+  }
+  // Mounted once the data is here, so the fields start with the right values
+  return <ExpenseForm trip={trip.data} expense={expense} title={title} />;
 }
 
-function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefined }) {
+function ExpenseForm({ trip, expense, title }: { trip: Trip; expense: Expense | undefined; title: string }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const me = useMe();
   const members = useMembers(trip.id);
   const itinerary = useItinerary(trip.id);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const days = trip.start_date && trip.end_date ? eachDay(trip.start_date, trip.end_date) : [];
   const today = todayString();
@@ -217,9 +211,28 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
       : (error?.message ?? null);
 
   return (
-    <>
-      <FormMessage message={errorMessage} />
-
+    <FormScreen
+      title={title}
+      message={errorMessage}
+      actions={
+        <FormActions
+          label={expense ? 'Save' : 'Add expense'}
+          onSave={onSubmit}
+          saving={save.isPending}
+          remove={
+            expense
+              ? {
+                  label: 'Delete expense',
+                  question: `Delete ${expense.title} (${formatMoney(expense.amount, trip.currency)})?`,
+                  onConfirm: () => remove.mutate(),
+                  pending: remove.isPending,
+                }
+              : undefined
+          }
+        />
+      }>
+      <FormSection title="Expense">
+      <FieldRow>
       <Controller
         control={control}
         name="title"
@@ -251,6 +264,8 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
         )}
       />
 
+      </FieldRow>
+
       <Controller
         control={control}
         name="category"
@@ -278,6 +293,9 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
         )}
       />
 
+      </FormSection>
+
+      <FormSection title="When" description="Link it to a plan and it counts as that plan’s cost.">
       <Controller
         control={control}
         name="day"
@@ -358,6 +376,10 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
         />
       ) : null}
 
+      </FormSection>
+
+      {(members.data?.length ?? 0) > 1 || everyone.length > 1 ? (
+      <FormSection title="Who paid" description="Who paid, and how it’s shared, settles up in the Budget tab.">
       {(members.data?.length ?? 0) > 1 ? (
         <Controller
           control={control}
@@ -484,39 +506,13 @@ function ExpenseForm({ trip, expense }: { trip: Trip; expense: Expense | undefin
         </View>
       ) : null}
 
-      <Button label={expense ? 'Save' : 'Add expense'} loading={save.isPending} onPress={onSubmit} />
-
-      {expense ? (
-        confirmDelete ? (
-          <View style={styles.confirm}>
-            <Text style={styles.confirmText}>
-              Delete {expense.title} ({formatMoney(expense.amount, trip.currency)})?
-            </Text>
-            <View style={styles.confirmButtons}>
-              <Button label="Keep" variant="secondary" onPress={() => setConfirmDelete(false)} style={styles.flex} />
-              <Pressable
-                accessibilityRole="button"
-                disabled={remove.isPending}
-                onPress={() => remove.mutate()}
-                style={[styles.deleteButton, styles.flex]}>
-                <Text style={styles.deleteLabel}>{remove.isPending ? 'Deleting…' : 'Delete'}</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(true)} style={styles.deleteLink}>
-            <Text style={styles.deleteLinkLabel}>Delete expense</Text>
-          </Pressable>
-        )
+      </FormSection>
       ) : null}
-    </>
+    </FormScreen>
   );
 }
 
 const useStyles = makeStyles((colors) => ({
-  container: {
-    gap: 20,
-  },
   loading: {
     marginTop: spacing.xl,
   },
@@ -623,46 +619,5 @@ const useStyles = makeStyles((colors) => ({
   },
   dayNumberSelected: {
     color: colors.onAccent,
-  },
-  confirm: {
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: 12,
-    backgroundColor: colors.dangerSoft,
-  },
-  confirmText: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.dangerText,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  flex: {
-    flex: 1,
-  },
-  deleteButton: {
-    minHeight: 52,
-    borderRadius: radii.button,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    color: colors.onDanger,
-  },
-  deleteLink: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteLinkLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    color: colors.dangerText,
   },
 }));
