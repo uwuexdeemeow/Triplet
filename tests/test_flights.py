@@ -167,8 +167,8 @@ def test_budget_counts_flights(client, alice, trip, add_flight):
 
 def test_guests_see_flights_without_prices(client, alice, trip, add_flight):
     add_flight("HND", "SIN", "2026-10-05T21:40:00Z", "2026-10-06T04:30:00Z", cost=50000, confirmation="K7Q2LM")
-    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "1234"}).json()["access_code"]
-    token = client.post("/guest/access", json={"access_code": code, "pin": "1234"}).json()["access_token"]
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "123456"}).json()["access_code"]
+    token = client.post("/guest/access", json={"access_code": code, "pin": "123456"}).json()["access_token"]
 
     days = client.get("/guest/itinerary", headers={"Authorization": f"Bearer {token}"}).json()["days"]
 

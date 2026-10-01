@@ -14,7 +14,6 @@ from sqlalchemy.pool import StaticPool
 from config import settings
 from database import Base, connect_db
 from main import app
-from web_extractor import ArticleError
 
 PASSWORD = "Tr0ub4dor&3-horse-battery"
 
@@ -50,9 +49,6 @@ def no_external_calls(monkeypatch):
     monkeypatch.setattr(settings, "PRICE_LEVELS_ENABLED", False)
     monkeypatch.setattr("routers.links.fetch_metadata", lambda url, platform: None)
 
-    def no_articles(url):
-        raise ArticleError("Tests don't fetch web pages")
-    monkeypatch.setattr("routers.links.fetch_article", no_articles)
     # Rate limits have their own tests (test_security.py), which switch them back on
     monkeypatch.setattr(settings, "RATE_LIMITS_ENABLED", False)
 

@@ -91,7 +91,8 @@ def get_current_guest(
         TripGuestAccess.id == guest_id
     ).first()
 
-    if guest is None:
+    # Signed in with a code that has since been replaced
+    if guest is None or payload.get("code") != guest.access_code:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"

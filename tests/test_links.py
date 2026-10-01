@@ -5,7 +5,6 @@ import pytest
 from config import settings
 from link_parser import detect_platform, supported_link
 from video_extractor import ExtractionError, ExtractionResult, Place
-from web_extractor import Article
 
 TIKTOK_URL = "https://www.tiktok.com/@foodie/video/123"
 METADATA = {"title": "Best ramen in Tokyo", "author_name": "foodie", "thumbnail_url": "https://example.com/thumb.jpg"}
@@ -125,24 +124,20 @@ def test_without_gemini_fails_when_metadata_unavailable(client, alice, trip, sav
     assert link["status"] == "failed"
     assert link["error"] == "Could not fetch the post's details"
 
-def test_blog_links_saved_before_are_still_read_as_articles(client, alice, trip, saved_before, gemini_enabled):
-    article = Article(url="https://example.com/blog", title="Ramen in Tokyo", site_name=None, image_url=None, text="...")
-    with patch("routers.links.extract_from_video") as video, \
-         patch("routers.links.fetch_article", return_value=article), \
-         patch("routers.links.extract_from_text", return_value=EXTRACTION) as text:
+def test_blog_links_saved_before_are_kept_but_not_read(client, alice, trip, saved_before, gemini_enabled):
+    # Articles can't be saved any more; ones saved back then keep their places but aren't read again
+    with patch("routers.links.extract_from_video") as video:
         link = get_link(client, alice, trip, saved_before("https://example.com/blog"))
 
     assert link["status"] == "processed"
     video.assert_not_called()
-    text.assert_called_once()
 
 def test_google_maps_links_saved_before_are_processed_without_extraction(client, alice, trip, saved_before, gemini_enabled):
-    with patch("routers.links.extract_from_video") as video, patch("routers.links.extract_from_text") as text:
+    with patch("routers.links.extract_from_video") as video:
         link = get_link(client, alice, trip, saved_before("https://maps.app.goo.gl/abc"))
 
     assert link["status"] == "processed"
     video.assert_not_called()
-    text.assert_not_called()
 
 def test_video_extraction_saves_places(client, alice, trip, save_link, gemini_enabled):
     link = get_link(client, alice, trip, save_link())

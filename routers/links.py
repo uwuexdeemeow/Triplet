@@ -11,9 +11,8 @@ from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, Li
 from schemas import SavedLinkCreate, SavedLinkUpdate, SavedLinkResponse, LinkToActivity, ActivityResponse
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 import rate_limit
-from link_parser import detect_platform, fetch_metadata, post_key, ARTICLE, SCREENSHOT, VIDEO_PLATFORMS
-from video_extractor import extract_from_images, extract_from_text, extract_from_video, ExtractionError, ExtractionResult
-from web_extractor import fetch_article, ArticleError
+from link_parser import detect_platform, fetch_metadata, post_key, SCREENSHOT, VIDEO_PLATFORMS
+from video_extractor import extract_from_images, extract_from_video, ExtractionError, ExtractionResult
 from places_lookup import enrich_place
 from routers.activities import validate_activity
 from routers.users import avatar_content_type
@@ -49,20 +48,12 @@ def get_link_or_404(db: Session, trip_id: int, link_id: int) -> SavedLink:
     return link
 
 def read_places(db: Session, link: SavedLink) -> ExtractionResult:
-    """Find the places in a saved post, however it was saved: a video post, a screenshot or an article."""
+    """Find the places in a saved post, however it was saved: a video post or a screenshot."""
     if link.platform == SCREENSHOT:
         image = db.get(LinkImage, link.id)
         if image is None:
             raise ExtractionError("The screenshot is missing. Try adding it again.")
         return extract_from_images([image.data])
-    if link.platform == ARTICLE:
-        article = fetch_article(link.url)
-        # Articles have no oEmbed details, so take them from the page itself
-        link.title = link.title or (article.title or "")[:500] or None
-        link.author_name = link.author_name or (article.site_name or "")[:255] or None
-        link.thumbnail_url = link.thumbnail_url or (article.image_url or "")[:2048] or None
-        text = f"{article.title}\n\n{article.text}" if article.title else article.text
-        return extract_from_text(text, link.url)
     return extract_from_video(link.url)
 
 # Reading a post downloads it and hands it to the AI, which is what takes memory, so only a
@@ -95,11 +86,13 @@ def process_link(link_id: int):
             for field, value in metadata.items():
                 setattr(link, field, value)
 
-        reads_places = settings.GEMINI_API_KEY and link.platform in (*VIDEO_PLATFORMS, SCREENSHOT, ARTICLE)
+        # Other links saved back when they were allowed (Google Maps, blog posts) keep the places
+        # already found in them, but aren't read again
+        reads_places = settings.GEMINI_API_KEY and link.platform in (*VIDEO_PLATFORMS, SCREENSHOT)
         if reads_places:
             try:
                 result = read_places_in_turn(db, link)
-            except (ExtractionError, ArticleError) as e:
+            except ExtractionError as e:
                 link.status = "failed"
                 link.error = str(e)[:500]
             else:
@@ -163,13 +156,16 @@ def limit_link_processing(db: Session, membership: TripMembership):
     """Each save or re-check downloads a video and asks the AI about it, which costs money."""
     day = timedelta(days=1)
     person, everyone = f"link-saves:{membership.user_id}", "link-saves:all"
-    # Check both before counting either, so a refused save doesn't use up anyone's allowance
-    rate_limit.check(db, person, settings.LINK_SAVES_DAILY_LIMIT, day,
+    # Counted as they're checked, so saves sent all at once can't go past the limit; a refused
+    # save gives back what it counted, so it doesn't use up anyone's allowance
+    rate_limit.claim(db, person, settings.LINK_SAVES_DAILY_LIMIT, day,
                      "You've saved a lot of posts today. Try again tomorrow.")
-    rate_limit.check(db, everyone, settings.LINK_SAVES_DAILY_LIMIT_ALL, day,
-                     "Triplet has read as many posts as it can today. Try again tomorrow.")
-    rate_limit.record(db, person, day)
-    rate_limit.record(db, everyone, day)
+    try:
+        rate_limit.claim(db, everyone, settings.LINK_SAVES_DAILY_LIMIT_ALL, day,
+                         "Triplet has read as many posts as it can today. Try again tomorrow.")
+    except HTTPException:
+        rate_limit.release(db, person)
+        raise
 
 @router.post("", response_model=SavedLinkResponse, status_code=201)
 def create_link(

@@ -324,8 +324,8 @@ function ShareTrip({ trip }: { trip: Trip }) {
   });
 
   const submit = () => {
-    if (!/^[A-Za-z0-9]{4,12}$/.test(pin)) {
-      setPinError('Use 4 to 12 letters and numbers');
+    if (!/^[A-Za-z0-9]{6,12}$/.test(pin)) {
+      setPinError('Use 6 to 12 letters and numbers');
       return;
     }
     setPinError(null);
@@ -377,6 +377,13 @@ function ShareTrip({ trip }: { trip: Trip }) {
         <FormMessage message={access.error.message} />
       ) : current && !editing ? (
         <View style={styles.guestCard}>
+          {current.locked ? (
+            // Too many wrong PINs were tried: the link no longer works until there's a new one
+            <Text style={styles.guestLocked}>
+              Locked: someone tried too many wrong PINs, so this link and code no longer work. Make a new code and PIN
+              to share the trip again.
+            </Text>
+          ) : null}
           <Text style={styles.guestLabel}>Link</Text>
           <Text selectable style={styles.guestMeta}>
             {current.url}
@@ -444,7 +451,7 @@ function ShareTrip({ trip }: { trip: Trip }) {
         <View style={styles.section}>
           <TextField
             label="PIN for guests"
-            hint="4 to 12 letters and numbers. Capitals matter. Guests need it with the link or code."
+            hint="6 to 12 letters and numbers. Capitals matter. Guests need it with the link or code."
             autoCapitalize="none"
             autoCorrect={false}
             secureTextEntry
@@ -628,6 +635,12 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.muted,
+  },
+  guestLocked: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.dangerText,
   },
   guestPin: {
     fontFamily: fonts.bold,

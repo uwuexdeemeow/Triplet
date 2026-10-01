@@ -823,6 +823,28 @@
        "type": "integer",
        "title": "User Id"
       }
+     },
+     {
+      "name": "v",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "maxLength": 64,
+       "default": "",
+       "title": "V"
+      }
+     },
+     {
+      "name": "sig",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "maxLength": 64,
+       "default": "",
+       "title": "Sig"
+      }
      }
     ],
     "responses": {
@@ -7400,6 +7422,11 @@
      "url": {
       "type": "string",
       "title": "Url"
+     },
+     "locked": {
+      "type": "boolean",
+      "title": "Locked",
+      "default": false
      }
     },
     "type": "object",
@@ -7414,7 +7441,7 @@
     "properties": {
      "pin": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9]{4,12}$",
+      "pattern": "^[A-Za-z0-9]{6,12}$",
       "title": "Pin"
      },
      "expires_at": {
@@ -10669,20 +10696,6 @@
        }
       ],
       "title": "Password"
-     },
-     "avatar_url": {
-      "anyOf": [
-       {
-        "type": "string",
-        "maxLength": 2083,
-        "minLength": 1,
-        "format": "uri"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Avatar Url"
      },
      "current_password": {
       "anyOf": [

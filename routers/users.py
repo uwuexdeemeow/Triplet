@@ -1,4 +1,3 @@
-import hashlib
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import func
@@ -6,6 +5,7 @@ from sqlalchemy.orm import Session
 from database import connect_db
 from models import Trip, TripMembership, User, UserAvatar
 from schemas import AccountDelete, CodeRequest, MessageResponse, PasswordSet, UserResponse, UserPublic, UserUpdate
+import avatars
 import rate_limit
 from rate_limit import client_ip
 from security import hash_password, verify_password
@@ -80,9 +80,6 @@ def update_profile(
 
         current_user.name = name
 
-    if "avatar_url" in update_data:
-        avatar_url = update_data["avatar_url"]
-        current_user.avatar_url = str(avatar_url) if avatar_url is not None else None
 
     if update_data.get("password") is not None:
         email_prefix = current_user.email.split("@")[0]
@@ -109,6 +106,14 @@ def update_profile(
 
     db.commit()
 
+    if new_email is not None:
+        # A few codes an hour from one account, and to one address, so nobody can use their own
+        # account to flood someone else's inbox; past that, quietly send nothing more
+        try:
+            rate_limit.hit(db, f"email-change-user:{current_user.id}", EMAIL_CHANGE_LIMIT, EMAIL_CHANGE_WINDOW, "")
+            rate_limit.hit(db, f"email-change-to:{new_email}", EMAIL_CHANGE_LIMIT, EMAIL_CHANGE_WINDOW, "")
+        except HTTPException:
+            new_email = None
     if new_email is not None:
         verification.send_verification(db, background_tasks, current_user, new_email)
     if changing_email:
@@ -227,6 +232,10 @@ def delete_user(
     db.delete(current_user)
     db.commit()
 
+# Codes sent to confirm a new email, per account and per address
+EMAIL_CHANGE_LIMIT = 3
+EMAIL_CHANGE_WINDOW = timedelta(hours=1)
+
 # Under the API's 1 MB request limit; the app sends about 100 KB
 AVATAR_MAX_BYTES = 900 * 1024
 
@@ -268,9 +277,9 @@ async def upload_avatar(
     avatar.data = data
     avatar.updated_at = datetime.now(timezone.utc)
 
-    # The version changes with every upload, so apps don't keep showing a cached old photo
-    version = hashlib.sha256(data).hexdigest()[:12]
-    current_user.avatar_url = f"/users/{current_user.id}/avatar?v={version}"
+    # A signed address for this exact photo; it changes with every upload, so apps don't keep
+    # showing a cached old one
+    current_user.avatar_url = avatars.photo_path(current_user.id, avatars.photo_version(data))
 
     db.commit()
     db.refresh(current_user)
@@ -292,14 +301,17 @@ def delete_avatar(
 
     return current_user
 
-# Public, so image views can load it without a token; the URL changes when the photo does
+# No sign-in, so image views can load it, but only with the signed address of the current
+# photo (see avatars.py). Anything else looks like there's no photo.
 @router.get("/{user_id}/avatar")
 def get_avatar(
     user_id: int,
+    v: str = Query(default="", max_length=64),
+    sig: str = Query(default="", max_length=64),
     db: Session = Depends(connect_db)
 ):
     avatar = db.get(UserAvatar, user_id)
-    if avatar is None:
+    if avatar is None or not avatars.valid(user_id, v, sig, avatar.data):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No photo"

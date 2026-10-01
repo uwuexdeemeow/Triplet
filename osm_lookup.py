@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from config import settings
+from limited_read import read_limited
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 
@@ -52,7 +53,7 @@ def nominatim_search(query: str, limit: int = 5) -> list[dict]:
     _wait_for_turn()
     try:
         with urlopen(request, timeout=15) as response:
-            results = json.loads(response.read().decode("utf-8"))
+            results = json.loads(read_limited(response, 2_000_000).decode("utf-8"))
     except (OSError, ValueError) as e:
         raise OsmError("Could not reach OpenStreetMap") from e
 

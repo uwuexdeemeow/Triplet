@@ -1,6 +1,7 @@
 import json
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
+from limited_read import read_limited
 
 PLATFORM_DOMAINS = {
     "tiktok": ["tiktok.com"],
@@ -11,8 +12,6 @@ PLATFORM_DOMAINS = {
 
 # Platforms whose links point at a video that can be downloaded and analysed
 VIDEO_PLATFORMS = ["tiktok", "youtube", "instagram"]
-# Any other web page, like a blog post or travel article: its text is read for places
-ARTICLE = "other"
 # An image someone uploaded instead of a link
 SCREENSHOT = "screenshot"
 
@@ -99,7 +98,7 @@ def fetch_metadata(url: str, platform: str, timeout: float = 5.0) -> dict | None
 
     try:
         with urlopen(request, timeout=timeout) as response:
-            data = json.loads(response.read().decode("utf-8"))
+            data = json.loads(read_limited(response, 1_000_000).decode("utf-8"))
     except (OSError, ValueError):
         return None
 

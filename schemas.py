@@ -54,7 +54,8 @@ class UserUpdate(BaseModel):
     name: ShortText | None = None
     email: Email | None = None
     password: Password | None = None
-    avatar_url: HttpUrl | None = None
+    # No avatar_url: a photo is uploaded (PUT /users/me/avatar), never a link to another site,
+    # which could log the address of everyone whose app shows it
     # Needed to change the email or password, so a stolen session can't take over the account
     current_password: str | None = Field(default=None, max_length=128)
 
@@ -136,8 +137,9 @@ class GuestAccessCreate(BaseModel):
     pin: Annotated[str, StringConstraints(max_length=12)]
 
 class GuestAccessSetup(BaseModel):
-    # Letters and numbers, and capitals matter
-    pin: str = Field(pattern=r"^[A-Za-z0-9]{4,12}$")
+    # Letters and numbers, and capitals matter. Six or more, so guessing is hopeless within the
+    # code's lifetime of wrong tries (see GUEST_LOCK_AFTER)
+    pin: str = Field(pattern=r"^[A-Za-z0-9]{6,12}$")
     expires_at: datetime | None = None
     show_costs: bool = False
     allow_edits: bool = False
@@ -155,6 +157,8 @@ class GuestAccessResponse(BaseModel):
     allow_edits: bool = False
     # The website address that asks for this code's PIN, for sharing
     url: str
+    # Too many wrong PINs were tried, so the code no longer works; a new code and PIN fixes it
+    locked: bool = False
 
 class GuestToken(Token):
     access_code: str

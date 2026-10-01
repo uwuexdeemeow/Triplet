@@ -85,8 +85,33 @@ def record(db: Session, key: str, window: timedelta):
 
 def hit(db: Session, key: str, limit: int, window: timedelta, message: str):
     """Count one attempt and refuse it if that goes over the limit."""
-    check(db, key, limit, window, message)
+    claim(db, key, limit, window, message)
+
+def claim(db: Session, key: str, limit: int, window: timedelta, message: str):
+    """
+    Count one attempt for `key` first, then refuse it if that's over the limit. Commits.
+
+    Counting before the slow part (checking a password or a code) means requests sent all at once
+    can't all slip through before any is counted, as they could if the count came after. If the
+    attempt turns out fine and shouldn't count, `release` gives it back.
+    """
+    if not settings.RATE_LIMITS_ENABLED:
+        return
     record(db, key, window)
+    row = db.query(RateLimit).filter(RateLimit.key == key).one()
+    db.refresh(row)
+    now = datetime.now(timezone.utc)
+    if row.count > limit and _remaining(row, window, now) > timedelta(0):
+        raise _too_many(_remaining(row, window, now), message)
+
+def release(db: Session, key: str):
+    """Give back one attempt counted by `claim`, e.g. when the password was right. Commits."""
+    if not settings.RATE_LIMITS_ENABLED:
+        return
+    db.query(RateLimit).filter(RateLimit.key == key, RateLimit.count > 0).update(
+        {"count": RateLimit.count - 1}, synchronize_session=False
+    )
+    db.commit()
 
 # Place searches go to shared free services (OpenStreetMap, Photon) that ban heavy users, so each
 # person gets a generous but finite number per minute. Suggestions fire as people type, so this

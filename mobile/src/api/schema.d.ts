@@ -2027,6 +2027,11 @@ export interface components {
             allow_edits: boolean;
             /** Url */
             url: string;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
         };
         /** GuestAccessSetup */
         GuestAccessSetup: {
@@ -3037,8 +3042,6 @@ export interface components {
             email?: string | null;
             /** Password */
             password?: string | null;
-            /** Avatar Url */
-            avatar_url?: string | null;
             /** Current Password */
             current_password?: string | null;
         };
@@ -3700,7 +3703,10 @@ export interface operations {
     };
     get_avatar_users__user_id__avatar_get: {
         parameters: {
-            query?: never;
+            query?: {
+                v?: string;
+                sig?: string;
+            };
             header?: never;
             path: {
                 user_id: number;

@@ -27,6 +27,15 @@ def _not_you() -> str:
 def _send(background_tasks: BackgroundTasks, to: str, name: str, subject: str, what_happened: str, advice: str):
     background_tasks.add_task(send_email, to, subject, f"Hi {name},\n\n{what_happened}\n\n{advice}")
 
+def guest_code_locked(background_tasks: BackgroundTasks, email: str, name: str, trip_title: str):
+    _send(
+        background_tasks, email, name, f"Your share link for {trip_title} was locked",
+        f"Someone tried too many wrong PINs on the share link for {trip_title}, so it no longer works."
+        " Guests who already opened it can still see the trip until their visit times out.",
+        "If you still want to share the trip, open its settings and make a new code and PIN; send "
+        "them only to people you trust."
+    )
+
 def password_changed(background_tasks: BackgroundTasks, email: str, name: str, how: str):
     """`how`: "changed", "reset" or "set", as in "Your Triplet password was changed"."""
     _send(background_tasks, email, name, f"Your Triplet password was {how}",

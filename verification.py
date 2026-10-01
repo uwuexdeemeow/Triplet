@@ -148,7 +148,7 @@ def send_verification(db: Session, background_tasks: BackgroundTasks, user: User
 
 def check_code(db: Session, row, purpose: str, code: str):
     """
-    Check an emailed code against its row, counting wrong tries. Commits on a wrong code.
+    Check an emailed code against its row, using up one of its tries. Commits.
     Raises a 400 that's safe to show when the code is wrong, expired or used up.
     """
     now = datetime.now(timezone.utc)
@@ -162,12 +162,24 @@ def check_code(db: Session, row, purpose: str, code: str):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="That code has expired. Ask for a new one."
         )
+    # Use up a try before checking, in one statement, so guesses sent all at once can't each see
+    # the same count and get more tries than allowed between them
+    model = type(row)
+    claimed = db.query(model).filter(
+        model.id == row.id, model.used_at.is_(None), model.attempts < codes.MAX_ATTEMPTS
+    ).update({"attempts": model.attempts + 1}, synchronize_session=False)
+    db.commit()
+    db.refresh(row)
+    if not claimed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That code has expired. Ask for a new one."
+        )
     if not codes.matches(purpose, row.id, code, row.token_hash):
-        row.attempts += 1
         left = codes.MAX_ATTEMPTS - row.attempts
         if left <= 0:
             row.used_at = now
-        db.commit()
+            db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"That code isn't right. {left} {'try' if left == 1 else 'tries'} left."

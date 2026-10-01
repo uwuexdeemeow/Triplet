@@ -2,27 +2,18 @@ import pytest
 
 from tests.conftest import PASSWORD, emailed_code
 
-def test_update_name_and_avatar(client, alice):
-    response = client.patch("/users/me", headers=alice["headers"], json={
-        "name": "alicia",
-        "avatar_url": "https://example.com/alicia.png"
-    })
+def test_update_name(client, alice):
+    response = client.patch("/users/me", headers=alice["headers"], json={"name": "alicia"})
 
     assert response.status_code == 200
     assert response.json()["name"] == "alicia"
-    assert response.json()["avatar_url"] == "https://example.com/alicia.png"
 
-def test_clear_avatar(client, alice):
-    client.patch("/users/me", headers=alice["headers"], json={"avatar_url": "https://example.com/alice.png"})
+def test_avatar_cant_be_a_link_to_another_site(client, alice):
+    # It would log the address of everyone whose app shows the photo
+    response = client.patch("/users/me", headers=alice["headers"], json={"avatar_url": "http://evil.example/x.png"})
 
-    response = client.patch("/users/me", headers=alice["headers"], json={"avatar_url": None})
-
+    assert response.status_code == 200
     assert response.json()["avatar_url"] is None
-
-def test_rejects_invalid_avatar_url(client, alice):
-    response = client.patch("/users/me", headers=alice["headers"], json={"avatar_url": "not a url"})
-
-    assert response.status_code == 422
 
 @pytest.mark.parametrize("name, saved", [
     ("Alex Smith", "Alex Smith"),

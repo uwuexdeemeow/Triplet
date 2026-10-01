@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from config import settings
 import osm_lookup
 from models import ApiUsage, ExtractedPlace
+from limited_read import read_limited
 
 logger = logging.getLogger("triplet.places")
 
@@ -45,7 +46,7 @@ def _request(url: str, field_mask: str, body: dict | None = None, timeout: float
 
     try:
         with urlopen(Request(url, data=data, headers=headers), timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+            return json.loads(read_limited(response, 2_000_000).decode("utf-8"))
     except HTTPError as e:
         if e.code == 429:
             raise PlacesQuotaError("Places API quota reached") from e

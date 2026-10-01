@@ -31,6 +31,52 @@ app = FastAPI(
 # Nothing the app sends is anywhere near this; bigger bodies are refused before they're read
 MAX_BODY_BYTES = 1_000_000
 
+class BodySizeLimit:
+    """
+    Stops reading a request body once it passes MAX_BODY_BYTES. The Content-Length check below
+    turns away most big requests up front, but a body sent in chunks has no length to check, and
+    would otherwise be read into memory whatever its size.
+
+    Past the limit, the body simply ends there (so nothing more is read), and whatever the app
+    answers to that cut-off body is replaced with 413 Request is too large.
+    """
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        received = 0
+        too_large = False
+
+        async def limited_receive():
+            nonlocal received, too_large
+            if too_large:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > MAX_BODY_BYTES:
+                    too_large = True
+                    return {"type": "http.request", "body": b"", "more_body": False}
+            return message
+
+        async def checked_send(message):
+            if not too_large:
+                return await send(message)
+            if message["type"] == "http.response.start":
+                body = b'{"detail":"Request is too large"}'
+                await send({
+                    "type": "http.response.start",
+                    "status": status.HTTP_413_CONTENT_TOO_LARGE,
+                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+                })
+                await send({"type": "http.response.body", "body": body, "more_body": False})
+            # The app's own answer to the cut-off body is dropped
+
+        await self.app(scope, limited_receive, checked_send)
+
+
 @app.middleware("http")
 async def guard_requests(request: Request, call_next):
     length = request.headers.get("content-length")
@@ -56,6 +102,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type", "X-Refresh-Cookie"],
 )
+
+app.add_middleware(BodySizeLimit)
 
 app.include_router(auth.router)
 app.include_router(users.router)

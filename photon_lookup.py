@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from config import settings
+from limited_read import read_limited
 
 # Photon searches OpenStreetMap data and, unlike Nominatim, is built for search-as-you-type,
 # so the "Where" field's suggestions use it. Data © OpenStreetMap contributors.
@@ -40,7 +41,7 @@ def photon_request(params: dict, url: str = PHOTON_URL) -> list[dict]:
     request = Request(f"{url}?{urlencode(params, doseq=True)}", headers={"User-Agent": settings.OSM_USER_AGENT})
     try:
         with urlopen(request, timeout=8) as response:
-            data = json.loads(response.read().decode("utf-8"))
+            data = json.loads(read_limited(response, 2_000_000).decode("utf-8"))
     except (OSError, ValueError) as e:
         raise PhotonError("Could not reach the place search") from e
 

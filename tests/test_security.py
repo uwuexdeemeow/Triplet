@@ -78,13 +78,13 @@ def test_reset_emails_are_capped_quietly(client, alice, limits_on, monkeypatch):
     assert len(sent) == 3
 
 def test_guest_pin_guesses_are_limited(client, alice, trip, limits_on):
-    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "1234"}).json()["access_code"]
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "123456"}).json()["access_code"]
 
-    for guess in ("0000", "1111", "2222", "3333", "4444"):
+    for guess in ("000000", "111111", "222222", "333333", "444444"):
         assert client.post("/guest/access", json={"access_code": code, "pin": guess}).status_code == 401
 
     # Even the right PIN has to wait now
-    assert client.post("/guest/access", json={"access_code": code, "pin": "1234"}).status_code == 429
+    assert client.post("/guest/access", json={"access_code": code, "pin": "123456"}).status_code == 429
 
 def test_link_saves_are_capped_per_day(client, alice, trip, limits_on, monkeypatch):
     monkeypatch.setattr(settings, "LINK_SAVES_DAILY_LIMIT", 2)
@@ -250,3 +250,117 @@ def test_several_google_client_ids(monkeypatch):
     monkeypatch.setenv("GOOGLE_CLIENT_IDS", "web-id, android-id")
 
     assert Settings(DB_SETTINGS="sqlite://", SECRET_KEY="k" * 40).GOOGLE_CLIENT_IDS == ["web-id", "android-id"]
+
+# ---------- Fixes from the security review (SECURITY-REVIEW-FINDINGS.md) ----------
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+def test_photos_need_their_signed_address(client, alice):
+    # 1.1: ids are sequential, so an unsigned address would let anyone download every photo
+    url = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("me.png", PNG, "image/png")}).json()["avatar_url"]
+    assert "&sig=" in url
+    assert client.get(url).status_code == 200
+
+    path, query = url.split("?")
+    version = query.split("&")[0]
+    assert client.get(path).status_code == 404
+    assert client.get(f"{path}?{version}").status_code == 404
+    assert client.get(f"{path}?{version}&sig={'0' * 32}").status_code == 404
+
+def test_an_old_photo_address_stops_working(client, alice):
+    old = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("a.png", PNG, "image/png")}).json()["avatar_url"]
+    new = client.put("/users/me/avatar", headers=alice["headers"], files={"file": ("b.png", PNG + b"x", "image/png")}).json()["avatar_url"]
+
+    assert client.get(old).status_code == 404
+    assert client.get(new).status_code == 200
+
+def test_a_new_guest_code_signs_out_guests_of_the_old_one(client, alice, trip):
+    # 1.2
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "123456"}).json()["access_code"]
+    token = client.post("/guest/access", json={"access_code": code, "pin": "123456"}).json()["access_token"]
+    guest = {"Authorization": f"Bearer {token}"}
+    assert client.get("/guest/trip", headers=guest).status_code == 200
+
+    client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "654321"})
+
+    assert client.get("/guest/trip", headers=guest).status_code == 401
+
+def test_changing_guest_settings_keeps_guests_signed_in(client, alice, trip):
+    # Only a new code ends guest visits, not turning costs on or off
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "123456"}).json()["access_code"]
+    token = client.post("/guest/access", json={"access_code": code, "pin": "123456"}).json()["access_token"]
+
+    client.patch(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"show_costs": True})
+
+    assert client.get("/guest/trip", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+
+def test_a_single_payer_must_be_on_the_trip(client, alice, eve, trip):
+    # 1.3
+    response = client.post(f"/trips/{trip['id']}/expenses", headers=alice["headers"], json={
+        "title": "Dinner", "amount": 10, "payments": [{"user_id": eve["id"], "amount": 10}]
+    })
+
+    assert response.status_code == 400
+
+def test_guest_codes_lock_after_too_many_wrong_pins(client, alice, trip, outbox, monkeypatch):
+    # 1.8: the rate limit only slows guessing; this stops it, and tells the owner
+    import routers.guest
+    monkeypatch.setattr(routers.guest, "GUEST_LOCK_AFTER", 3)
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "123456"}).json()["access_code"]
+
+    for guess in ("000000", "111111"):
+        assert client.post("/guest/access", json={"access_code": code, "pin": guess}).json()["detail"] == "Invalid credentials"
+    locking = client.post("/guest/access", json={"access_code": code, "pin": "222222"})
+
+    assert locking.status_code == 401
+    assert "locked" in locking.json()["detail"]
+    # Even the right PIN doesn't work now
+    assert "locked" in client.post("/guest/access", json={"access_code": code, "pin": "123456"}).json()["detail"]
+    assert client.get(f"/trips/{trip['id']}/guest-access", headers=alice["headers"]).json()["locked"] is True
+    assert [to for to, subject, _ in outbox if "locked" in subject] == [alice["email"]]
+
+    # A new code and PIN starts again
+    fresh = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "333333"}).json()
+    assert fresh["locked"] is False
+    assert client.post("/guest/access", json={"access_code": fresh["access_code"], "pin": "333333"}).status_code == 200
+
+def test_emailed_code_tries_run_out(client, outbox):
+    # 1.6: each try is used up before the code is checked
+    response = client.post("/auth/signup", json={"name": "zed", "email": "zed@example.com", "password": PASSWORD})
+    token = response.json()["signup_token"]
+    right = emailed_code(outbox, "zed@example.com")
+    wrong = "000000" if right != "000000" else "111111"
+
+    for _ in range(5):
+        assert client.post("/auth/verify-email/code", json={"signup_token": token, "code": wrong}).status_code == 400
+    # Used up, so even the right code is refused
+    assert client.post("/auth/verify-email/code", json={"signup_token": token, "code": right}).status_code == 400
+
+def test_a_burst_of_logins_cant_go_past_the_limit(client, alice, limits_on):
+    # 1.6: attempts are counted before the password is checked, so the limit holds even for
+    # requests that all start before any finishes (here, one after another is the same check)
+    statuses = [login(client, alice["email"], "wrong password").status_code for _ in range(8)]
+
+    assert statuses[:5] == [401] * 5
+    assert set(statuses[5:]) == {429}
+
+def test_a_good_login_doesnt_use_up_the_limit(client, alice, limits_on):
+    for _ in range(10):
+        assert login(client, alice["email"], PASSWORD).status_code == 200
+
+def test_chunked_bodies_are_capped_too(client):
+    # 1.7: a body with no Content-Length is cut off at the limit instead of read whole
+    def chunks():
+        for _ in range(3):
+            yield b"x" * 600_000
+
+    response = client.post("/auth/login", content=chunks(), headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 413
+
+def test_small_chunked_bodies_still_work(client, alice):
+    body = f'{{"email": "{alice["email"]}", "password": "{PASSWORD}"}}'.encode()
+
+    response = client.post("/auth/login", content=(part for part in (body[:10], body[10:])), headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 200

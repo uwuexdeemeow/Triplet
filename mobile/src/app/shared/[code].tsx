@@ -115,6 +115,7 @@ function PinStep({ code, title, onToken }: { code: string; title: string; onToke
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
+    // New PINs are 6 or more, but links shared before then can have 4
     if (!/^[A-Za-z0-9]{4,12}$/.test(pin)) {
       setError({ field: 'The PIN is 4 to 12 letters and numbers' });
       return;
@@ -135,7 +136,10 @@ function PinStep({ code, title, onToken }: { code: string; title: string; onToke
           err instanceof ApiError && err.status === 401
             ? err.message === 'Guest access has expired'
               ? 'This link has run out. Ask the trip owner for a new one.'
-              : 'That PIN isn’t right.'
+              : err.message.includes('locked')
+                ? // Too many wrong PINs: the server's message says to ask for a new link
+                  err.message
+                : 'That PIN isn’t right.'
             : err instanceof Error
               ? err.message
               : 'Something went wrong.',

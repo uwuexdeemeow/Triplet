@@ -179,8 +179,8 @@ def test_budget_counts_each_nights_share(client, alice, trip, add_stay):
 
 def test_guests_see_where_days_start_and_end(client, alice, trip, add_stay):
     add_stay("Hotel Gracery", "2026-10-01", "2026-10-03", pin=SHINJUKU, confirmation="SECRET-1")
-    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "1234"}).json()["access_code"]
-    token = client.post("/guest/access", json={"access_code": code, "pin": "1234"}).json()["access_token"]
+    code = client.put(f"/trips/{trip['id']}/guest-access", headers=alice["headers"], json={"pin": "123456"}).json()["access_code"]
+    token = client.post("/guest/access", json={"access_code": code, "pin": "123456"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     days = {day["date"]: day for day in client.get("/guest/itinerary", headers=headers).json()["days"]}

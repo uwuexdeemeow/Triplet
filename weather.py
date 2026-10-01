@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from config import settings
+from limited_read import read_limited
 
 logger = logging.getLogger("triplet.weather")
 
@@ -54,7 +55,7 @@ def _fetch(lat: float, lon: float) -> dict[str, dict]:
     })
     request = Request(f"{FORECAST_URL}?{query}", headers={"User-Agent": settings.OSM_USER_AGENT})
     with urlopen(request, timeout=4) as response:
-        daily = json.load(response)["daily"]
+        daily = json.loads(read_limited(response, 1_000_000))["daily"]
 
     days = {}
     for i, day in enumerate(daily["time"]):

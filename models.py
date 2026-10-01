@@ -894,6 +894,20 @@ class TripGuestAccess(Base):
         server_default=false()
     )
 
+    # Wrong PINs tried with this code, ever. The rate limit only slows guessing down; this stops it
+    failed_pins: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0"
+    )
+
+    # Set once too many wrong PINs were tried: the code stops working until the owner makes a new one
+    locked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
 class TripInvitation(Base):
     __tablename__ = "trip_invitations"
 

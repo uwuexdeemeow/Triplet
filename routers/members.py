@@ -16,6 +16,10 @@ router = APIRouter(
 
 INVITE_LIMIT = 30
 INVITE_WINDOW = timedelta(hours=1)
+# Invite emails one address can get a day, from everyone together. Each one carries a trip title
+# the sender typed, so without this anyone could keep inviting a stranger to send them spam
+INVITE_EMAILS_PER_ADDRESS = 5
+INVITE_EMAILS_WINDOW = timedelta(days=1)
 
 def count_owners(db: Session, trip_id: int) -> int:
     return db.query(TripMembership).filter(
@@ -196,7 +200,12 @@ def create_invitation(
     db.commit()
     db.refresh(invitation)
 
-    # Everyone invited gets an email: people on Triplet as a heads-up, others to join
+    # Everyone invited gets an email: people on Triplet as a heads-up, others to join. Past a few a
+    # day to one address the invitation is still made (it's in the app), just not emailed.
+    try:
+        rate_limit.hit(db, f"invite-email:{email.lower()}", INVITE_EMAILS_PER_ADDRESS, INVITE_EMAILS_WINDOW, "")
+    except HTTPException:
+        return invitation
     if invitee is not None:
         next_step = f"Open Triplet to join: {settings.APP_URL}/invites"
     else:

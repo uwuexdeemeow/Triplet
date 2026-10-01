@@ -117,6 +117,8 @@ def apply_payments(db: Session, trip_id: int, expense: Expense, payments: list[E
     """
     if len(payments) <= 1:
         if payments:
+            if payments[0].user_id not in member_ids(db, trip_id):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Payer must be a member of the trip")
             expense.paid_by_id = payments[0].user_id
         expense.payments = []
         return

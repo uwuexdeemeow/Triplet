@@ -12,6 +12,7 @@ import time
 from urllib.request import Request, urlopen
 
 from config import settings
+from limited_read import read_limited
 
 logger = logging.getLogger("triplet.rates")
 
@@ -39,7 +40,7 @@ def parse_currency_api(payload: dict) -> dict[str, float]:
 def _get(url: str) -> dict:
     request = Request(url, headers={"User-Agent": settings.OSM_USER_AGENT})
     with urlopen(request, timeout=4) as response:
-        return json.load(response)
+        return json.loads(read_limited(response, 1_000_000))
 
 def _fetch() -> tuple[dict[str, float], str]:
     """Rates and the name of the source that gave them. Raises if neither source answers."""

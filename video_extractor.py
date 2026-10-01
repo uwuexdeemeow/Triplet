@@ -15,6 +15,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from config import settings
+from limited_read import read_limited
 
 PlaceCategory = Literal["food", "cafe", "bar", "nightlife", "attraction", "nature", "shopping", "accommodation", "activity", "other"]
 
@@ -45,9 +46,9 @@ logger = logging.getLogger("triplet.extractor")
 
 PROMPT = """You are helping a traveller turn a short travel post into trip plans.
 
-The post is a video, a photo slideshow, a screenshot, or a web article. Watch the video and listen to the
-audio, look at every image in order, or read the article. Use the speech, the on-screen text and the caption or
-article text below to list every real place the post recommends or shows that someone could visit, e.g.
+The post is a video, a photo slideshow or a screenshot. Watch the video and listen to the audio, or look at
+every image in order. Use the speech, the on-screen text and the caption below to list every real place the
+post recommends or shows that someone could visit, e.g.
 restaurants, cafes, attractions, shops, hotels or viewpoints.
 
 Rules:
@@ -61,7 +62,7 @@ Rules:
 - summary is one or two sentences describing the post.
 - If the post doesn't mention any places, return an empty list.
 
-Caption or article text:
+Caption:
 {caption}
 """
 
@@ -182,7 +183,8 @@ def download_slides(ydl: yt_dlp.YoutubeDL, info: dict) -> list[bytes]:
         if not urls or len(slides) >= MAX_SLIDES:
             continue
         try:
-            data = ydl.urlopen(urls[0]).read()
+            # Never more than is left of the allowance, however big the image really is
+            data = read_limited(ydl.urlopen(urls[0]), MAX_SLIDE_BYTES - total_bytes)
         except Exception:
             continue
         # Stay well under Gemini's limit for a single request
@@ -207,7 +209,7 @@ def download_covers(ydl: yt_dlp.YoutubeDL, entries: list[dict]) -> list[bytes]:
         if not url:
             continue
         try:
-            data = ydl.urlopen(url).read()
+            data = read_limited(ydl.urlopen(url), MAX_SLIDE_BYTES - total_bytes)
         except Exception:
             continue
         if total_bytes + len(data) > MAX_SLIDE_BYTES:
@@ -287,7 +289,7 @@ def download_post(url: str, dest_dir: str) -> DownloadedPost:
                 images = download_slides(ydl, info)
                 if not images and info.get("thumbnail"):
                     try:
-                        images = [ydl.urlopen(info["thumbnail"]).read()]
+                        images = [read_limited(ydl.urlopen(info["thumbnail"]), MAX_SLIDE_BYTES)]
                     except Exception:
                         images = []
                 return DownloadedPost(info=info, images=images)
@@ -461,13 +463,6 @@ def extract_from_images(images: list[bytes], caption: str | None = None) -> Extr
     post = DownloadedPost(info={"description": caption} if caption else {}, images=images)
     extraction = _analyse(post, "a screenshot")
     return ExtractionResult(caption=caption, summary=extraction.summary, places=extraction.places)
-
-def extract_from_text(text: str, label: str) -> ExtractionResult:
-    """Extract the places an article or blog post recommends, from its text."""
-    if not settings.GEMINI_API_KEY:
-        raise ExtractionError("Article reading is not configured")
-    extraction = _analyse(DownloadedPost(info={"description": text}), label)
-    return ExtractionResult(caption=None, summary=extraction.summary, places=extraction.places)
 
 def extract_from_video(url: str) -> ExtractionResult:
     """

@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 
 from config import settings
 from currencies import COUNTRY_CURRENCY
+from limited_read import read_limited
 
 logger = logging.getLogger("triplet.prices")
 
@@ -85,7 +86,7 @@ def fetch_levels(timeout: float = 20, retries: int = 1) -> dict:
         for attempt in range(retries + 1):
             try:
                 with urlopen(request, timeout=timeout) as response:
-                    payloads.append(json.load(response))
+                    payloads.append(json.loads(read_limited(response, 20_000_000)))
                 break
             except Exception:
                 if attempt == retries:

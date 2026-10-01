@@ -243,24 +243,36 @@ def login(
     email_ip_key = f"login-email-ip:{user.email}:{ip}"
     ip_key = f"login-ip:{ip}"
     email_key = f"login-email:{user.email}"
-    rate_limit.check(db, email_ip_key, LOGIN_EMAIL_IP_LIMIT, LOGIN_WINDOW, TOO_MANY_LOGINS)
-    rate_limit.check(db, ip_key, LOGIN_IP_LIMIT, LOGIN_WINDOW, TOO_MANY_LOGINS)
-    rate_limit.check(db, email_key, LOGIN_EMAIL_LIMIT, LOGIN_EMAIL_WINDOW, TOO_MANY_LOGINS)
+    # Counted before the password is checked, so a burst of guesses sent at once is limited too;
+    # a right password gives its attempt back
+    claimed = []
+    try:
+        for key, limit, window in (
+            (email_ip_key, LOGIN_EMAIL_IP_LIMIT, LOGIN_WINDOW),
+            (ip_key, LOGIN_IP_LIMIT, LOGIN_WINDOW),
+            (email_key, LOGIN_EMAIL_LIMIT, LOGIN_EMAIL_WINDOW),
+        ):
+            rate_limit.claim(db, key, limit, window, TOO_MANY_LOGINS)
+            claimed.append(key)
+    except HTTPException:
+        # Refused: the attempts counted so far weren't really tried
+        for key in claimed:
+            rate_limit.release(db, key)
+        raise
 
     user_detail = db.query(User).filter(User.email == user.email).first()
     # Always check a password, even for unknown emails, so both fail equally slowly
     password_ok = verify_password(user_detail.password if user_detail else DUMMY_PASSWORD_HASH, user.password)
 
     if user_detail is None or not password_ok:
-        rate_limit.record(db, email_ip_key, LOGIN_WINDOW)
-        rate_limit.record(db, ip_key, LOGIN_WINDOW)
-        rate_limit.record(db, email_key, LOGIN_EMAIL_WINDOW)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect credentials"
         )
 
     rate_limit.clear(db, email_ip_key)
+    rate_limit.release(db, ip_key)
+    rate_limit.release(db, email_key)
 
     return issue_tokens(db, user_detail, request, response)
 

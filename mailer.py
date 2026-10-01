@@ -29,6 +29,10 @@ def send_email(to: str, subject: str, body: str):
         subject (str): The email subject.
         body (str): The plain text body.
     """
+    # Subjects can hold text people typed, like a trip's title. A line break would let it add email
+    # headers (or make the send fail), so the subject is always one line
+    subject = " ".join(subject.split())
+
     if settings.BREVO_API_KEY:
         send_with_brevo(to, subject, body)
         return
