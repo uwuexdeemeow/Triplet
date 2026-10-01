@@ -231,6 +231,8 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
   const startStay = day?.start_stay ?? null;
   const endStay = day?.end_stay ?? null;
   const lastActivity = activities[activities.length - 1];
+  // Guests type places without pins, so directions search the trip's first destination
+  const area = trip.data.destinations?.[0]?.name ?? trip.data.destination ?? null;
 
   if (form && canEdit) {
     return (
@@ -289,7 +291,7 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
           </View>
           {day?.weather ? <WeatherLine weather={day.weather} /> : null}
 
-          {startStay ? <StayRow stay={startStay} role="start" /> : null}
+          {startStay ? <StayRow stay={startStay} role="start" area={area} /> : null}
 
           {activities.length === 0 ? (
             <Body style={[styles.muted, styles.empty]}>Nothing planned for this day yet.</Body>
@@ -309,6 +311,7 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
                     titles={titles}
                     currency={showCosts ? currency : undefined}
                     actions={canEdit ? guestActions(activity) : undefined}
+                    area={area}
                   />
                 </View>
               ))}
@@ -321,7 +324,7 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
               {day?.travel_to_stay && lastActivity ? (
                 <TravelConnector leg={day.travel_to_stay} from={lastActivity} to={stayEndpoint(endStay)} />
               ) : null}
-              <StayRow stay={endStay} role={startStay?.id === endStay.id ? 'back' : 'check-in'} />
+              <StayRow stay={endStay} role={startStay?.id === endStay.id ? 'back' : 'check-in'} area={area} />
             </>
           ) : null}
 

@@ -80,6 +80,8 @@ export default function PlanScreen() {
   const activities = day?.activities ?? [];
   const titles = new Map(activities.map((activity) => [activity.id, activity.title]));
   const currency = trip.data?.currency ?? 'USD';
+  // Directions to a place without a pin search here, the trip's first destination
+  const area = trip.data?.destinations?.[0]?.name ?? trip.data?.destination ?? null;
   const wide = useWideLayout();
   const mapPanel = useShowsMapPanel();
   const pull = usePullToRefresh(itinerary.refetch);
@@ -108,6 +110,9 @@ export default function PlanScreen() {
       refresh();
     },
     deleteDetail: activity.place_id != null ? 'The saved place stays in the Saved tab.' : undefined,
+    // The edit form is where a plan gets its pin
+    onSetLocation: () =>
+      router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, activityId: String(activity.id) } }),
   });
 
   const openAdd = () => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, day: selectedDay } });
@@ -135,7 +140,7 @@ export default function PlanScreen() {
       {day?.weather ? <WeatherLine weather={day.weather} /> : null}
 
       {startStay ? (
-        <StayRow stay={startStay} role="start" onPress={canEdit ? () => openStay(startStay.id) : undefined} />
+        <StayRow stay={startStay} role="start" area={area} onPress={canEdit ? () => openStay(startStay.id) : undefined} />
       ) : null}
 
       {itinerary.isPending ? (
@@ -168,6 +173,7 @@ export default function PlanScreen() {
                 paid={paid.get(activity.id)}
                 stop={mapPanel ? index + 1 : undefined}
                 actions={canEdit ? memberActions(activity) : undefined}
+                area={area}
               />
             </Enter>
           ))}
@@ -182,6 +188,7 @@ export default function PlanScreen() {
           <StayRow
             stay={endStay}
             role={startStay?.id === endStay.id ? 'back' : 'check-in'}
+            area={area}
             onPress={canEdit ? () => openStay(endStay.id) : undefined}
           />
         </>

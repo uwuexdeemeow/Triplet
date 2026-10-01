@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -88,6 +89,7 @@ function ActivityForm({
   existing: { day: string; activity: ItineraryActivity } | undefined;
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   const id = trip.id;
   const queryClient = useQueryClient();
   const activity = existing?.activity;
@@ -128,7 +130,7 @@ function ActivityForm({
     }
     return null;
   });
-  const title = useWatch({ control, name: 'title' });
+  const [title, location] = useWatch({ control, name: ['title', 'location'] });
   const [startTime, endTime] = useWatch({ control, name: ['startTime', 'endTime'] });
 
   const refresh = () => {
@@ -216,6 +218,16 @@ function ActivityForm({
             />
           )}
         />
+
+        {location.trim() && !pin ? (
+          // A typed name alone can't be routed to: the maps app would guess, often somewhere else entirely
+          <View style={styles.noPin}>
+            <Feather name="alert-circle" size={13} color={colors.secondText} />
+            <Text style={styles.noPinText}>
+              No map pin yet. Pick a suggestion or choose on the map, so directions and travel times go to the right place.
+            </Text>
+          </View>
+        ) : null}
 
         <Controller
           control={control}
@@ -358,6 +370,19 @@ const useStyles = makeStyles((colors) => ({
     flexDirection: 'row',
     gap: spacing.md,
     alignItems: 'flex-start',
+  },
+  noPin: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: -12,
+  },
+  noPinText: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.secondText,
   },
   dayField: {
     gap: 6,

@@ -11,7 +11,7 @@ import { Muted } from '@/components/text';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
 import { activityClock, dayOfMonth, formatLongDate, weekdayShort } from '@/utils/dates';
-import { openDirections, type Stop } from '@/utils/directions';
+import { hasPin, openDirections, type Stop } from '@/utils/directions';
 import { select, warn } from '@/utils/haptics';
 import { formatMoney } from '@/utils/money';
 import { platformLabel } from '@/utils/places';
@@ -126,11 +126,14 @@ export function StayRow({
   stay,
   role,
   onPress,
+  area,
 }: {
   stay: StayStop;
   role: 'start' | 'back' | 'check-in';
   // Left out, the stay can't be changed from here
   onPress?: () => void;
+  // Where the trip is, so directions to a hotel without a pin search there
+  area?: string | null;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -155,15 +158,28 @@ export function StayRow({
             {stay.name}
           </Text>
         </View>
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`Directions to ${stay.name}`}
-          accessibilityHint="Opens your maps app"
-          onPress={() => openDirections(stopFor(stayEndpoint(stay)))}
-          hitSlop={6}
-          style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
-          <Feather name="navigation" size={12} color={colors.accentStrong} />
-        </Pressable>
+        {!hasPin(stay) && onPress ? (
+          // Without a pin the maps app would only be guessing, so ask for the spot instead
+          <Pressable
+            accessibilityRole="link"
+            accessibilityHint="Opens the stay to pick where it is"
+            onPress={onPress}
+            hitSlop={6}
+            style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
+            <Feather name="map-pin" size={12} color={colors.accentStrong} />
+            <Text style={[styles.badgeText, styles.badgeActionText]}>Set the location</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Directions to ${stay.name}`}
+            accessibilityHint="Opens your maps app"
+            onPress={() => openDirections({ ...stopFor(stayEndpoint(stay)), area })}
+            hitSlop={6}
+            style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
+            <Feather name="navigation" size={12} color={colors.accentStrong} />
+          </Pressable>
+        )}
       </Pressable>
     </View>
   );
@@ -194,6 +210,8 @@ export type ActivityActions = {
   onDelete: () => Promise<unknown>;
   // Said under "Delete this plan?"
   deleteDetail?: string;
+  // Opens somewhere to pin the plan on the map, offered instead of directions when it has no pin
+  onSetLocation?: () => void;
 };
 
 export function ActivityRow({
@@ -203,6 +221,7 @@ export function ActivityRow({
   paid,
   stop,
   actions,
+  area,
 }: {
   activity: ItineraryActivity;
   // The day's plans by id, to name the ones this overlaps
@@ -214,6 +233,8 @@ export function ActivityRow({
   // The plan's number in the day, shown when the side map is visible
   stop?: number;
   actions?: ActivityActions;
+  // Where the trip is, so directions to a plan without a pin search there
+  area?: string | null;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -280,16 +301,29 @@ export function ActivityRow({
         );
       })}
       <View style={styles.badges}>
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`Directions to ${activity.title}`}
-          accessibilityHint="Opens your maps app"
-          onPress={() => openDirections(stopFor(activity))}
-          hitSlop={6}
-          style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
-          <Feather name="navigation" size={12} color={colors.accentStrong} />
-          <Text style={[styles.badgeText, styles.badgeActionText]}>Directions</Text>
-        </Pressable>
+        {!hasPin(activity) && actions?.onSetLocation ? (
+          // Without a pin the maps app would only be guessing from the typed place, so ask for the spot instead
+          <Pressable
+            accessibilityRole="link"
+            accessibilityHint="Opens the plan to pick where it is on the map"
+            onPress={actions.onSetLocation}
+            hitSlop={6}
+            style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
+            <Feather name="map-pin" size={12} color={colors.accentStrong} />
+            <Text style={[styles.badgeText, styles.badgeActionText]}>Set the location</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Directions to ${activity.title}`}
+            accessibilityHint="Opens your maps app"
+            onPress={() => openDirections({ ...stopFor(activity), area })}
+            hitSlop={6}
+            style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
+            <Feather name="navigation" size={12} color={colors.accentStrong} />
+            <Text style={[styles.badgeText, styles.badgeActionText]}>Directions</Text>
+          </Pressable>
+        )}
         {activity.source_link_id != null ? (
           <View style={styles.badge}>
             <Feather name="link" size={12} color={colors.muted} />

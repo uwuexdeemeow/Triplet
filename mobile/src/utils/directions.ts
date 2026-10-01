@@ -7,11 +7,21 @@ export type Stop = {
   address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  // Where the trip is, e.g. "Tokyo". Without a pin, the search includes it, or a typo like
+  // "gayland" finds whatever matches anywhere in the world, usually near the person instead.
+  area?: string | null;
 };
+
+export function hasPin(stop: Pick<Stop, 'latitude' | 'longitude'>): boolean {
+  return stop.latitude != null && stop.longitude != null;
+}
 
 function where(stop: Stop): string {
   if (stop.latitude != null && stop.longitude != null) return `${stop.latitude},${stop.longitude}`;
-  return [stop.name, stop.address].filter(Boolean).join(', ');
+  const parts = [stop.name, stop.address].filter(Boolean) as string[];
+  const area = stop.area?.trim();
+  if (area && !parts.some((part) => part.toLowerCase().includes(area.toLowerCase()))) parts.push(area);
+  return parts.join(', ');
 }
 
 // How to get there; left out, the maps app uses whatever the person usually picks

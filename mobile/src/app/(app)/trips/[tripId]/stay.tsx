@@ -313,6 +313,16 @@ function StayForm({
           )}
         />
 
+        {name.trim() && !pin ? (
+          // A typed name alone can't be routed to: the maps app would guess, often somewhere else entirely
+          <View style={styles.noPin}>
+            <Feather name="alert-circle" size={13} color={colors.secondText} />
+            <Text style={styles.noPinText}>
+              No map pin yet. Pick a suggestion or choose on the map, so directions and travel times go to the right place.
+            </Text>
+          </View>
+        ) : null}
+
         <Controller
           control={control}
           name="checkIn"
@@ -504,6 +514,19 @@ const useStyles = makeStyles((colors) => ({
   noteText: {
     flex: 1,
     fontFamily: fonts.semibold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.secondText,
+  },
+  noPin: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: -12,
+  },
+  noPinText: {
+    flex: 1,
+    fontFamily: fonts.medium,
     fontSize: 13,
     lineHeight: 18,
     color: colors.secondText,
