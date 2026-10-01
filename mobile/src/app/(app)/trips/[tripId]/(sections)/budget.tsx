@@ -505,7 +505,8 @@ function ExpenseRow({
 
   const splitNote =
     expense.split === 'people'
-      ? `Split between ${expense.shares.length}`
+      ? // Some typed amounts make it a custom split, even if the rest are even
+        `${expense.shares.some((share) => share.fixed) ? 'Custom split' : 'Split'} between ${expense.shares.length}`
       : expense.split === 'amounts'
         ? 'Custom split'
         : null;

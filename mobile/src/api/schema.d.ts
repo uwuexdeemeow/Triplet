@@ -1776,6 +1776,11 @@ export interface components {
             user_id: number;
             /** Amount */
             amount: number;
+            /**
+             * Fixed
+             * @default false
+             */
+            fixed: boolean;
         };
         /** ExpenseUpdate */
         ExpenseUpdate: {

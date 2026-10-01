@@ -243,3 +243,48 @@ def test_changing_who_paid(client, alice, bob, trip, add_member, create_expense)
     response = client.patch(url, headers=alice["headers"], json={"paid_by_id": bob["id"]})
     assert response.json()["payments"] == []
     assert response.json()["paid_by_id"] == bob["id"]
+
+def test_some_people_with_some_amounts_typed(client, alice, bob, eve, trip, add_member, create_expense):
+    add_member(bob)
+    add_member(eve)
+
+    # Alice had the 40 set menu; Bob and Eve share the other 60 evenly
+    response = create_expense(amount=100, split="people", shares=[
+        {"user_id": alice["id"], "amount": 40},
+        {"user_id": bob["id"]},
+        {"user_id": eve["id"]},
+    ])
+
+    assert response.status_code == 201, response.text
+    shares = {s["user_id"]: (s["amount"], s["fixed"]) for s in response.json()["shares"]}
+    assert shares == {alice["id"]: (40, True), bob["id"]: (30, False), eve["id"]: (30, False)}
+
+def test_a_new_total_keeps_typed_amounts(client, alice, bob, eve, trip, add_member, create_expense):
+    add_member(bob)
+    add_member(eve)
+    expense = create_expense(amount=100, split="people", shares=[
+        {"user_id": alice["id"], "amount": 40}, {"user_id": bob["id"]}, {"user_id": eve["id"]},
+    ]).json()
+
+    response = client.patch(f"/trips/{trip['id']}/expenses/{expense['id']}", headers=alice["headers"], json={"amount": 120})
+
+    assert response.status_code == 200, response.text
+    shares = {s["user_id"]: s["amount"] for s in response.json()["shares"]}
+    assert shares == {alice["id"]: 40, bob["id"]: 40, eve["id"]: 40}
+
+@pytest.mark.parametrize("shares, message", [
+    # More than the total
+    ([{"amount": 80}, {"amount": 30}], "more than the total"),
+    # Everyone typed, but it doesn't add up and nobody is left to share the rest
+    ([{"amount": 50}, {"amount": 30}], "Leave someone"),
+])
+def test_typed_amounts_must_fit_the_total(create_expense, alice, bob, add_member, shares, message):
+    add_member(bob)
+    people = [alice["id"], bob["id"]]
+
+    response = create_expense(amount=100, split="people", shares=[
+        {"user_id": user_id, **share} for user_id, share in zip(people, shares)
+    ])
+
+    assert response.status_code == 400
+    assert message in response.json()["detail"]

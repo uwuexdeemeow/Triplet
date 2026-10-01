@@ -6339,6 +6339,11 @@
      "amount": {
       "type": "number",
       "title": "Amount"
+     },
+     "fixed": {
+      "type": "boolean",
+      "title": "Fixed",
+      "default": false
      }
     },
     "type": "object",

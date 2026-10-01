@@ -815,12 +815,14 @@ ExpenseSplit = Literal["all", "people", "amounts"]
 
 class ExpenseShareIn(BaseModel):
     user_id: int
-    # Only for split "amounts"; with "people" everyone's part is worked out evenly
+    # With split "people", left out to share what's left evenly; with "amounts", required
     amount: float | None = Field(default=None, ge=0, le=99_999_999)
 
 class ExpenseShareOut(BaseModel):
     user_id: int
     amount: float
+    # Typed in, rather than an even part of what's left
+    fixed: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -844,7 +846,8 @@ class ExpenseCreate(BaseModel):
     # When several people paid, what each paid; it must add up to the amount. Leave it empty when
     # one person (paid_by_id) paid it all.
     payments: list[ExpensePaymentIn] = Field(default=[], max_length=50)
-    # "all": everyone on the trip. "people": the people in shares, evenly. "amounts": shares' amounts.
+    # "all": everyone on the trip. "people": the people in shares; those given an amount pay that,
+    # and the rest share what's left evenly. "amounts": shares' amounts (kept for older apps).
     split: ExpenseSplit = "all"
     shares: list[ExpenseShareIn] = Field(default=[], max_length=50)
 

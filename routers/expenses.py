@@ -53,8 +53,9 @@ def member_ids(db: Session, trip_id: int) -> set[int]:
 def apply_split(db: Session, trip_id: int, expense: Expense, split: str, shares: list[ExpenseShareIn]):
     """
     Set who shares an expense. "all" needs no shares: it's everyone on the trip, worked out when
-    shown. "people" splits evenly between those listed; "amounts" takes the amounts given, which
-    must add up to the expense.
+    shown. "people": those given an amount pay that, and the others split what's left evenly (so
+    with no amounts it's an even split, and with all of them it's exact amounts). "amounts" needs
+    every amount, adding up to the expense.
     """
     if split == "all":
         expense.split = "all"
@@ -69,22 +70,45 @@ def apply_split(db: Session, trip_id: int, expense: Expense, split: str, shares:
     if not set(user_ids) <= member_ids(db, trip_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Everyone sharing it must be on the trip")
 
+    fixed = set()
+    total = splits.cents(expense.amount)
     if split == "people":
-        amounts = splits.even_shares(expense.amount, user_ids)
+        fixed_amounts = {share.user_id: splits.cents(share.amount) for share in shares if share.amount is not None}
+        fixed = set(fixed_amounts)
+        rest = [user_id for user_id in user_ids if user_id not in fixed]
+        left = total - sum(fixed_amounts.values(), splits.cents(0))
+        if left < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"The amounts add up to {total - left}, more than the total of {total}"
+            )
+        if not rest and left != 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"The amounts add up to {total - left}, not {total}. Leave someone’s empty to share what’s left."
+            )
+        amounts = {**fixed_amounts, **(splits.even_shares(left, rest) if rest else {})}
+        # In the order given, so the spare cents of an even split land the same way each time
+        amounts = {user_id: amounts[user_id] for user_id in user_ids}
     else:
         if any(share.amount is None for share in shares):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter an amount for each person")
         amounts = {share.user_id: splits.cents(share.amount) for share in shares}
-        total = sum(amounts.values(), splits.cents(0))
-        if total != splits.cents(expense.amount):
+        fixed = set(amounts)
+        added = sum(amounts.values(), splits.cents(0))
+        if added != total:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"The amounts add up to {total}, not {splits.cents(expense.amount)}"
+                detail=f"The amounts add up to {added}, not {total}"
             )
 
     expense.split = split
     # Replacing the list deletes the old shares (delete-orphan)
-    expense.shares = [ExpenseShare(user_id=user_id, amount=amount) for user_id, amount in amounts.items() if amount > 0 or split == "people"]
+    expense.shares = [
+        ExpenseShare(user_id=user_id, amount=amount, fixed=user_id in fixed)
+        for user_id, amount in amounts.items()
+        if amount > 0 or split == "people"
+    ]
 
 def apply_payments(db: Session, trip_id: int, expense: Expense, payments: list[ExpensePaymentIn]):
     """
@@ -238,8 +262,11 @@ def update_expense(
     if split is not None or expense_update.shares is not None:
         apply_split(db, trip_id, expense, split or expense.split, expense_update.shares or [])
     elif "amount" in update_data and expense.split == "people":
-        # Same people, new total: work their parts out again
-        apply_split(db, trip_id, expense, "people", [ExpenseShareIn(user_id=share.user_id) for share in expense.shares])
+        # Same people, new total: typed amounts stay, and the even parts are worked out again
+        apply_split(db, trip_id, expense, "people", [
+            ExpenseShareIn(user_id=share.user_id, amount=float(share.amount) if share.fixed else None)
+            for share in expense.shares
+        ])
     elif "amount" in update_data and expense.split == "amounts":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

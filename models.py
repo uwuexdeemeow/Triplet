@@ -780,6 +780,15 @@ class ExpenseShare(Base):
         nullable=False
     )
 
+    # Typed in for this person, rather than their even part of what's left. Kept when the
+    # expense's total changes; the even parts are worked out again.
+    fixed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false()
+    )
+
 class ExpensePayment(Base):
     """What one person paid towards an expense that several people paid for together."""
     __tablename__ = "expense_payments"
