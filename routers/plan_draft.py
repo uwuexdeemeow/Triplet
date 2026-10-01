@@ -8,6 +8,7 @@ from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, Us
 from schemas import ActivityResponse, LinkToActivity, PlanDraftApply, PlanDraftResponse, PlanDraftItem, PlanDraftSkipped
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES
 from routers.links import new_activity_from_link
+from routers.activities import stay_point, stays_by_night
 
 router = APIRouter(
     prefix="/trips/{trip_id}/plan-draft",
@@ -70,7 +71,14 @@ def draft_plan(
         end = scheduling.minutes_of(activity.end_time) if activity.end_time.date() == day else scheduling.DAY_MINUTES
         planned.append(planner.Busy(day, scheduling.minutes_of(activity.start_time), end, lat, lon))
 
-    draft = planner.draft_plan(days, candidates, planned)
+    # Each day's hotels: where it starts and where it ends
+    nights = stays_by_night(db, trip_id)
+    stays = {
+        day: [point for stay in (nights.get(day - timedelta(days=1)), nights.get(day)) if (point := stay_point(stay))]
+        for day in days
+    }
+
+    draft = planner.draft_plan(days, candidates, planned, stays)
 
     return PlanDraftResponse(
         items=[

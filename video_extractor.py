@@ -377,7 +377,7 @@ def _model_order() -> list[str]:
     # Sorting is stable, so each group keeps the configured order
     return sorted(models, key=lambda model: _busy_until.get(model, 0) > now)
 
-def _generate_with_retry(client: genai.Client, contents: list):
+def _generate_with_retry(client: genai.Client, contents: list, schema: type[BaseModel] | None = None):
     """
     Call Gemini, switching models when one is busy or rate limited.
 
@@ -385,7 +385,8 @@ def _generate_with_retry(client: genai.Client, contents: list):
     limits requests per minute per model. Waiting rarely helps, so a busy model is skipped straight
     away for the next in GEMINI_FALLBACK_MODELS, and remembered as busy for a couple of minutes so
     the next posts start with one that's working. Only the last model left is retried after a wait.
-    Other errors, like a blocked request, fail straight away.
+    Other errors, like a blocked request, fail straight away. The answer follows `schema`, the
+    places in a post unless another one is given.
     """
     models = _model_order()
 
@@ -400,7 +401,7 @@ def _generate_with_retry(client: genai.Client, contents: list):
                     contents=contents,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
-                        response_schema=VideoExtraction,
+                        response_schema=schema or VideoExtraction,
                         temperature=0.2,
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                     ),

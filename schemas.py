@@ -360,6 +360,84 @@ class ActivityResponse(BaseModel):
         "from_attributes": True
     }
 
+StayName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+StayAddress = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
+Confirmation = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+
+class StayCreate(BaseModel):
+    name: StayName
+    address: StayAddress | None = None
+    latitude: float | None = Latitude
+    longitude: float | None = Longitude
+    check_in: date
+    check_out: date
+    # For the whole stay, in the trip's currency
+    cost: Amount | None = None
+    confirmation: Confirmation | None = None
+    # A saved place it's made from, e.g. a hotel from a TikTok
+    place_id: int | None = None
+
+    @model_validator(mode="after")
+    def validate_stay(self):
+        if self.check_out <= self.check_in:
+            raise ValueError("Check-out must be after check-in")
+        return validate_coordinates(self)
+
+class StayUpdate(BaseModel):
+    name: StayName | None = None
+    address: StayAddress | None = None
+    latitude: float | None = Latitude
+    longitude: float | None = Longitude
+    check_in: date | None = None
+    check_out: date | None = None
+    cost: Amount | None = None
+    confirmation: Confirmation | None = None
+
+    @model_validator(mode="after")
+    def validate_pin(self):
+        if "latitude" in self.model_fields_set or "longitude" in self.model_fields_set:
+            return validate_coordinates(self)
+        return self
+
+class StayResponse(BaseModel):
+    id: int
+    trip_id: int
+    place_id: int | None = None
+    name: str
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    check_in: date
+    check_out: date
+    cost: float | None = None
+    confirmation: str | None = None
+
+    model_config={
+        "from_attributes": True
+    }
+
+class StayDraft(BaseModel):
+    """What a booking confirmation says, for the app to fill the stay form with. Nothing is saved."""
+    name: str | None = None
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    check_in: date | None = None
+    check_out: date | None = None
+    # In the trip's currency
+    cost: float | None = None
+    confirmation: str | None = None
+    # Things to check before saving, e.g. "The dates are outside the trip"
+    notes: list[str] = []
+
+class StayStop(BaseModel):
+    """Where a day starts or ends, as the plan shows it. No price or booking reference, since guests see it too."""
+    id: int
+    name: str
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
 class ScheduleWarning(BaseModel):
     # closed: the place is shut that day; outside_hours: open that day, but not at this time;
     # tight_travel: not enough time to get here from the plan before
@@ -395,6 +473,11 @@ class ItineraryDay(BaseModel):
     estimated_cost: float
     # Only for days within the next two weeks, where a plan has a map pin
     weather: DayWeather | None = None
+    # Where the day starts (last night's stay) and ends (tonight's); different on a day you move hotels
+    start_stay: StayStop | None = None
+    end_stay: StayStop | None = None
+    # From the day's last plan back to tonight's stay
+    travel_to_stay: TravelLeg | None = None
 
 class PlanDraftItem(BaseModel):
     place_id: int
@@ -656,6 +739,8 @@ class BudgetEstimateDay(BaseModel):
     plans: float
     meals: float
     transport: float
+    # That night's share of the stay's price
+    stays: float = 0
     total: float
 
 class BudgetEstimate(BaseModel):
@@ -666,6 +751,7 @@ class BudgetEstimate(BaseModel):
     plans_total: float
     meals_total: float
     transport_total: float
+    stays_total: float = 0
     total: float
     budget: float | None = None
     # Positive when the estimate is over the budget

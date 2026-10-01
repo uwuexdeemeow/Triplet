@@ -5,7 +5,7 @@ import assistant
 import rate_limit
 import scheduling
 from database import connect_db
-from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, User
+from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, Stay, User
 from schemas import AskRequest, AskResponse, AskMention
 from dependencies import get_trip_membership
 
@@ -76,6 +76,19 @@ def trip_context(db: Session, trip: Trip) -> assistant.TripContext:
             key=f"plan-{activity.id}", name=activity.title, kind="plan",
             details={k: v for k, v in details.items() if v not in (None, "")},
             latitude=lat, longitude=lon, activity_id=activity.id
+        ))
+
+    stays = db.query(Stay).filter(Stay.trip_id == trip.id).order_by(Stay.check_in).all()
+    for stay in stays:
+        details = {
+            "nights": f"{stay.check_in:%a %d %b} to check-out {stay.check_out:%a %d %b}",
+            "address": stay.address,
+            "has_map_pin": stay.latitude is not None,
+        }
+        spots.append(assistant.Spot(
+            key=f"stay-{stay.id}", name=stay.name, kind="hotel booked",
+            details={k: v for k, v in details.items() if v not in (None, "")},
+            latitude=stay.latitude, longitude=stay.longitude, place_id=stay.place_id
         ))
 
     dates = f"{trip.start_date:%a %d %b %Y} to {trip.end_date:%a %d %b %Y}" if trip.start_date and trip.end_date else None

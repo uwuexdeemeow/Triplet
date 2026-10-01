@@ -12,6 +12,7 @@ import {
   useItinerary,
   useMe,
   useMembers,
+  useStays,
   useTrip,
   type ItineraryActivity,
 } from '@/api/trips';
@@ -19,7 +20,16 @@ import { Enter } from '@/components/enter';
 import { Button } from '@/components/button';
 import { Fab } from '@/components/fab';
 import { FormMessage } from '@/components/screen';
-import { ActivityRow, DayChips, EditHint, TravelConnector, type ActivityActions } from '@/components/plan-rows';
+import {
+  ActivityRow,
+  AddStayPrompt,
+  DayChips,
+  EditHint,
+  StayRow,
+  stayEndpoint,
+  TravelConnector,
+  type ActivityActions,
+} from '@/components/plan-rows';
 import { Body, Title } from '@/components/text';
 import { WeatherLine } from '@/components/weather-line';
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -28,6 +38,7 @@ import { PlanMapPanel } from '@/components/plan-map-panel';
 import {
   eachDay,
   formatLongDate,
+  formatDateRange,
   formatShortDate,
   todayString,
 } from '@/utils/dates';
@@ -63,7 +74,8 @@ export default function PlanScreen() {
   const today = todayString();
   const selectedDay = pickedDay && days.includes(pickedDay) ? pickedDay : days.includes(today) ? today : days[0];
 
-  const plannedDays = new Set(itinerary.data?.days.map((day) => day.date));
+  // Days that only start or end at a hotel don't count as planned
+  const plannedDays = new Set(itinerary.data?.days.filter((day) => day.activities.length).map((day) => day.date));
   const day = itinerary.data?.days.find((item) => item.date === selectedDay);
   const activities = day?.activities ?? [];
   const titles = new Map(activities.map((activity) => [activity.id, activity.title]));
@@ -99,6 +111,17 @@ export default function PlanScreen() {
   });
 
   const openAdd = () => router.push({ pathname: '/trips/[tripId]/add-activity', params: { tripId, day: selectedDay } });
+  const openStay = (stayId?: number, checkIn?: string) =>
+    router.push({
+      pathname: '/trips/[tripId]/stay',
+      params: { tripId, ...(stayId != null ? { stayId: String(stayId) } : {}), ...(checkIn ? { checkIn } : {}) },
+    });
+
+  // Where the day starts and ends: last night's hotel and tonight's
+  const startStay = day?.start_stay ?? null;
+  const endStay = day?.end_stay ?? null;
+  const lastActivity = activities[activities.length - 1];
+  const isLastDay = selectedDay === days[days.length - 1];
 
   // The selected day's plans, the same on a phone and in the wide layout
   const dayPlans = (
@@ -110,6 +133,10 @@ export default function PlanScreen() {
         ) : null}
       </View>
       {day?.weather ? <WeatherLine weather={day.weather} /> : null}
+
+      {startStay ? (
+        <StayRow stay={startStay} role="start" onPress={canEdit ? () => openStay(startStay.id) : undefined} />
+      ) : null}
 
       {itinerary.isPending ? (
         <ActivityIndicator color={colors.accent} style={styles.loading} />
@@ -127,7 +154,12 @@ export default function PlanScreen() {
           {activities.map((activity, index) => (
             <Enter key={activity.id} index={index}>
               {activity.travel_from_previous ? (
-                <TravelConnector leg={activity.travel_from_previous} from={activities[index - 1]} to={activity} />
+                <TravelConnector
+                  leg={activity.travel_from_previous}
+                  // The first plan's trip is from the hotel
+                  from={index > 0 ? activities[index - 1] : startStay ? stayEndpoint(startStay) : undefined}
+                  to={activity}
+                />
               ) : null}
               <ActivityRow
                 activity={activity}
@@ -139,9 +171,24 @@ export default function PlanScreen() {
               />
             </Enter>
           ))}
-          {canEdit ? <EditHint wide={wide} /> : null}
         </>
       )}
+
+      {itinerary.isSuccess && endStay ? (
+        <>
+          {day?.travel_to_stay && lastActivity ? (
+            <TravelConnector leg={day.travel_to_stay} from={lastActivity} to={stayEndpoint(endStay)} />
+          ) : null}
+          <StayRow
+            stay={endStay}
+            role={startStay?.id === endStay.id ? 'back' : 'check-in'}
+            onPress={canEdit ? () => openStay(endStay.id) : undefined}
+          />
+        </>
+      ) : itinerary.isSuccess && canEdit && !isLastDay ? (
+        <AddStayPrompt onPress={() => openStay(undefined, selectedDay)} />
+      ) : null}
+      {itinerary.isSuccess && canEdit && activities.length ? <EditHint wide={wide} /> : null}
     </>
   );
 
@@ -174,6 +221,7 @@ export default function PlanScreen() {
               </Pressable>
             );
           })}
+          <StaysList tripId={id} canEdit={canEdit} onOpen={openStay} />
           <TripCost tripId={id} />
         </ScrollView>
 
@@ -195,7 +243,7 @@ export default function PlanScreen() {
 
         {mapPanel ? (
           <View style={styles.mapColumn}>
-            <PlanMapPanel tripId={id} activities={activities} />
+            <PlanMapPanel tripId={id} activities={activities} startStay={startStay} endStay={endStay} />
           </View>
         ) : null}
       </View>
@@ -215,6 +263,50 @@ export default function PlanScreen() {
       </ScrollView>
 
       <Fab label="Add activity" bottom={32} onPress={openAdd} />
+    </View>
+  );
+}
+
+// Under the days on a big screen: every hotel the trip stays at, in order
+function StaysList({
+  tripId,
+  canEdit,
+  onOpen,
+}: {
+  tripId: number;
+  canEdit: boolean;
+  onOpen: (stayId?: number) => void;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const stays = useStays(tripId);
+  if (!stays.data || (!stays.data.length && !canEdit)) return null;
+
+  return (
+    <View style={styles.stays}>
+      <Text style={styles.railTitle}>Where you stay</Text>
+      {stays.data.map((stay) => (
+        <Pressable
+          key={stay.id}
+          accessibilityRole={canEdit ? 'button' : undefined}
+          disabled={!canEdit}
+          onPress={() => onOpen(stay.id)}
+          style={({ hovered }) => [styles.railDay, canEdit && hovered && styles.railDayHover]}>
+          <Text style={styles.railDayName} numberOfLines={1}>
+            {stay.name}
+          </Text>
+          <Text style={styles.railDayMeta}>{formatDateRange(stay.check_in, stay.check_out)}</Text>
+        </Pressable>
+      ))}
+      {canEdit ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onOpen()}
+          style={({ hovered }) => [styles.railAdd, hovered && styles.railDayHover]}>
+          <Feather name="plus" size={14} color={colors.accent} />
+          <Text style={styles.addPlanLabel}>Add a stay</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -280,6 +372,17 @@ const useStyles = makeStyles((colors) => ({
     padding: spacing.md,
     borderRadius: radii.card,
     gap: 4,
+  },
+  stays: {
+    marginTop: spacing.lg,
+    gap: spacing.xs,
+  },
+  railAdd: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.card,
   },
   railDaySelected: {
     backgroundColor: colors.accentSoft,

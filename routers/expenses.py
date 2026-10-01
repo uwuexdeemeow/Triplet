@@ -10,7 +10,7 @@ import scheduling
 import splits
 from database import connect_db
 from models import User, Trip, TripMembership, Activity, Expense, ExpenseShare, ExtractedPlace, Settlement
-from routers.activities import build_itinerary
+from routers.activities import build_itinerary, stays_by_night
 from schemas import (
     ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseShareIn, BudgetSummary, MemberBalance, BudgetEstimate,
     BudgetEstimateDay, SettlementCreate, SettlementResponse, Transfer
@@ -360,7 +360,7 @@ def get_budget_estimate(
     currency = trip.currency
     people = max(1, db.query(TripMembership).filter(TripMembership.trip_id == trip_id).count())
     rates = exchange_rates.usd_rates()
-    notes = ["Rough figures for the whole group, from typical prices. Hotels and flights aren’t included."]
+    notes = ["Rough figures for the whole group, from typical prices. Flights aren’t included."]
 
     # Typical prices are US ones; scale them to what the trip's first country costs (typed, paid and
     # posted prices are what they are, so they aren't scaled)
@@ -431,6 +431,9 @@ def get_budget_estimate(
         return typical_in_trip_currency(typical * level) * people
 
     planned_by_day = {day.date: day.activities for day in itinerary.days}
+    back_to_stay = {day.date: day.travel_to_stay for day in itinerary.days if day.travel_to_stay}
+    # Each night costs its share of the stay's price
+    nights = stays_by_night(db, trip_id)
     days = []
     unpriced = 0
     trip_days = (trip.end_date - trip.start_date).days + 1 if trip.start_date and trip.end_date else 0
@@ -455,22 +458,37 @@ def get_budget_estimate(
             meals = sum(
                 typical_in_trip_currency(usd) * people for meal, usd in budget_estimate.MEAL_USD.items() if meal not in covered
             )
+            # Including the rides out from the hotel and back to it
             rides = sum(
                 1 for a in day_activities if a.travel_from_previous and a.travel_from_previous.mode == "transit"
-            )
+            ) + (1 if day in back_to_stay and back_to_stay[day].mode == "transit" else 0)
             transport = typical_in_trip_currency(budget_estimate.TRANSIT_RIDE_USD) * people * rides
+
+        stay = nights.get(day)
+        stays = float(stay.cost) / (stay.check_out - stay.check_in).days if stay and stay.cost is not None else 0.0
 
         days.append(BudgetEstimateDay(
             date=day,
             plans=round(plans, 2),
             meals=round(meals, 2),
             transport=round(transport, 2),
-            total=round(plans + meals + transport, 2)
+            stays=round(stays, 2),
+            total=round(plans + meals + transport + stays, 2)
         ))
 
     if unpriced:
         notes.append(
             f"{unpriced} {'plan has' if unpriced == 1 else 'plans have'} no cost yet. Add one to make the estimate closer."
+        )
+
+    stays_listed = {stay.id: stay for stay in nights.values()}
+    unpriced_stays = sum(1 for stay in stays_listed.values() if stay.cost is None)
+    if not stays_listed:
+        notes.append("Hotels aren’t counted yet. Add where you’re staying, with its price, to include them.")
+    elif unpriced_stays:
+        notes.append(
+            f"{unpriced_stays} {'stay has' if unpriced_stays == 1 else 'stays have'} no price yet, so "
+            f"{'it isn’t' if unpriced_stays == 1 else 'they aren’t'} counted."
         )
 
     total = sum(day.total for day in days)
@@ -482,6 +500,7 @@ def get_budget_estimate(
         plans_total=round(sum(day.plans for day in days), 2),
         meals_total=round(sum(day.meals for day in days), 2),
         transport_total=round(sum(day.transport for day in days), 2),
+        stays_total=round(sum(day.stays for day in days), 2),
         total=round(total, 2),
         budget=budget,
         over_budget_by=round(total - budget, 2) if budget is not None else None,

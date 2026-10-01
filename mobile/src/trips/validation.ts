@@ -46,3 +46,19 @@ export const activitySchema = z
 
 export type TripValues = z.infer<typeof tripSchema>;
 export type ActivityValues = z.infer<typeof activitySchema>;
+
+// Dates are "YYYY-MM-DD", so they compare as text
+export const staySchema = z
+  .object({
+    name: z.string().trim().min(1, 'Where are you staying?').max(255),
+    checkIn: z.string().min(1, 'Pick the night you arrive'),
+    checkOut: z.string().min(1, 'Pick the day you leave'),
+    cost: optionalAmount,
+    confirmation: z.string().trim().max(100, 'That’s longer than a booking reference'),
+  })
+  .refine((values) => values.checkOut > values.checkIn, {
+    message: 'Check-out must be after check-in',
+    path: ['checkOut'],
+  });
+
+export type StayValues = z.infer<typeof staySchema>;

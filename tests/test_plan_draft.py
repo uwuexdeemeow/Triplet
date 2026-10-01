@@ -84,6 +84,14 @@ def test_puts_places_near_what_is_already_planned():
     assert draft.proposals[0].day == DAYS[2]
     assert draft.proposals[0].reason == "Near your other plans that day"
 
+def test_puts_places_near_that_days_hotel():
+    # Day 2 starts at a Shinjuku hotel; day 3 starts and ends in Asakusa
+    stays = {DAYS[1]: [(35.6938, 139.7034)], DAYS[2]: [(35.7148, 139.7967)]}
+    draft = planner.draft_plan(DAYS, [candidate(1, "Asakusa snack", category="food", lat=35.7150, lon=139.7960)], [], stays)
+
+    assert draft.proposals[0].day == DAYS[2]
+    assert draft.proposals[0].reason == "Near where you’re staying that day"
+
 def test_leaves_hotels_out():
     draft = planner.draft_plan(DAYS, [candidate(1, "Hotel", category="accommodation")], [])
 

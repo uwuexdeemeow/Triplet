@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { usePlaces, type ItineraryActivity } from '@/api/trips';
+import { usePlaces, type ItineraryActivity, type StayStop } from '@/api/trips';
 import { TripMap, type MapPlace } from '@/components/place-map';
 import { makeStyles } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
@@ -10,13 +10,21 @@ type Props = {
   tripId: number;
   // The selected day's plans; the ones with a pin are drawn
   activities: ItineraryActivity[];
+  // The hotels the day starts and ends at, so the route runs from one to the other
+  startStay?: StayStop | null;
+  endStay?: StayStop | null;
 };
+
+function stayPin(stay: StayStop | null | undefined, id: string): MapPlace | null {
+  if (!stay || stay.latitude == null || stay.longitude == null) return null;
+  return { id, name: stay.name, latitude: stay.latitude, longitude: stay.longitude, planned: true, label: 'H' };
+}
 
 /**
  * The trip workspace's map on a big screen: the day's plans, plus saved places that aren't
  * planned yet, so you can see what's nearby while arranging the day.
  */
-export function PlanMapPanel({ tripId, activities }: Props) {
+export function PlanMapPanel({ tripId, activities, startStay, endStay }: Props) {
   const styles = useStyles();
   const places = usePlaces(tripId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,17 +50,24 @@ export function PlanMapPanel({ tripId, activities }: Props) {
       longitude: place.longitude!,
       planned: false,
     }));
-  const pins = [...planned, ...saved];
+  const start = stayPin(startStay, `stay-${startStay?.id}`);
+  // The same hotel morning and night is one pin; a different one gets its own
+  const end = endStay && endStay.id !== startStay?.id ? stayPin(endStay, `stay-${endStay.id}`) : null;
+  const backTo = endStay && endStay.id === startStay?.id ? start : end;
+  const hotels = [start, end].filter((pin): pin is MapPlace => pin != null);
+  const route = [...(start ? [start] : []), ...planned, ...(backTo ? [backTo] : [])];
+  const pins = [...hotels, ...planned, ...saved];
   const selected = pins.find((pin) => pin.id === selectedId);
 
   return (
     <View style={styles.panel}>
-      <TripMap places={pins} selectedId={selectedId} onSelect={setSelectedId} route={planned} />
+      {/* Room at the bottom so no stop hides under the legend */}
+      <TripMap places={pins} selectedId={selectedId} onSelect={setSelectedId} route={route} bottomInset={60} />
       <View style={styles.legend} pointerEvents="none">
         {selected ? (
           <Text style={styles.selected} numberOfLines={1}>
             {selected.name}
-            {selected.planned ? '' : ' · saved, not planned yet'}
+            {selected.id.startsWith('stay-') ? ' · where you stay' : selected.planned ? '' : ' · saved, not planned yet'}
           </Text>
         ) : (
           <>

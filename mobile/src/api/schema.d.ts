@@ -672,6 +672,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/stays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Stays */
+        get: operations["get_stays_trips__trip_id__stays_get"];
+        put?: never;
+        /** Create Stay */
+        post: operations["create_stay_trips__trip_id__stays_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/stays/{stay_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Stay */
+        delete: operations["delete_stay_trips__trip_id__stays__stay_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Stay */
+        patch: operations["update_stay_trips__trip_id__stays__stay_id__patch"];
+        trace?: never;
+    };
+    "/trips/{trip_id}/stays/read-booking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Booking
+         * @description Read a booking confirmation screenshot into a stay for the person to check. Nothing is saved.
+         */
+        post: operations["read_booking_trips__trip_id__stays_read_booking_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/links": {
         parameters: {
             query?: never;
@@ -1351,6 +1407,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_read_booking_trips__trip_id__stays_read_booking_post */
+        Body_read_booking_trips__trip_id__stays_read_booking_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_avatar_users_me_avatar_put */
         Body_upload_avatar_users_me_avatar_put: {
             /** File */
@@ -1373,6 +1434,11 @@ export interface components {
             meals_total: number;
             /** Transport Total */
             transport_total: number;
+            /**
+             * Stays Total
+             * @default 0
+             */
+            stays_total: number;
             /** Total */
             total: number;
             /** Budget */
@@ -1399,6 +1465,11 @@ export interface components {
             meals: number;
             /** Transport */
             transport: number;
+            /**
+             * Stays
+             * @default 0
+             */
+            stays: number;
             /** Total */
             total: number;
         };
@@ -1700,6 +1771,9 @@ export interface components {
             /** Estimated Cost */
             estimated_cost?: number | null;
             weather?: components["schemas"]["DayWeather"] | null;
+            start_stay?: components["schemas"]["StayStop"] | null;
+            end_stay?: components["schemas"]["StayStop"] | null;
+            travel_to_stay?: components["schemas"]["TravelLeg"] | null;
         };
         /** GuestItineraryResponse */
         GuestItineraryResponse: {
@@ -1850,6 +1924,9 @@ export interface components {
             /** Estimated Cost */
             estimated_cost: number;
             weather?: components["schemas"]["DayWeather"] | null;
+            start_stay?: components["schemas"]["StayStop"] | null;
+            end_stay?: components["schemas"]["StayStop"] | null;
+            travel_to_stay?: components["schemas"]["TravelLeg"] | null;
         };
         /** ItineraryResponse */
         ItineraryResponse: {
@@ -2205,6 +2282,126 @@ export interface components {
             nonce?: string | null;
             /** Name */
             name?: string | null;
+        };
+        /** StayCreate */
+        StayCreate: {
+            /** Name */
+            name: string;
+            /** Address */
+            address?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /**
+             * Check In
+             * Format: date
+             */
+            check_in: string;
+            /**
+             * Check Out
+             * Format: date
+             */
+            check_out: string;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
+            /** Place Id */
+            place_id?: number | null;
+        };
+        /**
+         * StayDraft
+         * @description What a booking confirmation says, for the app to fill the stay form with. Nothing is saved.
+         */
+        StayDraft: {
+            /** Name */
+            name?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Check In */
+            check_in?: string | null;
+            /** Check Out */
+            check_out?: string | null;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+        };
+        /** StayResponse */
+        StayResponse: {
+            /** Id */
+            id: number;
+            /** Trip Id */
+            trip_id: number;
+            /** Place Id */
+            place_id?: number | null;
+            /** Name */
+            name: string;
+            /** Address */
+            address?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /**
+             * Check In
+             * Format: date
+             */
+            check_in: string;
+            /**
+             * Check Out
+             * Format: date
+             */
+            check_out: string;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
+        };
+        /**
+         * StayStop
+         * @description Where a day starts or ends, as the plan shows it. No price or booking reference, since guests see it too.
+         */
+        StayStop: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Address */
+            address?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+        };
+        /** StayUpdate */
+        StayUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Check In */
+            check_in?: string | null;
+            /** Check Out */
+            check_out?: string | null;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
         };
         /** Token */
         Token: {
@@ -3987,6 +4184,173 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SlotSuggestion"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stays_trips__trip_id__stays_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StayResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_stay_trips__trip_id__stays_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StayCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_stay_trips__trip_id__stays__stay_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+                stay_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_stay_trips__trip_id__stays__stay_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+                stay_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StayUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_booking_trips__trip_id__stays_read_booking_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_read_booking_trips__trip_id__stays_read_booking_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StayDraft"];
                 };
             };
             /** @description Validation Error */

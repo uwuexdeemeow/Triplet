@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 from config import settings
 import mailer
-from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses, plan_draft, ask
+from routers import auth, users, trips, guest, members, invitations, activities, links, places, expenses, plan_draft, ask, stays
 
 # Show the app's own log lines (triplet.*) next to uvicorn's, including info like "email sent".
 # Other libraries stay at their defaults, so their chatter doesn't flood the log.
@@ -63,6 +63,7 @@ app.include_router(trips.router)
 app.include_router(members.router)
 app.include_router(invitations.router)
 app.include_router(activities.router)
+app.include_router(stays.router)
 app.include_router(links.router)
 app.include_router(places.router)
 app.include_router(expenses.router)

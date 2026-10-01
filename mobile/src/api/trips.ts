@@ -22,6 +22,12 @@ export type UserPublic = Schemas['UserPublic'];
 export type Expense = Schemas['ExpenseResponse'];
 export type BudgetSummary = Schemas['BudgetSummary'];
 export type BudgetEstimate = Schemas['BudgetEstimate'];
+// Where the group sleeps for some nights; each day starts and ends at one
+export type Stay = Schemas['StayResponse'];
+// A stay as the plan shows it, without its price or booking reference
+export type StayStop = Schemas['StayStop'];
+// What a booking screenshot says, for the stay form to start from
+export type StayDraft = Schemas['StayDraft'];
 
 // One place for query keys, so screens invalidate the same caches they read
 export const tripKeys = {
@@ -34,6 +40,7 @@ export const tripKeys = {
   invitations: (tripId: number) => ['trips', tripId, 'invitations'] as const,
   expenses: (tripId: number) => ['trips', tripId, 'expenses'] as const,
   budget: (tripId: number) => ['trips', tripId, 'budget'] as const,
+  stays: (tripId: number) => ['trips', tripId, 'stays'] as const,
   // Invitations sent to the signed-in user, across all trips
   myInvitations: ['invitations'] as const,
   me: ['me'] as const,
@@ -136,5 +143,13 @@ export function useBudget(tripId: number) {
   return useQuery({
     queryKey: tripKeys.budget(tripId),
     queryFn: () => api<BudgetSummary>(`/trips/${tripId}/budget`),
+  });
+}
+
+// The trip's hotels, in date order
+export function useStays(tripId: number) {
+  return useQuery({
+    queryKey: tripKeys.stays(tripId),
+    queryFn: () => api<Stay[]>(`/trips/${tripId}/stays`),
   });
 }

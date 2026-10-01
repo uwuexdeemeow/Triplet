@@ -76,7 +76,7 @@ def test_empty_days_count_meals(client, alice, trip, yen_rates):
     # Five days, one person, 48 USD of meals a day at 150 yen
     assert result["people"] == 1
     assert len(result["days"]) == 5
-    assert result["days"][0] == {"date": "2026-10-01", "plans": 0, "meals": 7200, "transport": 0, "total": 7200}
+    assert result["days"][0] == {"date": "2026-10-01", "plans": 0, "meals": 7200, "transport": 0, "stays": 0, "total": 7200}
     assert result["total"] == 36000
     # The trip's budget is 1000 yen
     assert result["over_budget_by"] == 35000

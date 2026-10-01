@@ -149,13 +149,26 @@ def _nearest_km(place: Candidate, busy: list[Busy]) -> float | None:
     ]
     return min(distances) if distances else None
 
-def draft_plan(days: list[date], candidates: list[Candidate], planned: list[Busy]) -> Draft:
+def _stay_km(place: Candidate, points: list[tuple[float, float]]) -> float | None:
+    if place.latitude is None or place.longitude is None or not points:
+        return None
+    return min(scheduling.distance_km(place.latitude, place.longitude, lat, lon) for lat, lon in points)
+
+def draft_plan(
+    days: list[date],
+    candidates: list[Candidate],
+    planned: list[Busy],
+    stays: dict[date, list[tuple[float, float]]] | None = None
+) -> Draft:
     """
     Args:
         days (list[date]): Every day of the trip.
         candidates (list[Candidate]): Every saved place; ones marked planned are left alone.
         planned (list[Busy]): What's already planned, which stays where it is.
+        stays (dict): Where each day starts and ends, as (latitude, longitude): the hotel slept at
+            the night before and the one that night. Places near them suit that day.
     """
+    stays = stays or {}
     draft = Draft()
     busy_by_day: dict[date, list[Busy]] = {day: [] for day in days}
     for item in planned:
@@ -180,7 +193,7 @@ def draft_plan(days: list[date], candidates: list[Candidate], planned: list[Busy
     for group in groups:
         place = group.place
         if place.category == "accommodation":
-            draft.unplaced.append(Unplaced(place.place_id, place.name, "Places to stay aren’t added as plans"))
+            draft.unplaced.append(Unplaced(place.place_id, place.name, "Places to stay aren’t added as plans. Add it as where you’re staying instead."))
             continue
 
         duration = VISIT_MINUTES.get(place.category or "other", 60)
@@ -208,21 +221,25 @@ def draft_plan(days: list[date], candidates: list[Candidate], planned: list[Busy
             if slot is None:
                 continue
 
-            # Close to the day's other stops beats a quiet day; earlier days break ties
+            # Close to the day's other stops or its hotel beats a quiet day; earlier days break ties
             nearest = _nearest_km(place, busy)
-            score = (nearest if nearest is not None else 5.0) + len(busy) * 1.5 + index * 0.01
-            options.append((score, day, slot, nearest))
+            hotel = _stay_km(place, stays.get(day, []))
+            closest = min((km for km in (nearest, hotel) if km is not None), default=None)
+            score = (closest if closest is not None else 5.0) + len(busy) * 1.5 + index * 0.01
+            options.append((score, day, slot, nearest, hotel))
 
         if not options:
             reason = "Closed every day of the trip" if closed_every_day and place.opening_hours else "No free time left on the days it’s open"
             draft.unplaced.append(Unplaced(place.place_id, place.name, reason))
             continue
 
-        _, day, (start, end), nearest = min(options, key=lambda option: option[0])
+        _, day, (start, end), nearest, hotel = min(options, key=lambda option: option[0])
         if len(group.saved_by) > 1:
             reason = f"Saved by {len(group.saved_by)} people"
-        elif nearest is not None and nearest < 1.5:
+        elif nearest is not None and nearest < 1.5 and (hotel is None or nearest <= hotel):
             reason = "Near your other plans that day"
+        elif hotel is not None and hotel < 1.5:
+            reason = "Near where you’re staying that day"
         elif place.opening_hours:
             reason = "Open then"
         else:

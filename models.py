@@ -520,6 +520,78 @@ class Activity(Base):
         onupdate=func.now()
     )
 
+class Stay(Base):
+    """
+    A hotel (or flat, hostel...) booked for some nights of the trip. Each day of the plan starts
+    at the night before's stay and ends at that night's, so a trip can move between several.
+    """
+    __tablename__ = "stays"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    # The saved place it was made from, e.g. a hotel from a TikTok
+    place_id: Mapped[int | None] = mapped_column(
+        ForeignKey("extracted_places.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    address: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
+    latitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    longitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    # The first night is check_in; the last is the night before check_out
+    check_in: Mapped[date] = mapped_column(
+        Date,
+        nullable=False
+    )
+
+    check_out: Mapped[date] = mapped_column(
+        Date,
+        nullable=False
+    )
+
+    # What the whole stay costs, in the trip's currency
+    cost: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True
+    )
+
+    # The booking's reference, for showing at the front desk
+    confirmation: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
 class Expense(Base):
     __tablename__ = "expenses"
 

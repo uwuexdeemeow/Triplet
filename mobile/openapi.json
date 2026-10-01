@@ -2311,6 +2311,283 @@
     }
    }
   },
+  "/trips/{trip_id}/stays": {
+   "get": {
+    "tags": [
+     "Stays"
+    ],
+    "summary": "Get Stays",
+    "operationId": "get_stays_trips__trip_id__stays_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/StayResponse"
+         },
+         "title": "Response Get Stays Trips  Trip Id  Stays Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "Stays"
+    ],
+    "summary": "Create Stay",
+    "operationId": "create_stay_trips__trip_id__stays_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StayCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StayResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/stays/{stay_id}": {
+   "patch": {
+    "tags": [
+     "Stays"
+    ],
+    "summary": "Update Stay",
+    "operationId": "update_stay_trips__trip_id__stays__stay_id__patch",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "stay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Stay Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StayUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StayResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "Stays"
+    ],
+    "summary": "Delete Stay",
+    "operationId": "delete_stay_trips__trip_id__stays__stay_id__delete",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "stay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Stay Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/stays/read-booking": {
+   "post": {
+    "tags": [
+     "Stays"
+    ],
+    "summary": "Read Booking",
+    "description": "Read a booking confirmation screenshot into a stay for the person to check. Nothing is saved.",
+    "operationId": "read_booking_trips__trip_id__stays_read_booking_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_read_booking_trips__trip_id__stays_read_booking_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StayDraft"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/links": {
    "post": {
     "tags": [
@@ -4890,6 +5167,20 @@
     ],
     "title": "Body_create_screenshot_trips__trip_id__links_screenshot_post"
    },
+   "Body_read_booking_trips__trip_id__stays_read_booking_post": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_read_booking_trips__trip_id__stays_read_booking_post"
+   },
    "Body_upload_avatar_users_me_avatar_put": {
     "properties": {
      "file": {
@@ -4932,6 +5223,11 @@
      "transport_total": {
       "type": "number",
       "title": "Transport Total"
+     },
+     "stays_total": {
+      "type": "number",
+      "title": "Stays Total",
+      "default": 0
      },
      "total": {
       "type": "number",
@@ -5015,6 +5311,11 @@
      "transport": {
       "type": "number",
       "title": "Transport"
+     },
+     "stays": {
+      "type": "number",
+      "title": "Stays",
+      "default": 0
      },
      "total": {
       "type": "number",
@@ -6052,6 +6353,36 @@
         "type": "null"
        }
       ]
+     },
+     "start_stay": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StayStop"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "end_stay": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StayStop"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "travel_to_stay": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TravelLeg"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "type": "object",
@@ -6486,6 +6817,36 @@
       "anyOf": [
        {
         "$ref": "#/components/schemas/DayWeather"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "start_stay": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StayStop"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "end_stay": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StayStop"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "travel_to_stay": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TravelLeg"
        },
        {
         "type": "null"
@@ -7663,6 +8024,471 @@
      "id_token"
     ],
     "title": "SocialLoginRequest"
+   },
+   "StayCreate": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Name"
+     },
+     "address": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 500
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     },
+     "check_in": {
+      "type": "string",
+      "format": "date",
+      "title": "Check In"
+     },
+     "check_out": {
+      "type": "string",
+      "format": "date",
+      "title": "Check Out"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 99999999.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     },
+     "place_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Place Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "check_in",
+     "check_out"
+    ],
+    "title": "StayCreate"
+   },
+   "StayDraft": {
+    "properties": {
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     },
+     "check_in": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Check In"
+     },
+     "check_out": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Check Out"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Notes",
+      "default": []
+     }
+    },
+    "type": "object",
+    "title": "StayDraft",
+    "description": "What a booking confirmation says, for the app to fill the stay form with. Nothing is saved."
+   },
+   "StayResponse": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "trip_id": {
+      "type": "integer",
+      "title": "Trip Id"
+     },
+     "place_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Place Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     },
+     "check_in": {
+      "type": "string",
+      "format": "date",
+      "title": "Check In"
+     },
+     "check_out": {
+      "type": "string",
+      "format": "date",
+      "title": "Check Out"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "trip_id",
+     "name",
+     "check_in",
+     "check_out"
+    ],
+    "title": "StayResponse"
+   },
+   "StayStop": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name"
+    ],
+    "title": "StayStop",
+    "description": "Where a day starts or ends, as the plan shows it. No price or booking reference, since guests see it too."
+   },
+   "StayUpdate": {
+    "properties": {
+     "name": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "address": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 500
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     },
+     "check_in": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Check In"
+     },
+     "check_out": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Check Out"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 99999999.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     }
+    },
+    "type": "object",
+    "title": "StayUpdate"
    },
    "Token": {
     "properties": {

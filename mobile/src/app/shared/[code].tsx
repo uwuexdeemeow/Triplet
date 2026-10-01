@@ -11,7 +11,7 @@ import { clearGuestToken, loadGuestToken, saveGuestToken } from '@/auth/token-st
 import { Button } from '@/components/button';
 import { GuestPlanForm } from '@/components/guest-plan-form';
 import { FormMessage, Screen } from '@/components/screen';
-import { ActivityRow, DayChips, EditHint, TravelConnector, type ActivityActions } from '@/components/plan-rows';
+import { ActivityRow, DayChips, EditHint, StayRow, stayEndpoint, TravelConnector, type ActivityActions } from '@/components/plan-rows';
 import { Body, Heading, Muted, Title } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { WeatherLine } from '@/components/weather-line';
@@ -227,6 +227,10 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
   const day = itinerary.data.days.find((item) => item.date === selectedDay);
   const activities = day?.activities ?? [];
   const titles = new Map(activities.map((activity) => [activity.id, activity.title]));
+  // Where the day starts and ends; guests see the hotels but not their price or booking reference
+  const startStay = day?.start_stay ?? null;
+  const endStay = day?.end_stay ?? null;
+  const lastActivity = activities[activities.length - 1];
 
   if (form && canEdit) {
     return (
@@ -285,6 +289,8 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
           </View>
           {day?.weather ? <WeatherLine weather={day.weather} /> : null}
 
+          {startStay ? <StayRow stay={startStay} role="start" /> : null}
+
           {activities.length === 0 ? (
             <Body style={[styles.muted, styles.empty]}>Nothing planned for this day yet.</Body>
           ) : (
@@ -292,7 +298,11 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
               {activities.map((activity, index) => (
                 <View key={activity.id}>
                   {activity.travel_from_previous ? (
-                    <TravelConnector leg={activity.travel_from_previous} from={activities[index - 1]} to={activity} />
+                    <TravelConnector
+                      leg={activity.travel_from_previous}
+                      from={index > 0 ? activities[index - 1] : startStay ? stayEndpoint(startStay) : undefined}
+                      to={activity}
+                    />
                   ) : null}
                   <ActivityRow
                     activity={activity}
@@ -305,6 +315,15 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
               {canEdit ? <EditHint /> : null}
             </>
           )}
+
+          {endStay ? (
+            <>
+              {day?.travel_to_stay && lastActivity ? (
+                <TravelConnector leg={day.travel_to_stay} from={lastActivity} to={stayEndpoint(endStay)} />
+              ) : null}
+              <StayRow stay={endStay} role={startStay?.id === endStay.id ? 'back' : 'check-in'} />
+            </>
+          ) : null}
 
           {canEdit ? (
             <Pressable

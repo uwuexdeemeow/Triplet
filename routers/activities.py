@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 import scheduling
 import weather
 from database import connect_db
-from models import Trip, TripMembership, Activity, SavedLink, ExtractedPlace
+from models import Trip, TripMembership, Activity, SavedLink, ExtractedPlace, Stay
 from schemas import (
     ActivityCreate, ActivityUpdate, ActivityResponse, ItineraryResponse, ItineraryDay, ItineraryActivity,
-    ScheduleWarning, SlotSuggestion, TravelLeg
+    ScheduleWarning, SlotSuggestion, StayStop, TravelLeg
 )
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 from validators import as_utc
@@ -187,9 +187,40 @@ def hours_warning(activity: ActivityResponse, place: ExtractedPlace | None) -> S
         return None
     return ScheduleWarning(kind="outside_hours", message=f"Open {scheduling.format_ranges(ranges)} that day")
 
+def stays_by_night(db: Session, trip_id: int) -> dict[date, Stay]:
+    """Each night of the trip that has a stay booked, by its date (the night of 3 Oct is 3 Oct)."""
+    nights = {}
+    for stay in db.query(Stay).filter(Stay.trip_id == trip_id).all():
+        night = stay.check_in
+        while night < stay.check_out:
+            nights[night] = stay
+            night += timedelta(days=1)
+    return nights
+
+def stay_point(stay: Stay | None) -> tuple[float, float] | None:
+    if stay is None or stay.latitude is None or stay.longitude is None:
+        return None
+    return stay.latitude, stay.longitude
+
+def stay_stop(stay: Stay | None) -> StayStop | None:
+    if stay is None:
+        return None
+    return StayStop(id=stay.id, name=stay.name, address=stay.address, latitude=stay.latitude, longitude=stay.longitude)
+
 def build_itinerary(db: Session, trip_id: int, activities: list[Activity], include_weather: bool = True) -> ItineraryResponse:
     days = defaultdict(list)
     conflict_count = 0
+
+    # A day starts where you slept the night before and ends where you sleep that night
+    nights = stays_by_night(db, trip_id)
+    trip = db.get(Trip, trip_id)
+    if nights and trip is not None:
+        day = trip.start_date
+        while day <= trip.end_date:
+            if day in nights or day - timedelta(days=1) in nights:
+                # Days with nothing planned still show where they start and end
+                days[day]
+            day += timedelta(days=1)
 
     place_ids = {activity.place_id for activity in activities if activity.place_id is not None}
     places = {
@@ -207,7 +238,8 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
         item.source_platform = platforms.get(activity.source_link_id)
         days[activity.start_time.date()].append(item)
 
-    for day_activities in days.values():
+    travel_to_stay: dict[date, TravelLeg] = {}
+    for day, day_activities in days.items():
         # Activities are sorted by start time, so only later ones can overlap an earlier one
         for i, first in enumerate(day_activities):
             for second in day_activities[i + 1:]:
@@ -217,7 +249,8 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
                 second.conflicts_with.append(first.id)
                 conflict_count += 1
 
-        previous, previous_point = None, None
+        # The day's first trip is from last night's stay
+        previous, previous_point = None, stay_point(nights.get(day - timedelta(days=1)))
         for activity in day_activities:
             place = places.get(activity.place_id)
             warning = hours_warning(activity, place)
@@ -225,7 +258,14 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
                 activity.warnings.append(warning)
 
             point = coordinates(activity, place)
-            if previous is not None and point is not None and previous_point is not None:
+            if previous is None and point is not None and previous_point is not None:
+                # Arriving on time is all that matters from the hotel, so there's no gap to check
+                travel = scheduling.travel_between(*previous_point, *point, depart=activity.start_time)
+                activity.travel_from_previous = TravelLeg(
+                    minutes=travel.minutes, mode=travel.mode, km=travel.km, note=travel.note,
+                    leave_by=activity.start_time - timedelta(minutes=travel.minutes)
+                )
+            elif previous is not None and point is not None and previous_point is not None:
                 # Leaving when the plan before ends, so rush hour and late nights count
                 travel = scheduling.travel_between(*previous_point, *point, depart=previous.end_time)
                 minutes = travel.minutes
@@ -247,12 +287,18 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
             # A plan without a pin breaks the chain, since we can't tell where it is
             previous, previous_point = activity, point
 
+        # And back to where you sleep tonight after the last plan
+        tonight = stay_point(nights.get(day))
+        if previous is not None and previous_point is not None and tonight is not None:
+            travel = scheduling.travel_between(*previous_point, *tonight, depart=previous.end_time)
+            travel_to_stay[day] = TravelLeg(minutes=travel.minutes, mode=travel.mode, km=travel.km, note=travel.note)
+
     # One forecast for the trip, from the first plan with a map pin
     trip_point = next(
         (point for day_activities in days.values() for activity in day_activities
          if (point := coordinates(activity, places.get(activity.place_id))) is not None),
         None
-    )
+    ) or next((point for stay in nights.values() if (point := stay_point(stay)) is not None), None)
     forecasts = weather.forecast(*trip_point, list(days)) if trip_point and include_weather else {}
 
     return ItineraryResponse(
@@ -262,7 +308,10 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
                 date=day,
                 activities=day_activities,
                 estimated_cost=sum(a.estimated_cost or 0 for a in day_activities),
-                weather=forecasts.get(day)
+                weather=forecasts.get(day),
+                start_stay=stay_stop(nights.get(day - timedelta(days=1))),
+                end_stay=stay_stop(nights.get(day)),
+                travel_to_stay=travel_to_stay.get(day)
             )
             for day, day_activities in sorted(days.items())
         ],

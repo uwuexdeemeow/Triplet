@@ -28,9 +28,9 @@ class AssistantError(Exception):
 @dataclass
 class Spot:
     """A saved place or a plan, as the assistant sees it."""
-    key: str                    # "place-12" or "plan-5"
+    key: str                    # "place-12", "plan-5" or "stay-3"
     name: str
-    kind: str                   # "saved place" or "plan"
+    kind: str                   # "saved place", "plan" or "hotel booked"
     details: dict
     latitude: float | None = None
     longitude: float | None = None
@@ -65,7 +65,9 @@ Scope:
 Answering:
 - Distances and travel times: never estimate them yourself. Use places_near or travel_time.
   Travel times are rough estimates from straight-line distance, so say "about".
-- "Our hotel", "where we stay": a saved place with category accommodation. If there is none, say so.
+- "Our hotel", "where we stay": the hotel booked for the night in question (type "hotel booked"),
+  or the one for the trip if there's only one. Without any, a saved place with category
+  accommodation. If there is neither, say so.
 - Refer to places by their exact names from the data so the app can link them.
 - If the data doesn't answer the question, say what's missing (for example, a place has no map pin
   or no opening hours) instead of guessing. Don't add facts from outside the data.

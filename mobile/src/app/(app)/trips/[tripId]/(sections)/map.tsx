@@ -11,8 +11,10 @@ import {
   useMe,
   useMembers,
   usePlaces,
+  useStays,
   useTrip,
   type ItineraryActivity,
+  type Stay,
   type TripPlace,
 } from '@/api/trips';
 import { Button } from '@/components/button';
@@ -23,7 +25,7 @@ import { Glass } from '@/components/glass';
 import { FormMessage } from '@/components/screen';
 import { makeStyles, useTheme } from '@/theme/theme';
 import { fonts, headingTracking, radii, spacing } from '@/theme/tokens';
-import { activityClock, dayOfMonth, eachDay, formatShortDate, weekdayShort } from '@/utils/dates';
+import { activityClock, dayOfMonth, eachDay, formatDateRange, formatShortDate, weekdayShort } from '@/utils/dates';
 import { needsCheck, placeDetail } from '@/utils/places';
 import { select as selectionTick } from '@/utils/haptics';
 
@@ -41,10 +43,11 @@ type Filter = (typeof FILTERS)[number]['key'] | `day:${string}`;
 // A spot to add something at: long-pressed on the map, or picked from search (which already knows its name)
 type Dropped = Coordinates & { known?: { name: string; address: string | null } };
 
-// A pin is either a plan (any activity with a location) or a saved place that isn't planned yet
+// A pin is a plan (any activity with a location), a saved place that isn't planned yet, or a hotel
 type MapItem =
   | (MapPlace & { kind: 'activity'; activity: ItineraryActivity; day: string })
-  | (MapPlace & { kind: 'place'; place: TripPlace });
+  | (MapPlace & { kind: 'place'; place: TripPlace })
+  | (MapPlace & { kind: 'stay'; stay: Stay });
 
 function isPlanned(place: TripPlace): boolean {
   return (place.activity_ids?.length ?? 0) > 0;
@@ -65,6 +68,7 @@ export default function TripMapScreen() {
   const trip = useTrip(id);
   const places = usePlaces(id);
   const itinerary = useItinerary(id);
+  const stays = useStays(id);
   const me = useMe();
   const members = useMembers(id);
   const [filter, setFilter] = useState<Filter>('all');
@@ -108,7 +112,19 @@ export default function TripMapScreen() {
       place,
     }));
 
-  const items = [...activityItems, ...placeItems];
+  // Where the trip sleeps, marked H
+  const stayItems: MapItem[] = (stays.data ?? []).filter(hasPin).map((stay) => ({
+    kind: 'stay' as const,
+    id: `stay-${stay.id}`,
+    name: stay.name,
+    latitude: stay.latitude,
+    longitude: stay.longitude,
+    planned: true,
+    label: 'H',
+    stay,
+  }));
+
+  const items = [...stayItems, ...activityItems, ...placeItems];
   const unpinned = (places.data ?? []).filter((place) => !hasPin(place) && !isPlanned(place) && place.details_status !== 'pending');
   const lookingUp = (places.data ?? []).some((place) => !hasPin(place) && place.details_status === 'pending');
 
@@ -132,16 +148,30 @@ export default function TripMapScreen() {
   ].sort();
 
   const day = filter.startsWith('day:') ? filter.slice(4) : null;
-  const dayItems: MapItem[] = day
+  const dayPlans: MapItem[] = day
     ? activityItems
         .filter((item) => item.kind === 'activity' && item.day === day)
         .map((item) => ({ ...item, label: String(item.kind === 'activity' ? stopNumbers.get(item.activity.id) : '') }))
     : [];
+  // The day runs from last night's hotel to tonight's
+  const itineraryDay = day ? itinerary.data?.days.find((d) => d.date === day) : undefined;
+  const startHotel = stayItems.find((item) => item.id === `stay-${itineraryDay?.start_stay?.id}`);
+  const endHotel = stayItems.find((item) => item.id === `stay-${itineraryDay?.end_stay?.id}`);
+  const dayItems: MapItem[] = [
+    ...(startHotel ? [startHotel] : []),
+    ...dayPlans,
+    ...(endHotel && endHotel !== startHotel ? [endHotel] : []),
+  ];
   const dayWithoutPin = day
     ? (itinerary.data?.days.find((d) => d.date === day)?.activities.filter((activity) => !hasPin(activity)).length ?? 0)
     : 0;
   const shown = day ? dayItems : items.filter((item) => filter === 'all' || (filter === 'planned') === item.planned);
-  const route = day ? dayItems.map(({ latitude, longitude }) => ({ latitude, longitude })) : undefined;
+  const route = day
+    ? [...(startHotel ? [startHotel] : []), ...dayPlans, ...(endHotel ? [endHotel] : [])].map(({ latitude, longitude }) => ({
+        latitude,
+        longitude,
+      }))
+    : undefined;
   const selected = shown.find((item) => item.id === selectedId) ?? null;
 
   // With nothing pinned, open the map on the trip's destinations: all of them in view
@@ -304,6 +334,8 @@ export default function TripMapScreen() {
           <SelectedActivity tripId={tripId} activity={selected.activity} day={selected.day} stop={selected.label} canEdit={canEdit} />
         ) : selected?.kind === 'place' ? (
           <SelectedPlace tripId={tripId} place={selected.place} />
+        ) : selected?.kind === 'stay' ? (
+          <SelectedStay tripId={tripId} stay={selected.stay} canEdit={canEdit} />
         ) : (
           <Idle
             tripId={tripId}
@@ -524,6 +556,36 @@ function SelectedActivity({
           />
         ) : null}
       </View>
+    </View>
+  );
+}
+
+function SelectedStay({ tripId, stay, canEdit }: { tripId: string; stay: Stay; canEdit: boolean }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.selected}>
+      <View style={styles.selectedText}>
+        <Text style={styles.kicker}>Where you stay</Text>
+        <Text style={styles.selectedName} numberOfLines={2}>
+          {stay.name}
+        </Text>
+        <Text style={[styles.detail, styles.detailAccent]}>{formatDateRange(stay.check_in, stay.check_out)}</Text>
+        {stay.address ? (
+          <Text style={styles.address} numberOfLines={1}>
+            {stay.address}
+          </Text>
+        ) : null}
+        <DirectionsLink to={{ name: stay.name, address: stay.address, latitude: stay.latitude, longitude: stay.longitude }} />
+      </View>
+      {canEdit ? (
+        <View style={styles.actions}>
+          <Button
+            label="Edit stay"
+            style={styles.actionWide}
+            onPress={() => router.push({ pathname: '/trips/[tripId]/stay', params: { tripId, stayId: String(stay.id) } })}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }

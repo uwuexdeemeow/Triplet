@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
-import type { ItineraryActivity, TravelLeg } from '@/api/trips';
+import type { ItineraryActivity, StayStop, TravelLeg } from '@/api/trips';
 import { ItemMenu } from '@/components/item-menu';
 import { PressableScale } from '@/components/pressable-scale';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
@@ -16,8 +16,16 @@ import { select, warn } from '@/utils/haptics';
 import { formatMoney } from '@/utils/money';
 import { platformLabel } from '@/utils/places';
 
-// A day's plans as members and guests both see them: the day chips, the travel between plans, and
-// each plan's card. What editing does is passed in, as members and guests save through different APIs.
+// A day's plans as members and guests both see them: the day chips, the travel between plans, each
+// plan's card, and the hotels the day starts and ends at. What editing does is passed in, as members
+// and guests save through different APIs.
+
+// One end of a trip between stops: a plan, or a hotel as a plan-shaped stop
+type Endpoint = Pick<ItineraryActivity, 'title' | 'location' | 'latitude' | 'longitude'>;
+
+export function stayEndpoint(stay: StayStop): Endpoint {
+  return { title: stay.name, location: stay.address ?? '', latitude: stay.latitude, longitude: stay.longitude };
+}
 
 export function DayChips({
   days,
@@ -78,7 +86,7 @@ export function EditHint({ wide }: { wide?: boolean }) {
 
 // Between two plans: roughly how long the trip takes at that time of day, and when to set off.
 // Tapping it opens the route between them in the maps app.
-export function TravelConnector({ leg, from, to }: { leg: TravelLeg; from?: ItineraryActivity; to: ItineraryActivity }) {
+export function TravelConnector({ leg, from, to }: { leg: TravelLeg; from?: Endpoint; to: Endpoint }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const how = leg.mode === 'walk' ? 'walk' : 'by train or taxi';
@@ -106,8 +114,77 @@ export function TravelConnector({ leg, from, to }: { leg: TravelLeg; from?: Itin
   );
 }
 
-function stopFor(activity: ItineraryActivity): Stop {
+function stopFor(activity: Endpoint): Stop {
   return { name: activity.title, address: activity.location, latitude: activity.latitude, longitude: activity.longitude };
+}
+
+/**
+ * A hotel the day starts or ends at. "start" is where you woke up; "end" is where you sleep, which is
+ * a check-in when it's a different hotel from the morning's (or the first night).
+ */
+export function StayRow({
+  stay,
+  role,
+  onPress,
+}: {
+  stay: StayStop;
+  role: 'start' | 'back' | 'check-in';
+  // Left out, the stay can't be changed from here
+  onPress?: () => void;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const label = role === 'start' ? 'Start the day at' : role === 'back' ? 'Back to' : 'Check in at';
+  return (
+    <View style={styles.row}>
+      <View style={[styles.timeColumn, styles.stayIconColumn]}>
+        <View style={styles.stayIcon}>
+          <Feather name={role === 'start' ? 'sun' : 'moon'} size={14} color={colors.accentStrong} />
+        </View>
+      </View>
+      <Pressable
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={`${label} ${stay.name}`}
+        accessibilityHint={onPress ? 'Opens the stay to edit it' : undefined}
+        disabled={!onPress}
+        onPress={onPress}
+        style={({ pressed, hovered }) => [styles.stayCard, onPress && (pressed || hovered) && styles.stayCardActive]}>
+        <View style={styles.stayText}>
+          <Text style={styles.stayLabel}>{label}</Text>
+          <Text style={styles.stayName} numberOfLines={1}>
+            {stay.name}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Directions to ${stay.name}`}
+          accessibilityHint="Opens your maps app"
+          onPress={() => openDirections(stopFor(stayEndpoint(stay)))}
+          hitSlop={6}
+          style={({ pressed, hovered }) => [styles.badge, styles.badgeAction, (pressed || hovered) && styles.badgeActionActive]}>
+          <Feather name="navigation" size={12} color={colors.accentStrong} />
+        </Pressable>
+      </Pressable>
+    </View>
+  );
+}
+
+// At the end of a day with no hotel booked that night, for people who can add one
+export function AddStayPrompt({ onPress }: { onPress: () => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <View style={styles.row}>
+      <View style={styles.timeColumn} />
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed, hovered }) => [styles.addStay, (pressed || hovered) && styles.stayCardActive]}>
+        <Feather name="moon" size={14} color={colors.accent} />
+        <Text style={styles.addStayLabel}>Where are you staying tonight?</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 /** What someone who can change the plan can do to one. Left out, the plan is view-only. */
@@ -476,6 +553,62 @@ const useStyles = makeStyles((colors) => ({
   },
   travelActive: {
     opacity: 0.7,
+  },
+  stayIconColumn: {
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  stayIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+  },
+  stayCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.accentSoft,
+  },
+  stayCardActive: {
+    opacity: 0.75,
+  },
+  stayText: {
+    flex: 1,
+    gap: 1,
+  },
+  stayLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.accentStrong,
+  },
+  stayName: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  addStay: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    height: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.accentMuted,
+  },
+  addStayLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.accent,
   },
   travelLink: {
     fontFamily: fonts.bold,
