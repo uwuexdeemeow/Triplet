@@ -137,6 +137,13 @@ function ExpenseForm({ trip, expense, title }: { trip: Trip; expense: Expense | 
     expense?.split === 'amounts' ? Object.fromEntries(expense.shares.map((share) => [share.user_id, String(share.amount)])) : {},
   );
   const [splitError, setSplitError] = useState<string | null>(null);
+
+  // Several people paying for it together, e.g. two cards at dinner: what each paid
+  const [several, setSeveral] = useState(() => (expense?.payments?.length ?? 0) > 1);
+  const [paid, setPaid] = useState<Record<number, string>>(() =>
+    Object.fromEntries((expense?.payments ?? []).map((payment) => [payment.user_id, String(payment.amount)])),
+  );
+  const [payError, setPayError] = useState<string | null>(null);
   const everyone = members.data?.map((member) => member.user_id) ?? [];
   // Until someone is left out, "Some people" starts with everyone ticked
   const picked = chosen ?? new Set(everyone);
@@ -157,7 +164,13 @@ function ExpenseForm({ trip, expense, title }: { trip: Trip; expense: Expense | 
         spent_on: values.day,
         activity_id: values.activityId,
         // Leaving it empty on a new expense means "me"; the server fills that in
-        ...(values.paidBy != null || !expense ? { paid_by_id: values.paidBy } : {}),
+        ...(!several && (values.paidBy != null || !expense) ? { paid_by_id: values.paidBy } : {}),
+        // Several payers, or none to mean the one payer above paid it all
+        payments: several
+          ? everyone
+              .filter((userId) => parseMoney(paid[userId] ?? '') > 0)
+              .map((userId) => ({ user_id: userId, amount: parseMoney(paid[userId]) }))
+          : [],
         split,
         shares:
           split === 'people'
@@ -189,9 +202,20 @@ function ExpenseForm({ trip, expense, title }: { trip: Trip; expense: Expense | 
   // How much of the total the custom amounts still leave, in cents
   const totalCents = toCents(parseMoney(amountText ?? ''));
   const assignedCents = everyone.reduce((sum, userId) => sum + (toCents(parseMoney(amounts[userId] ?? '')) || 0), 0);
+  // And how much of it the people who paid account for
+  const paidCents = everyone.reduce((sum, userId) => sum + (toCents(parseMoney(paid[userId] ?? '')) || 0), 0);
 
   const onSubmit = handleSubmit((values) => {
     setSplitError(null);
+    setPayError(null);
+    if (several) {
+      if (everyone.some((userId) => paid[userId]?.trim() && !(parseMoney(paid[userId]) >= 0))) {
+        return setPayError('Enter amounts as numbers, like 1500.');
+      }
+      if (paidCents !== totalCents) {
+        return setPayError(`What everyone paid needs to add up to ${formatMoney(totalCents / 100, trip.currency)}.`);
+      }
+    }
     if (split === 'people' && picked.size === 0) return setSplitError('Choose who shares it.');
     if (split === 'amounts') {
       if (everyone.some((userId) => amounts[userId]?.trim() && !(parseMoney(amounts[userId]) >= 0))) {
@@ -391,13 +415,17 @@ function ExpenseForm({ trip, expense, title }: { trip: Trip; expense: Expense | 
                 <Text style={styles.label}>Paid by</Text>
                 <View style={styles.chips}>
                   {members.data!.map((member) => {
-                    const selected = payer === member.user_id;
+                    const selected = !several && payer === member.user_id;
                     return (
                       <Pressable
                         key={member.user_id}
                         accessibilityRole="radio"
                         accessibilityState={{ checked: selected }}
-                        onPress={() => field.onChange(member.user_id)}
+                        onPress={() => {
+                          setSeveral(false);
+                          setPayError(null);
+                          field.onChange(member.user_id);
+                        }}
                         style={[styles.chip, selected && styles.chipSelected]}>
                         <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
                           {member.user_id === me.data?.id ? 'Me' : member.name}
@@ -405,7 +433,53 @@ function ExpenseForm({ trip, expense, title }: { trip: Trip; expense: Expense | 
                       </Pressable>
                     );
                   })}
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: several }}
+                    accessibilityHint="Enter how much each person paid"
+                    onPress={() => {
+                      setSeveral(true);
+                      setPayError(null);
+                    }}
+                    style={[styles.chip, several && styles.chipSelected]}>
+                    <Feather name="users" size={14} color={several ? colors.onAccent : colors.muted} />
+                    <Text style={[styles.chipText, several && styles.chipTextSelected]}>Several people</Text>
+                  </Pressable>
                 </View>
+
+                {several ? (
+                  <>
+                    {members.data!.map((member) => (
+                      <View key={member.user_id} style={styles.shareRow}>
+                        <Text style={styles.shareName} numberOfLines={1}>
+                          {member.user_id === me.data?.id ? 'Me' : member.name}
+                        </Text>
+                        <View style={styles.shareAmount}>
+                          <TextField
+                            label={member.user_id === me.data?.id ? 'I paid' : `${member.name} paid`}
+                            placeholder="0"
+                            keyboardType="decimal-pad"
+                            value={paid[member.user_id] ?? ''}
+                            onChangeText={(value) => {
+                              setPaid((current) => ({ ...current, [member.user_id]: value }));
+                              setPayError(null);
+                            }}
+                          />
+                        </View>
+                      </View>
+                    ))}
+                    <Text style={[styles.hint, totalCents > 0 && paidCents !== totalCents && styles.hintAttention]}>
+                      {totalCents > 0
+                        ? paidCents === totalCents
+                          ? 'All of it is accounted for.'
+                          : paidCents < totalCents
+                            ? `${formatMoney((totalCents - paidCents) / 100, trip.currency)} still to account for.`
+                            : `${formatMoney((paidCents - totalCents) / 100, trip.currency)} too much.`
+                        : 'Enter the amount above first.'}
+                    </Text>
+                    <FormMessage message={payError} />
+                  </>
+                ) : null}
               </View>
             );
           }}

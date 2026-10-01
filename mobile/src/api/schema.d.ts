@@ -1694,6 +1694,11 @@ export interface components {
             /** Paid By Id */
             paid_by_id?: number | null;
             /**
+             * Payments
+             * @default []
+             */
+            payments: components["schemas"]["ExpensePaymentIn"][];
+            /**
              * Split
              * @default all
              * @enum {string}
@@ -1704,6 +1709,20 @@ export interface components {
              * @default []
              */
             shares: components["schemas"]["ExpenseShareIn"][];
+        };
+        /** ExpensePaymentIn */
+        ExpensePaymentIn: {
+            /** User Id */
+            user_id: number;
+            /** Amount */
+            amount: number;
+        };
+        /** ExpensePaymentOut */
+        ExpensePaymentOut: {
+            /** User Id */
+            user_id: number;
+            /** Amount */
+            amount: number;
         };
         /** ExpenseResponse */
         ExpenseResponse: {
@@ -1733,6 +1752,11 @@ export interface components {
              * @default []
              */
             shares: components["schemas"]["ExpenseShareOut"][];
+            /**
+             * Payments
+             * @default []
+             */
+            payments: components["schemas"]["ExpensePaymentOut"][];
             /**
              * Created At
              * Format: date-time
@@ -1767,6 +1791,8 @@ export interface components {
             activity_id?: number | null;
             /** Paid By Id */
             paid_by_id?: number | null;
+            /** Payments */
+            payments?: components["schemas"]["ExpensePaymentIn"][] | null;
             /** Split */
             split?: ("all" | "people" | "amounts") | null;
             /** Shares */

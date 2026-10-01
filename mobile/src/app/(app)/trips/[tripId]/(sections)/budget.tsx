@@ -111,7 +111,7 @@ export default function BudgetScreen() {
                   <ExpenseRow
                     tripId={id}
                     expense={expense}
-                    payer={expense.paid_by_id != null ? names.get(expense.paid_by_id) : undefined}
+                    payer={payerNames(expense, names)}
                     showPayer={summary.balances.length > 1}
                     plan={expense.activity_id != null ? planTitles.get(expense.activity_id) : undefined}
                     canEdit={canEdit}
@@ -464,6 +464,14 @@ function SettleUpCard({
       ) : null}
     </View>
   );
+}
+
+// "Alice", or everyone who paid together: "Alice and Bob", "Alice, Bob and Eve"
+function payerNames(expense: Expense, names: Map<number, string>): string | undefined {
+  const ids = (expense.payments?.length ?? 0) > 1 ? expense.payments!.map((payment) => payment.user_id) : [expense.paid_by_id];
+  const known = ids.map((userId) => (userId != null ? names.get(userId) : undefined)).filter((name): name is string => !!name);
+  if (known.length <= 1) return known[0];
+  return `${known.slice(0, -1).join(', ')} and ${known[known.length - 1]}`;
 }
 
 function ExpenseRow({

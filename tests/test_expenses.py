@@ -183,3 +183,63 @@ def test_viewers_cant_record_payments(client, alice, bob, trip, add_member):
                            json={"from_user_id": bob["id"], "to_user_id": alice["id"], "amount": 5})
 
     assert response.status_code == 403
+
+def test_several_people_can_pay_for_one_expense(client, alice, bob, eve, trip, add_member, create_expense):
+    add_member(bob)
+    add_member(eve)
+
+    response = create_expense(title="Dinner", amount=90, payments=[
+        {"user_id": alice["id"], "amount": 30},
+        {"user_id": bob["id"], "amount": 60},
+    ])
+
+    assert response.status_code == 201, response.text
+    expense = response.json()
+    # Whoever paid most is the expense's payer
+    assert expense["paid_by_id"] == bob["id"]
+    assert sorted((p["user_id"], p["amount"]) for p in expense["payments"]) == [(alice["id"], 30), (bob["id"], 60)]
+
+    # Split between all three: 30 each, so Alice is even, Bob is owed 30, Eve owes 30
+    balances = {b["user_id"]: b for b in client.get(f"/trips/{trip['id']}/budget", headers=alice["headers"]).json()["balances"]}
+    assert (balances[alice["id"]]["paid"], balances[alice["id"]]["balance"]) == (30, 0)
+    assert (balances[bob["id"]]["paid"], balances[bob["id"]]["balance"]) == (60, 30)
+    assert balances[eve["id"]]["balance"] == -30
+
+def test_what_everyone_paid_must_add_up(create_expense, alice, bob, add_member):
+    add_member(bob)
+
+    response = create_expense(amount=90, payments=[{"user_id": alice["id"], "amount": 30}, {"user_id": bob["id"], "amount": 50}])
+
+    assert response.status_code == 400
+    assert "not the total of 90" in response.json()["detail"]
+
+def test_everyone_who_paid_must_be_on_the_trip(create_expense, alice, eve):
+    response = create_expense(amount=20, payments=[{"user_id": alice["id"], "amount": 10}, {"user_id": eve["id"], "amount": 10}])
+
+    assert response.status_code == 400
+
+def test_one_payment_means_that_person_paid_it_all(create_expense, bob, add_member):
+    add_member(bob)
+
+    expense = create_expense(amount=40, payments=[{"user_id": bob["id"], "amount": 40}]).json()
+
+    assert expense["paid_by_id"] == bob["id"]
+    assert expense["payments"] == []
+
+def test_changing_who_paid(client, alice, bob, trip, add_member, create_expense):
+    add_member(bob)
+    expense = create_expense(amount=90, payments=[{"user_id": alice["id"], "amount": 30}, {"user_id": bob["id"], "amount": 60}]).json()
+    url = f"/trips/{trip['id']}/expenses/{expense['id']}"
+
+    # A new total needs new amounts for each payer
+    assert client.patch(url, headers=alice["headers"], json={"amount": 100}).status_code == 400
+    response = client.patch(url, headers=alice["headers"], json={
+        "amount": 100, "payments": [{"user_id": alice["id"], "amount": 70}, {"user_id": bob["id"], "amount": 30}]
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["paid_by_id"] == alice["id"]
+
+    # Picking one payer goes back to them paying it all
+    response = client.patch(url, headers=alice["headers"], json={"paid_by_id": bob["id"]})
+    assert response.json()["payments"] == []
+    assert response.json()["paid_by_id"] == bob["id"]

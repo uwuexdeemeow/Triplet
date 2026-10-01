@@ -755,9 +755,34 @@ class Expense(Base):
         order_by="ExpenseShare.user_id"
     )
 
+    # When several people paid, how much each did; empty when paid_by_id paid it all
+    payments: Mapped[list["ExpensePayment"]] = relationship(
+        cascade="all, delete-orphan",
+        order_by="ExpensePayment.user_id"
+    )
+
 class ExpenseShare(Base):
     """One person's part of an expense that isn't split between everyone."""
     __tablename__ = "expense_shares"
+
+    expense_id: Mapped[int] = mapped_column(
+        ForeignKey("expenses.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False
+    )
+
+class ExpensePayment(Base):
+    """What one person paid towards an expense that several people paid for together."""
+    __tablename__ = "expense_payments"
 
     expense_id: Mapped[int] = mapped_column(
         ForeignKey("expenses.id", ondelete="CASCADE"),

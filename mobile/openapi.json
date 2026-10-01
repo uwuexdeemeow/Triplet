@@ -6136,6 +6136,15 @@
       ],
       "title": "Paid By Id"
      },
+     "payments": {
+      "items": {
+       "$ref": "#/components/schemas/ExpensePaymentIn"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Payments",
+      "default": []
+     },
      "split": {
       "type": "string",
       "enum": [
@@ -6162,6 +6171,44 @@
      "amount"
     ],
     "title": "ExpenseCreate"
+   },
+   "ExpensePaymentIn": {
+    "properties": {
+     "user_id": {
+      "type": "integer",
+      "title": "User Id"
+     },
+     "amount": {
+      "type": "number",
+      "maximum": 99999999.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Amount"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "amount"
+    ],
+    "title": "ExpensePaymentIn"
+   },
+   "ExpensePaymentOut": {
+    "properties": {
+     "user_id": {
+      "type": "integer",
+      "title": "User Id"
+     },
+     "amount": {
+      "type": "number",
+      "title": "Amount"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "amount"
+    ],
+    "title": "ExpensePaymentOut"
    },
    "ExpenseResponse": {
     "properties": {
@@ -6230,6 +6277,14 @@
       },
       "type": "array",
       "title": "Shares",
+      "default": []
+     },
+     "payments": {
+      "items": {
+       "$ref": "#/components/schemas/ExpensePaymentOut"
+      },
+      "type": "array",
+      "title": "Payments",
       "default": []
      },
      "created_at": {
@@ -6372,6 +6427,21 @@
        }
       ],
       "title": "Paid By Id"
+     },
+     "payments": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ExpensePaymentIn"
+        },
+        "type": "array",
+        "maxItems": 50
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Payments"
      },
      "split": {
       "anyOf": [

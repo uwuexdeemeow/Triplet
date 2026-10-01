@@ -9,10 +9,10 @@ import exchange_rates
 import scheduling
 import splits
 from database import connect_db
-from models import User, Trip, TripMembership, Activity, Expense, ExpenseShare, ExtractedPlace, Settlement, Flight
+from models import User, Trip, TripMembership, Activity, Expense, ExpenseShare, ExpensePayment, ExtractedPlace, Settlement, Flight
 from routers.activities import build_itinerary, stays_by_night
 from schemas import (
-    ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseShareIn, BudgetSummary, MemberBalance, BudgetEstimate,
+    ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpensePaymentIn, ExpenseShareIn, BudgetSummary, MemberBalance, BudgetEstimate,
     BudgetEstimateDay, SettlementCreate, SettlementResponse, Transfer
 )
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
@@ -86,6 +86,35 @@ def apply_split(db: Session, trip_id: int, expense: Expense, split: str, shares:
     # Replacing the list deletes the old shares (delete-orphan)
     expense.shares = [ExpenseShare(user_id=user_id, amount=amount) for user_id, amount in amounts.items() if amount > 0 or split == "people"]
 
+def apply_payments(db: Session, trip_id: int, expense: Expense, payments: list[ExpensePaymentIn]):
+    """
+    Set who paid for an expense. Several people: what each paid, adding up to the amount, with
+    whoever paid most as the expense's payer. One or none: that person paid it all.
+    """
+    if len(payments) <= 1:
+        if payments:
+            expense.paid_by_id = payments[0].user_id
+        expense.payments = []
+        return
+
+    user_ids = [payment.user_id for payment in payments]
+    if len(set(user_ids)) != len(user_ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Each person can only be listed once")
+    if not set(user_ids) <= member_ids(db, trip_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Everyone who paid must be on the trip")
+
+    amounts = {payment.user_id: splits.cents(payment.amount) for payment in payments}
+    total = splits.cents(expense.amount)
+    if sum(amounts.values()) != total:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"What everyone paid adds up to {sum(amounts.values())}, not the total of {total}"
+        )
+
+    expense.paid_by_id = max(amounts, key=lambda user_id: (amounts[user_id], -user_ids.index(user_id)))
+    # Replacing the list deletes the old payments (delete-orphan)
+    expense.payments = [ExpensePayment(user_id=user_id, amount=amount) for user_id, amount in amounts.items()]
+
 def get_expense_or_404(db: Session, trip_id: int, expense_id: int) -> Expense:
     expense = db.query(Expense).filter(
         Expense.id == expense_id,
@@ -124,6 +153,7 @@ def create_expense(
         spent_on=expense_create.spent_on
     )
     apply_split(db, trip_id, expense, expense_create.split, expense_create.shares)
+    apply_payments(db, trip_id, expense, expense_create.payments)
 
     db.add(expense)
     db.commit()
@@ -190,8 +220,20 @@ def update_expense(
 
     split = update_data.pop("split", None)
     update_data.pop("shares", None)
+    payments = update_data.pop("payments", None)
     for field, value in update_data.items():
         setattr(expense, field, value)
+
+    if payments is not None:
+        apply_payments(db, trip_id, expense, expense_update.payments)
+    elif "paid_by_id" in update_data:
+        # Picking one payer means they paid it all
+        expense.payments = []
+    elif "amount" in update_data and expense.payments:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Several people paid for this, so change what each of them paid too"
+        )
 
     if split is not None or expense_update.shares is not None:
         apply_split(db, trip_id, expense, split or expense.split, expense_update.shares or [])
@@ -246,7 +288,10 @@ def get_budget(
     for expense in expenses:
         total_spent += expense.amount
         by_category[expense.category] += expense.amount
-        if expense.paid_by_id is not None:
+        if expense.payments:
+            for payment in expense.payments:
+                paid_by[payment.user_id] += payment.amount
+        elif expense.paid_by_id is not None:
             paid_by[expense.paid_by_id] += expense.amount
 
     members = (

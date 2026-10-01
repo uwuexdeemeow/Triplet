@@ -824,6 +824,16 @@ class ExpenseShareOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+class ExpensePaymentIn(BaseModel):
+    user_id: int
+    amount: float = Field(gt=0, le=99_999_999)
+
+class ExpensePaymentOut(BaseModel):
+    user_id: int
+    amount: float
+
+    model_config = {"from_attributes": True}
+
 class ExpenseCreate(BaseModel):
     title: ShortText
     amount: float = Field(gt=0, le=99_999_999)
@@ -831,6 +841,9 @@ class ExpenseCreate(BaseModel):
     spent_on: date | None = None
     activity_id: int | None = None
     paid_by_id: int | None = None
+    # When several people paid, what each paid; it must add up to the amount. Leave it empty when
+    # one person (paid_by_id) paid it all.
+    payments: list[ExpensePaymentIn] = Field(default=[], max_length=50)
     # "all": everyone on the trip. "people": the people in shares, evenly. "amounts": shares' amounts.
     split: ExpenseSplit = "all"
     shares: list[ExpenseShareIn] = Field(default=[], max_length=50)
@@ -842,6 +855,8 @@ class ExpenseUpdate(BaseModel):
     spent_on: date | None = None
     activity_id: int | None = None
     paid_by_id: int | None = None
+    # An empty list goes back to one person paying it all
+    payments: list[ExpensePaymentIn] | None = Field(default=None, max_length=50)
     split: ExpenseSplit | None = None
     shares: list[ExpenseShareIn] | None = Field(default=None, max_length=50)
 
@@ -856,6 +871,9 @@ class ExpenseResponse(BaseModel):
     spent_on: date | None = None
     split: str = "all"
     shares: list[ExpenseShareOut] = []
+    # Empty when one person (paid_by_id) paid it all; otherwise who paid what, and paid_by_id is
+    # whoever paid the most
+    payments: list[ExpensePaymentOut] = []
     created_at: datetime
 
     model_config={
