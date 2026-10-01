@@ -162,6 +162,9 @@ function monthGrid(year: number, month: number): (string | null)[] {
   ];
 }
 
+// Years shown at once when picking a year
+const YEARS_PER_PAGE = 12;
+
 export function DateField({ label, value, onChange, error, minimumDate }: FieldProps) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -169,23 +172,42 @@ export function DateField({ label, value, onChange, error, minimumDate }: FieldP
   const { open, setOpen, container, panel: panelRef } = usePopover();
   const selected = value ? parseDate(value) : new Date();
   const [shown, setShown] = useState({ year: selected.getFullYear(), month: selected.getMonth() });
+  // Clicking the title jumps out to years, then a year shows its months, and a month its days
+  const [view, setView] = useState<'days' | 'months' | 'years'>('days');
   const today = todayString();
+  const minimum = minimumDate ? parseDate(minimumDate) : null;
 
   const openCalendar = () => {
-    // Always open on the chosen month
+    // Always open on the chosen month's days
     setShown({ year: selected.getFullYear(), month: selected.getMonth() });
+    setView('days');
     setOpen(!open);
   };
 
-  const moveMonth = (step: number) =>
+  // The arrows move by a month, a year or a page of years, depending on what's shown
+  const move = (step: number) =>
     setShown(({ year, month }) => {
+      if (view === 'years') return { year: year + step * YEARS_PER_PAGE, month };
+      if (view === 'months') return { year: year + step, month };
       const next = new Date(year, month + step, 1);
       return { year: next.getFullYear(), month: next.getMonth() };
     });
 
   const grid = monthGrid(shown.year, shown.month);
-  // No going back past the month of the earliest allowed day
-  const canGoBack = !minimumDate || addDays(toDateString(new Date(shown.year, shown.month, 1)), -1) >= minimumDate;
+  const firstYear = shown.year - (shown.year % YEARS_PER_PAGE);
+  // Nothing before the earliest allowed day can be picked, so don't go back past it
+  const yearBlocked = (year: number) => !!minimum && year < minimum.getFullYear();
+  const monthBlocked = (year: number, month: number) =>
+    !!minimum && (year < minimum.getFullYear() || (year === minimum.getFullYear() && month < minimum.getMonth()));
+  const canGoBack =
+    view === 'years'
+      ? !yearBlocked(firstYear - 1)
+      : view === 'months'
+        ? !yearBlocked(shown.year - 1)
+        : !minimumDate || addDays(toDateString(new Date(shown.year, shown.month, 1)), -1) >= minimumDate;
+  const step = view === 'years' ? `${YEARS_PER_PAGE} years` : view === 'months' ? 'year' : 'month';
+  const title =
+    view === 'years' ? `${firstYear} – ${firstYear + YEARS_PER_PAGE - 1}` : view === 'months' ? String(shown.year) : `${MONTHS[shown.month]} ${shown.year}`;
 
   return (
     <Field
@@ -200,24 +222,91 @@ export function DateField({ label, value, onChange, error, minimumDate }: FieldP
           <View style={styles.calendarHeader}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Previous month"
+              accessibilityLabel={`Previous ${step}`}
               disabled={!canGoBack}
-              onPress={() => moveMonth(-1)}
+              onPress={() => move(-1)}
               style={({ hovered }) => [styles.navButton, hovered && styles.hover, !canGoBack && styles.disabled]}>
               <Feather name="chevron-left" size={18} color={colors.ink} />
             </Pressable>
-            <Text style={styles.monthTitle} accessibilityRole="header">
-              {MONTHS[shown.month]} {shown.year}
-            </Text>
+            {/* The title steps out: days to years, months to years; the year list has nowhere further */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Next month"
-              onPress={() => moveMonth(1)}
+              accessibilityLabel={view === 'years' ? title : `${title}, choose a ${view === 'days' ? 'year and month' : 'year'}`}
+              disabled={view === 'years'}
+              onPress={() => setView('years')}
+              style={({ hovered }) => [styles.titleButton, view !== 'years' && hovered && styles.hover]}>
+              <Text style={styles.monthTitle} accessibilityRole="header">
+                {title}
+              </Text>
+              {view !== 'years' ? <Feather name="chevron-down" size={16} color={colors.muted} /> : null}
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Next ${step}`}
+              onPress={() => move(1)}
               style={({ hovered }) => [styles.navButton, hovered && styles.hover]}>
               <Feather name="chevron-right" size={18} color={colors.ink} />
             </Pressable>
           </View>
 
+          {view === 'years' ? (
+            <View style={styles.grid}>
+              {Array.from({ length: YEARS_PER_PAGE }, (_, index) => firstYear + index).map((year) => {
+                const isSelected = !!value && year === selected.getFullYear();
+                const blocked = yearBlocked(year);
+                return (
+                  <Pressable
+                    key={year}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected, disabled: blocked }}
+                    disabled={blocked}
+                    onPress={() => {
+                      setShown(({ month }) => ({ year, month }));
+                      setView('months');
+                    }}
+                    style={({ hovered }) => [
+                      styles.pick,
+                      hovered && !isSelected && styles.hover,
+                      year === new Date().getFullYear() && !isSelected && styles.today,
+                      isSelected && styles.daySelected,
+                      blocked && styles.disabled,
+                    ]}>
+                    <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{year}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : view === 'months' ? (
+            <View style={styles.grid}>
+              {MONTHS.map((name, month) => {
+                const isSelected = !!value && shown.year === selected.getFullYear() && month === selected.getMonth();
+                const blocked = monthBlocked(shown.year, month);
+                const now = new Date();
+                return (
+                  <Pressable
+                    key={name}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${name} ${shown.year}`}
+                    accessibilityState={{ selected: isSelected, disabled: blocked }}
+                    disabled={blocked}
+                    onPress={() => {
+                      setShown(({ year }) => ({ year, month }));
+                      setView('days');
+                    }}
+                    style={({ hovered }) => [
+                      styles.pick,
+                      hovered && !isSelected && styles.hover,
+                      shown.year === now.getFullYear() && month === now.getMonth() && !isSelected && styles.today,
+                      isSelected && styles.daySelected,
+                      blocked && styles.disabled,
+                    ]}>
+                    <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{name.slice(0, 3)}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+          <>
           <View style={styles.week}>
             {WEEKDAY_HEADERS.map((day) => (
               <Text key={day} style={styles.weekday}>
@@ -256,6 +345,8 @@ export function DateField({ label, value, onChange, error, minimumDate }: FieldP
               );
             })}
           </View>
+          </>
+          )}
         </View>
       }>
       <Pressable
@@ -456,6 +547,23 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingBottom: spacing.xs,
+  },
+  titleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 36,
+    paddingHorizontal: spacing.md,
+    borderRadius: 18,
+  },
+  // A year or month to pick: three to a row
+  pick: {
+    width: `${100 / 3 - 2}%`,
+    height: 48,
+    margin: '1%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.input,
   },
   monthTitle: {
     fontFamily: fonts.bold,
