@@ -245,20 +245,27 @@ export function AddPrompt({
   icon,
   label,
   onPress,
+  aligned = true,
 }: {
   icon: 'moon' | 'airplane-landing' | 'airplane-takeoff';
   label: string;
   onPress: () => void;
+  // Lined up with the cards past the time column; off on an empty day, where it's centred instead
+  aligned?: boolean;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
   return (
     <View style={styles.row}>
-      <View style={styles.timeColumn} />
+      {aligned ? <View style={styles.timeColumn} /> : null}
       <Pressable
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed, hovered }) => [styles.addStay, (pressed || hovered) && styles.stayCardActive]}>
+        style={({ pressed, hovered }) => [
+          styles.addStay,
+          !aligned && styles.addStayCentered,
+          (pressed || hovered) && styles.stayCardActive,
+        ]}>
         {icon === 'moon' ? (
           <Feather name="moon" size={14} color={colors.accent} />
         ) : (
@@ -779,6 +786,9 @@ const useStyles = makeStyles((colors) => ({
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: colors.accentMuted,
+  },
+  addStayCentered: {
+    justifyContent: 'center',
   },
   addStayLabel: {
     fontFamily: fonts.semibold,

@@ -352,7 +352,12 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
             <Pressable
               accessibilityRole="button"
               onPress={() => setForm({})}
-              style={({ hovered }) => [styles.addPlan, hovered && styles.addPlanHover]}>
+              style={({ hovered }) => [
+                styles.addPlan,
+                // Lined up with the day's cards; an empty day has none, so it spans the width instead
+                !(entries.length || startStay || endStay) && styles.addPlanCentered,
+                hovered && styles.addPlanHover,
+              ]}>
               <Feather name="plus" size={16} color={colors.accent} />
               <Text style={styles.addPlanLabel}>Add a plan to {formatShortDate(selectedDay)}</Text>
             </Pressable>
@@ -436,6 +441,9 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
+  },
+  addPlanCentered: {
+    marginLeft: 0,
   },
   addPlanHover: {
     backgroundColor: colors.accentSoft,

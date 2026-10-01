@@ -140,6 +140,9 @@ export default function PlanScreen() {
   const entries = dayEntries(day);
   const dayFlights = day?.flights ?? [];
   const lastStop = lastEndpoint(day);
+  // Buttons line up with the day's cards, past the time column; on an empty day there are none to
+  // line up with, so they span the column instead of looking pushed aside
+  const aligned = entries.length > 0 || !!startStay || !!endStay;
   const openFlight = (flightId?: number, kind?: 'arrival' | 'departure') =>
     router.push({
       pathname: '/trips/[tripId]/flight',
@@ -162,7 +165,7 @@ export default function PlanScreen() {
       ) : null}
 
       {itinerary.isSuccess && canEdit && isFirstDay && !dayFlights.some((flight) => flight.kind === 'arrival') ? (
-        <AddPrompt icon="airplane-landing" label="Flying in? Add your flight" onPress={() => openFlight(undefined, 'arrival')} />
+        <AddPrompt icon="airplane-landing" label="Flying in? Add your flight" onPress={() => openFlight(undefined, 'arrival')} aligned={aligned} />
       ) : null}
 
       {itinerary.isPending ? (
@@ -208,7 +211,7 @@ export default function PlanScreen() {
       )}
 
       {itinerary.isSuccess && canEdit && isLastDay && !dayFlights.some((flight) => flight.kind === 'departure') ? (
-        <AddPrompt icon="airplane-takeoff" label="Flying home? Add your flight" onPress={() => openFlight(undefined, 'departure')} />
+        <AddPrompt icon="airplane-takeoff" label="Flying home? Add your flight" onPress={() => openFlight(undefined, 'departure')} aligned={aligned} />
       ) : null}
 
       {itinerary.isSuccess && endStay ? (
@@ -224,7 +227,7 @@ export default function PlanScreen() {
           />
         </>
       ) : itinerary.isSuccess && canEdit && !isLastDay ? (
-        <AddPrompt icon="moon" label="Where are you staying tonight?" onPress={() => openStay(undefined, selectedDay)} />
+        <AddPrompt icon="moon" label="Where are you staying tonight?" onPress={() => openStay(undefined, selectedDay)} aligned={aligned} />
       ) : null}
       {itinerary.isSuccess && canEdit && activities.length ? <EditHint wide={wide} /> : null}
     </>
@@ -275,7 +278,7 @@ export default function PlanScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={openAdd}
-            style={({ hovered }) => [styles.addPlan, hovered && styles.addPlanHover]}>
+            style={({ hovered }) => [styles.addPlan, !aligned && styles.addPlanCentered, hovered && styles.addPlanHover]}>
             <Feather name="plus" size={16} color={colors.accent} />
             <Text style={styles.addPlanLabel}>Add a plan to {formatShortDate(selectedDay)}</Text>
           </Pressable>
@@ -534,6 +537,9 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
+  },
+  addPlanCentered: {
+    marginLeft: 0,
   },
   addPlanHover: {
     backgroundColor: colors.accentSoft,
