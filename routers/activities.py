@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 import scheduling
 import weather
 from database import connect_db
-from models import Trip, TripMembership, Activity, SavedLink, ExtractedPlace, Stay
+from models import Trip, TripMembership, Activity, SavedLink, ExtractedPlace, Stay, Flight
 from schemas import (
     ActivityCreate, ActivityUpdate, ActivityResponse, ItineraryResponse, ItineraryDay, ItineraryActivity,
-    ScheduleWarning, SlotSuggestion, StayStop, TravelLeg
+    ItineraryFlight, ScheduleWarning, SlotSuggestion, StayStop, TravelLeg
 )
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES, Pagination
 from validators import as_utc
@@ -207,17 +207,73 @@ def stay_stop(stay: Stay | None) -> StayStop | None:
         return None
     return StayStop(id=stay.id, name=stay.name, address=stay.address, latitude=stay.latitude, longitude=stay.longitude)
 
+# Be at the airport this long before take-off, for check-in, bags and security
+AIRPORT_BEFORE_MINUTES = 120
+# And roughly this long after landing to get out: walking, passport control, bags
+AIRPORT_AFTER_MINUTES = 45
+
+def flight_label(flight) -> str:
+    return f"flight {flight.flight_number}" if flight.flight_number else "flight"
+
+def flights_by_day(db: Session, trip_id: int) -> dict[date, list[ItineraryFlight]]:
+    """Each flight's take-off and landing, on the day each happens, in time order."""
+    events = defaultdict(list)
+    for flight in db.query(Flight).filter(Flight.trip_id == trip_id).order_by(Flight.departs_at, Flight.id).all():
+        common = {"flight_id": flight.id, "flight_number": flight.flight_number, "airline": flight.airline}
+        events[flight.departs_at.date()].append(ItineraryFlight(
+            **common, kind="departure",
+            airport=flight.from_name, airport_code=flight.from_code,
+            latitude=flight.from_latitude, longitude=flight.from_longitude,
+            other_airport=flight.to_name, other_airport_code=flight.to_code,
+            time=flight.departs_at, ready_at=flight.departs_at - timedelta(minutes=AIRPORT_BEFORE_MINUTES)
+        ))
+        events[flight.arrives_at.date()].append(ItineraryFlight(
+            **common, kind="arrival",
+            airport=flight.to_name, airport_code=flight.to_code,
+            latitude=flight.to_latitude, longitude=flight.to_longitude,
+            other_airport=flight.from_name, other_airport_code=flight.from_code,
+            time=flight.arrives_at, ready_at=flight.arrives_at + timedelta(minutes=AIRPORT_AFTER_MINUTES)
+        ))
+    for day_events in events.values():
+        day_events.sort(key=lambda event: (event.time, event.kind == "departure"))
+    return events
+
+def flight_windows(events: list[ItineraryFlight]) -> list[tuple[datetime, datetime, ItineraryFlight]]:
+    """When a day's flights keep you busy: at the airport, or in the air until midnight or since it."""
+    windows = []
+    for event in events:
+        if event.kind == "departure":
+            landing = next((e for e in events if e.kind == "arrival" and e.flight_id == event.flight_id), None)
+            end = landing.ready_at if landing else event.time.replace(hour=23, minute=59)
+            windows.append((event.ready_at, end, event))
+        elif not any(e.kind == "departure" and e.flight_id == event.flight_id for e in events):
+            # Took off the day before: in the air since midnight
+            windows.append((event.time.replace(hour=0, minute=0), event.ready_at, event))
+    return windows
+
+def flight_busy(db: Session, trip_id: int) -> dict[date, list[tuple[int, int, float | None, float | None]]]:
+    """Each day's flight times as busy (start, end, latitude, longitude) in minutes, for suggesting times around them."""
+    busy = defaultdict(list)
+    for day, events in flights_by_day(db, trip_id).items():
+        for start, end, event in flight_windows(events):
+            start_minutes = scheduling.minutes_of(start) if start.date() == day else 0
+            end_minutes = scheduling.minutes_of(end) if end.date() == day else scheduling.DAY_MINUTES
+            busy[day].append((start_minutes, max(end_minutes, start_minutes), event.latitude, event.longitude))
+    return busy
+
 def build_itinerary(db: Session, trip_id: int, activities: list[Activity], include_weather: bool = True) -> ItineraryResponse:
     days = defaultdict(list)
     conflict_count = 0
 
     # A day starts where you slept the night before and ends where you sleep that night
     nights = stays_by_night(db, trip_id)
+    # And the day you fly starts or ends at the airport
+    flights = flights_by_day(db, trip_id)
     trip = db.get(Trip, trip_id)
-    if nights and trip is not None:
+    if (nights or flights) and trip is not None:
         day = trip.start_date
         while day <= trip.end_date:
-            if day in nights or day - timedelta(days=1) in nights:
+            if day in nights or day - timedelta(days=1) in nights or day in flights:
                 # Days with nothing planned still show where they start and end
                 days[day]
             day += timedelta(days=1)
@@ -249,27 +305,71 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
                 second.conflicts_with.append(first.id)
                 conflict_count += 1
 
-        # The day's first trip is from last night's stay
-        previous, previous_point = None, stay_point(nights.get(day - timedelta(days=1)))
-        for activity in day_activities:
+        day_flights = flights.get(day, [])
+        windows = flight_windows(day_flights)
+
+        # The day's plans and flights in order: a take-off counts from when you need to be at the airport
+        entries = sorted(
+            [(activity.start_time, 1, activity) for activity in day_activities]
+            + [(event.ready_at if event.kind == "departure" else event.time, 0, event) for event in day_flights],
+            key=lambda entry: (entry[0], entry[1])
+        )
+
+        # The day's first trip is from last night's stay. `previous_end` is when you can leave the
+        # stop before (None for the hotel, where there's no rush), and `previous_name` what it's called.
+        previous_point = stay_point(nights.get(day - timedelta(days=1)))
+        previous_end, previous_name = None, None
+        for _, _, entry in entries:
+            if isinstance(entry, ItineraryFlight):
+                point = (entry.latitude, entry.longitude) if entry.latitude is not None and entry.longitude is not None else None
+                if entry.kind == "departure":
+                    if point is not None and previous_point is not None:
+                        travel = scheduling.travel_between(*previous_point, *point, depart=previous_end or entry.ready_at)
+                        gap = (entry.ready_at - previous_end).total_seconds() / 60 if previous_end else None
+                        entry.travel_from_previous = TravelLeg(
+                            minutes=travel.minutes, mode=travel.mode, km=travel.km, note=travel.note,
+                            leave_by=entry.ready_at - timedelta(minutes=travel.minutes)
+                            if gap is None or gap >= travel.minutes else None
+                        )
+                        if gap is not None and gap < travel.minutes:
+                            entry.warnings.append(ScheduleWarning(
+                                kind="tight_travel",
+                                message=f"About {travel.minutes} min to the airport from {previous_name}, but you "
+                                        f"should be there by {scheduling.format_clock(scheduling.minutes_of(entry.ready_at))}"
+                            ))
+                    # In the air: nowhere to travel on from until it lands
+                    previous_point, previous_end, previous_name = None, entry.time, None
+                else:
+                    previous_point, previous_end, previous_name = point, entry.ready_at, entry.airport
+                continue
+
+            activity = entry
             place = places.get(activity.place_id)
             warning = hours_warning(activity, place)
             if warning is not None:
                 activity.warnings.append(warning)
+            for window_start, window_end, event in windows:
+                if activity.start_time < window_end and window_start < activity.end_time:
+                    clock = scheduling.format_clock(scheduling.minutes_of(event.ready_at))
+                    when = f"be at {event.airport} by {clock}" if event.kind == "departure" else f"out of {event.airport} around {clock}"
+                    activity.warnings.append(ScheduleWarning(
+                        kind="flight", message=f"Clashes with your {flight_label(event)} ({when})"
+                    ))
+                    break
 
             point = coordinates(activity, place)
-            if previous is None and point is not None and previous_point is not None:
+            if previous_end is None and point is not None and previous_point is not None:
                 # Arriving on time is all that matters from the hotel, so there's no gap to check
                 travel = scheduling.travel_between(*previous_point, *point, depart=activity.start_time)
                 activity.travel_from_previous = TravelLeg(
                     minutes=travel.minutes, mode=travel.mode, km=travel.km, note=travel.note,
                     leave_by=activity.start_time - timedelta(minutes=travel.minutes)
                 )
-            elif previous is not None and point is not None and previous_point is not None:
-                # Leaving when the plan before ends, so rush hour and late nights count
-                travel = scheduling.travel_between(*previous_point, *point, depart=previous.end_time)
+            elif previous_end is not None and point is not None and previous_point is not None:
+                # Leaving when the stop before ends, so rush hour and late nights count
+                travel = scheduling.travel_between(*previous_point, *point, depart=previous_end)
                 minutes = travel.minutes
-                gap = (activity.start_time - previous.end_time).total_seconds() / 60
+                gap = (activity.start_time - previous_end).total_seconds() / 60
                 activity.travel_from_previous = TravelLeg(
                     minutes=minutes, mode=travel.mode, km=travel.km, note=travel.note,
                     # When to set off to arrive on time, if there's room for the trip
@@ -281,16 +381,16 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
                     when = f" in {travel.note}" if travel.note == "rush hour" else ""
                     activity.warnings.append(ScheduleWarning(
                         kind="tight_travel",
-                        message=f"About {minutes} min {how}{when} from {previous.title}, "
+                        message=f"About {minutes} min {how}{when} from {previous_name}, "
                                 f"but only {int(gap)} min between them"
                     ))
             # A plan without a pin breaks the chain, since we can't tell where it is
-            previous, previous_point = activity, point
+            previous_point, previous_end, previous_name = point, activity.end_time, activity.title
 
-        # And back to where you sleep tonight after the last plan
+        # And back to where you sleep tonight after the last plan (or landing)
         tonight = stay_point(nights.get(day))
-        if previous is not None and previous_point is not None and tonight is not None:
-            travel = scheduling.travel_between(*previous_point, *tonight, depart=previous.end_time)
+        if previous_end is not None and previous_point is not None and tonight is not None:
+            travel = scheduling.travel_between(*previous_point, *tonight, depart=previous_end)
             travel_to_stay[day] = TravelLeg(minutes=travel.minutes, mode=travel.mode, km=travel.km, note=travel.note)
 
     # One forecast for the trip, from the first plan with a map pin
@@ -311,7 +411,8 @@ def build_itinerary(db: Session, trip_id: int, activities: list[Activity], inclu
                 weather=forecasts.get(day),
                 start_stay=stay_stop(nights.get(day - timedelta(days=1))),
                 end_stay=stay_stop(nights.get(day)),
-                travel_to_stay=travel_to_stay.get(day)
+                travel_to_stay=travel_to_stay.get(day),
+                flights=flights.get(day, [])
             )
             for day, day_activities in sorted(days.items())
         ],
@@ -377,6 +478,9 @@ def suggest_time(
         point = coordinates(ActivityResponse.model_validate(other), other_places.get(other.place_id)) or (None, None)
         end = scheduling.minutes_of(other.end_time) if other.end_time.date() == day else scheduling.DAY_MINUTES
         busy.append((scheduling.minutes_of(other.start_time), end, *point))
+
+    # Flights that day are busy too: at the airport, or in the air
+    busy.extend(flight_busy(db, trip_id).get(day, []))
 
     ranges = scheduling.hours_on(place.opening_hours, day) if place else None
     lat, lon = (place.latitude, place.longitude) if place else (None, None)

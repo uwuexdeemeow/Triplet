@@ -14,6 +14,7 @@ import {
   useStays,
   useTrip,
   type ItineraryActivity,
+  type ItineraryFlight,
   type Stay,
   type TripPlace,
 } from '@/api/trips';
@@ -47,7 +48,8 @@ type Dropped = Coordinates & { known?: { name: string; address: string | null } 
 type MapItem =
   | (MapPlace & { kind: 'activity'; activity: ItineraryActivity; day: string })
   | (MapPlace & { kind: 'place'; place: TripPlace })
-  | (MapPlace & { kind: 'stay'; stay: Stay });
+  | (MapPlace & { kind: 'stay'; stay: Stay })
+  | (MapPlace & { kind: 'airport'; flight: ItineraryFlight; day: string });
 
 function isPlanned(place: TripPlace): boolean {
   return (place.activity_ids?.length ?? 0) > 0;
@@ -157,9 +159,34 @@ export default function TripMapScreen() {
   const itineraryDay = day ? itinerary.data?.days.find((d) => d.date === day) : undefined;
   const startHotel = stayItems.find((item) => item.id === `stay-${itineraryDay?.start_stay?.id}`);
   const endHotel = stayItems.find((item) => item.id === `stay-${itineraryDay?.end_stay?.id}`);
+  // The day's airports: where flights take off or land, in the day's order with the plans
+  const timedStops = [
+    ...dayPlans.map((item) => ({
+      at: item.kind === 'activity' ? item.activity.start_time : '',
+      item,
+      leaving: false,
+    })),
+    ...(itineraryDay?.flights ?? []).filter(hasPin).map((flight) => ({
+      at: flight.kind === 'departure' ? flight.ready_at : flight.time,
+      item: {
+        kind: 'airport' as const,
+        id: `flight-${flight.flight_id}-${flight.kind}`,
+        name: flight.airport,
+        latitude: flight.latitude,
+        longitude: flight.longitude,
+        planned: true,
+        label: '✈',
+        flight,
+        day: day!,
+      } as MapItem,
+      leaving: flight.kind === 'departure',
+    })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  // Flying out ends the day at the airport, not back at the hotel
+  const endsInTheAir = timedStops[timedStops.length - 1]?.leaving ?? false;
   const dayItems: MapItem[] = [
     ...(startHotel ? [startHotel] : []),
-    ...dayPlans,
+    ...timedStops.map((stop) => stop.item),
     ...(endHotel && endHotel !== startHotel ? [endHotel] : []),
   ];
   const dayWithoutPin = day
@@ -167,10 +194,11 @@ export default function TripMapScreen() {
     : 0;
   const shown = day ? dayItems : items.filter((item) => filter === 'all' || (filter === 'planned') === item.planned);
   const route = day
-    ? [...(startHotel ? [startHotel] : []), ...dayPlans, ...(endHotel ? [endHotel] : [])].map(({ latitude, longitude }) => ({
-        latitude,
-        longitude,
-      }))
+    ? [
+        ...(startHotel ? [startHotel] : []),
+        ...timedStops.map((stop) => stop.item),
+        ...(endHotel && !endsInTheAir ? [endHotel] : []),
+      ].map(({ latitude, longitude }) => ({ latitude, longitude }))
     : undefined;
   const selected = shown.find((item) => item.id === selectedId) ?? null;
 
@@ -336,6 +364,8 @@ export default function TripMapScreen() {
           <SelectedPlace tripId={tripId} place={selected.place} />
         ) : selected?.kind === 'stay' ? (
           <SelectedStay tripId={tripId} stay={selected.stay} canEdit={canEdit} />
+        ) : selected?.kind === 'airport' ? (
+          <SelectedAirport tripId={tripId} flight={selected.flight} day={selected.day} canEdit={canEdit} />
         ) : (
           <Idle
             tripId={tripId}
@@ -556,6 +586,51 @@ function SelectedActivity({
           />
         ) : null}
       </View>
+    </View>
+  );
+}
+
+function SelectedAirport({
+  tripId,
+  flight,
+  day,
+  canEdit,
+}: {
+  tripId: string;
+  flight: ItineraryFlight;
+  day: string;
+  canEdit: boolean;
+}) {
+  const styles = useStyles();
+  const leaving = flight.kind === 'departure';
+  const name = [flight.airline, flight.flight_number].filter(Boolean).join(' ');
+  return (
+    <View style={styles.selected}>
+      <View style={styles.selectedText}>
+        <Text style={styles.kicker}>{leaving ? 'Your flight leaves from' : 'Your flight lands at'}</Text>
+        <Text style={styles.selectedName} numberOfLines={2}>
+          {flight.airport}
+        </Text>
+        <Text style={[styles.detail, styles.detailAccent]}>
+          {formatShortDate(day)} ·{' '}
+          {leaving
+            ? `takes off ${activityClock(flight.time)}, be there by ${activityClock(flight.ready_at)}`
+            : `lands ${activityClock(flight.time)}`}
+        </Text>
+        <Text style={styles.address} numberOfLines={1}>
+          {[name, leaving ? `to ${flight.other_airport}` : `from ${flight.other_airport}`].filter(Boolean).join(' · ')}
+        </Text>
+        <DirectionsLink to={{ name: flight.airport, latitude: flight.latitude, longitude: flight.longitude }} />
+      </View>
+      {canEdit ? (
+        <View style={styles.actions}>
+          <Button
+            label="Edit flight"
+            style={styles.actionWide}
+            onPress={() => router.push({ pathname: '/trips/[tripId]/flight', params: { tripId, flightId: String(flight.flight_id) } })}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -8,7 +8,7 @@ from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, Us
 from schemas import ActivityResponse, LinkToActivity, PlanDraftApply, PlanDraftResponse, PlanDraftItem, PlanDraftSkipped
 from dependencies import get_trip_membership, require_role, EDITOR_ROLES
 from routers.links import new_activity_from_link
-from routers.activities import stay_point, stays_by_night
+from routers.activities import flight_busy, stay_point, stays_by_night
 
 router = APIRouter(
     prefix="/trips/{trip_id}/plan-draft",
@@ -70,6 +70,10 @@ def draft_plan(
         day = activity.start_time.date()
         end = scheduling.minutes_of(activity.end_time) if activity.end_time.date() == day else scheduling.DAY_MINUTES
         planned.append(planner.Busy(day, scheduling.minutes_of(activity.start_time), end, lat, lon))
+
+    # Flights keep you at the airport or in the air
+    for day, windows in flight_busy(db, trip_id).items():
+        planned.extend(planner.Busy(day, start, end, lat, lon) for start, end, lat, lon in windows)
 
     # Each day's hotels: where it starts and where it ends
     nights = stays_by_night(db, trip_id)

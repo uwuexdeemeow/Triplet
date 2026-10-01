@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
 import { api } from '@/api/client';
-import type { SavedLink, StayDraft } from '@/api/trips';
+import type { FlightDrafts, SavedLink, StayDraft } from '@/api/trips';
 
 // Wide enough to read small print on a screenshot, small enough for the server's 900 KB limit
 const MAX_WIDTH = 1400;
@@ -46,4 +46,14 @@ export async function pickAndReadBooking(tripId: number): Promise<StayDraft | nu
   const form = await pickImageForm();
   if (!form) return null;
   return api<StayDraft>(`/trips/${tripId}/stays/read-booking`, { method: 'POST', body: form });
+}
+
+/**
+ * Let the user pick a screenshot of a flight booking or e-ticket and read every flight on it, for
+ * the flight form to start from. Nothing is saved. Returns null if they cancelled.
+ */
+export async function pickAndReadTicket(tripId: number): Promise<FlightDrafts | null> {
+  const form = await pickImageForm();
+  if (!form) return null;
+  return api<FlightDrafts>(`/trips/${tripId}/flights/read-ticket`, { method: 'POST', body: form });
 }

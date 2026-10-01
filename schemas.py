@@ -438,10 +438,119 @@ class StayStop(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
 
+AirportName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+AirportCode = Annotated[str, StringConstraints(strip_whitespace=True, to_upper=True, pattern=r"^[A-Za-z]{3,4}$")]
+FlightNumber = Annotated[str, StringConstraints(strip_whitespace=True, max_length=20)]
+Airline = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+
+def validate_airport_pins(model):
+    for side in ("from", "to"):
+        lat, lon = f"{side}_latitude", f"{side}_longitude"
+        if (lat in model.model_fields_set or lon in model.model_fields_set) and (getattr(model, lat) is None) != (getattr(model, lon) is None):
+            raise ValueError("Latitude and longitude must be set together")
+    return model
+
+class FlightCreate(BaseModel):
+    flight_number: FlightNumber | None = None
+    airline: Airline | None = None
+    from_name: AirportName
+    from_code: AirportCode | None = None
+    from_latitude: float | None = Latitude
+    from_longitude: float | None = Longitude
+    to_name: AirportName
+    to_code: AirportCode | None = None
+    to_latitude: float | None = Latitude
+    to_longitude: float | None = Longitude
+    # Each airport's local time, like plan times: "2026-10-10T07:15:00Z" is 07:15 on the ticket.
+    # Arriving "before" leaving is fine, e.g. flying east over the date line.
+    departs_at: datetime
+    arrives_at: datetime
+    cost: Amount | None = None
+    confirmation: Confirmation | None = None
+
+    @model_validator(mode="after")
+    def validate_pins(self):
+        return validate_airport_pins(self)
+
+class FlightUpdate(BaseModel):
+    flight_number: FlightNumber | None = None
+    airline: Airline | None = None
+    from_name: AirportName | None = None
+    from_code: AirportCode | None = None
+    from_latitude: float | None = Latitude
+    from_longitude: float | None = Longitude
+    to_name: AirportName | None = None
+    to_code: AirportCode | None = None
+    to_latitude: float | None = Latitude
+    to_longitude: float | None = Longitude
+    departs_at: datetime | None = None
+    arrives_at: datetime | None = None
+    cost: Amount | None = None
+    confirmation: Confirmation | None = None
+
+    @model_validator(mode="after")
+    def validate_pins(self):
+        return validate_airport_pins(self)
+
+class FlightResponse(BaseModel):
+    id: int
+    trip_id: int
+    flight_number: str | None = None
+    airline: str | None = None
+    from_name: str
+    from_code: str | None = None
+    from_latitude: float | None = None
+    from_longitude: float | None = None
+    to_name: str
+    to_code: str | None = None
+    to_latitude: float | None = None
+    to_longitude: float | None = None
+    departs_at: datetime
+    arrives_at: datetime
+    cost: float | None = None
+    confirmation: str | None = None
+
+    model_config={
+        "from_attributes": True
+    }
+
+class AirportResult(BaseModel):
+    code: str
+    name: str
+    city: str
+    # Two letters, e.g. "JP"
+    country: str
+    latitude: float
+    longitude: float
+
+class FlightDraft(BaseModel):
+    """One flight an e-ticket shows, for the app to fill the flight form with."""
+    flight_number: str | None = None
+    airline: str | None = None
+    from_name: str | None = None
+    from_code: str | None = None
+    from_latitude: float | None = None
+    from_longitude: float | None = None
+    to_name: str | None = None
+    to_code: str | None = None
+    to_latitude: float | None = None
+    to_longitude: float | None = None
+    departs_at: datetime | None = None
+    arrives_at: datetime | None = None
+    # In the trip's currency
+    cost: float | None = None
+    confirmation: str | None = None
+
+class FlightDrafts(BaseModel):
+    """Every flight on an e-ticket, e.g. there and back. Nothing is saved."""
+    flights: list[FlightDraft]
+    # Things to check before saving, e.g. a converted price
+    notes: list[str] = []
+
 class ScheduleWarning(BaseModel):
     # closed: the place is shut that day; outside_hours: open that day, but not at this time;
-    # tight_travel: not enough time to get here from the plan before
-    kind: Literal["closed", "outside_hours", "tight_travel"]
+    # tight_travel: not enough time to get here from the plan before; flight: it clashes with a flight
+    kind: Literal["closed", "outside_hours", "tight_travel", "flight"]
     message: str
 
 class TravelLeg(BaseModel):
@@ -453,6 +562,30 @@ class TravelLeg(BaseModel):
     note: str | None = None
     # When to leave the plan before to arrive on time; unset when there isn't enough time
     leave_by: datetime | None = None
+
+class ItineraryFlight(BaseModel):
+    """
+    A flight as one day's plan shows it: taking off that day, or landing. No price or booking
+    reference, since guests see it too.
+    """
+    flight_id: int
+    kind: Literal["departure", "arrival"]
+    flight_number: str | None = None
+    airline: str | None = None
+    # The airport this end of the flight is at, and the other end's name
+    airport: str
+    airport_code: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    other_airport: str
+    other_airport_code: str | None = None
+    # Take-off or landing, on the airport's clock
+    time: datetime
+    # Leaving: when to be at the airport. Landing: roughly when you're out of it.
+    ready_at: datetime
+    # Leaving: getting to the airport from the plan or hotel before
+    travel_from_previous: "TravelLeg | None" = None
+    warnings: list["ScheduleWarning"] = []
 
 class ItineraryActivity(ActivityResponse):
     conflicts_with: list[int] = []
@@ -478,6 +611,8 @@ class ItineraryDay(BaseModel):
     end_stay: StayStop | None = None
     # From the day's last plan back to tonight's stay
     travel_to_stay: TravelLeg | None = None
+    # Flights leaving or landing that day, in time order
+    flights: list[ItineraryFlight] = []
 
 class PlanDraftItem(BaseModel):
     place_id: int
@@ -741,6 +876,8 @@ class BudgetEstimateDay(BaseModel):
     transport: float
     # That night's share of the stay's price
     stays: float = 0
+    # Flights leaving that day
+    flights: float = 0
     total: float
 
 class BudgetEstimate(BaseModel):
@@ -752,6 +889,7 @@ class BudgetEstimate(BaseModel):
     meals_total: float
     transport_total: float
     stays_total: float = 0
+    flights_total: float = 0
     total: float
     budget: float | None = None
     # Positive when the estimate is over the budget

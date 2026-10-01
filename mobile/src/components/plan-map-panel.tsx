@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { usePlaces, type ItineraryActivity, type StayStop } from '@/api/trips';
+import { usePlaces, type ItineraryActivity, type ItineraryFlight, type StayStop } from '@/api/trips';
 import { TripMap, type MapPlace } from '@/components/place-map';
 import { makeStyles } from '@/theme/theme';
 import { fonts, radii, spacing } from '@/theme/tokens';
@@ -13,6 +13,8 @@ type Props = {
   // The hotels the day starts and ends at, so the route runs from one to the other
   startStay?: StayStop | null;
   endStay?: StayStop | null;
+  // Flights taking off or landing that day; their airports are stops too
+  flights?: ItineraryFlight[];
 };
 
 function stayPin(stay: StayStop | null | undefined, id: string): MapPlace | null {
@@ -24,7 +26,7 @@ function stayPin(stay: StayStop | null | undefined, id: string): MapPlace | null
  * The trip workspace's map on a big screen: the day's plans, plus saved places that aren't
  * planned yet, so you can see what's nearby while arranging the day.
  */
-export function PlanMapPanel({ tripId, activities, startStay, endStay }: Props) {
+export function PlanMapPanel({ tripId, activities, startStay, endStay, flights = [] }: Props) {
   const styles = useStyles();
   const places = usePlaces(tripId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -55,8 +57,36 @@ export function PlanMapPanel({ tripId, activities, startStay, endStay }: Props) 
   const end = endStay && endStay.id !== startStay?.id ? stayPin(endStay, `stay-${endStay.id}`) : null;
   const backTo = endStay && endStay.id === startStay?.id ? start : end;
   const hotels = [start, end].filter((pin): pin is MapPlace => pin != null);
-  const route = [...(start ? [start] : []), ...planned, ...(backTo ? [backTo] : [])];
-  const pins = [...hotels, ...planned, ...saved];
+
+  // Airports, in the day's order with the plans: a take-off from when you need to be there
+  const timed = [
+    ...activities
+      .filter((activity) => activity.latitude != null && activity.longitude != null)
+      .map((activity) => ({
+        at: activity.start_time,
+        pin: planned.find((pin) => pin.id === `activity-${activity.id}`)!,
+        leaving: false,
+      })),
+    ...flights
+      .filter((flight) => flight.latitude != null && flight.longitude != null)
+      .map((flight) => ({
+        at: flight.kind === 'departure' ? flight.ready_at : flight.time,
+        pin: {
+          id: `flight-${flight.flight_id}-${flight.kind}`,
+          name: flight.airport,
+          latitude: flight.latitude!,
+          longitude: flight.longitude!,
+          planned: true,
+          label: '✈',
+        } as MapPlace,
+        leaving: flight.kind === 'departure',
+      })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  const airports = timed.filter((stop) => stop.pin.label === '✈').map((stop) => stop.pin);
+  // Flying out ends the day's route at the airport
+  const endsInTheAir = timed[timed.length - 1]?.leaving ?? false;
+  const route = [...(start ? [start] : []), ...timed.map((stop) => stop.pin), ...(backTo && !endsInTheAir ? [backTo] : [])];
+  const pins = [...hotels, ...airports, ...planned, ...saved];
   const selected = pins.find((pin) => pin.id === selectedId);
 
   return (
@@ -67,7 +97,13 @@ export function PlanMapPanel({ tripId, activities, startStay, endStay }: Props) 
         {selected ? (
           <Text style={styles.selected} numberOfLines={1}>
             {selected.name}
-            {selected.id.startsWith('stay-') ? ' · where you stay' : selected.planned ? '' : ' · saved, not planned yet'}
+            {selected.id.startsWith('stay-')
+              ? ' · where you stay'
+              : selected.id.startsWith('flight-')
+                ? ' · your flight'
+                : selected.planned
+                  ? ''
+                  : ' · saved, not planned yet'}
           </Text>
         ) : (
           <>

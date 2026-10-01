@@ -9,6 +9,7 @@ export default function TripLayout() {
       <Stack.Screen name="add-activity" options={{ presentation: 'modal' }} />
       <Stack.Screen name="add-place" options={{ presentation: 'modal' }} />
       <Stack.Screen name="stay" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="flight" options={{ presentation: 'modal' }} />
       <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
       <Stack.Screen name="expense" options={{ presentation: 'modal' }} />
       <Stack.Screen name="plan-draft" options={{ presentation: 'modal' }} />

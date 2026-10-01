@@ -11,6 +11,7 @@ import {
   useExpenses,
   useItinerary,
   useMe,
+  useFlights,
   useMembers,
   useStays,
   useTrip,
@@ -22,9 +23,13 @@ import { Fab } from '@/components/fab';
 import { FormMessage } from '@/components/screen';
 import {
   ActivityRow,
-  AddStayPrompt,
+  AddPrompt,
+  airportEndpoint,
+  dayEntries,
   DayChips,
   EditHint,
+  FlightRow,
+  lastEndpoint,
   StayRow,
   stayEndpoint,
   TravelConnector,
@@ -38,6 +43,8 @@ import { PlanMapPanel } from '@/components/plan-map-panel';
 import {
   eachDay,
   formatLongDate,
+  activityClock,
+  activityDay,
   formatDateRange,
   formatShortDate,
   todayString,
@@ -74,8 +81,10 @@ export default function PlanScreen() {
   const today = todayString();
   const selectedDay = pickedDay && days.includes(pickedDay) ? pickedDay : days.includes(today) ? today : days[0];
 
-  // Days that only start or end at a hotel don't count as planned
-  const plannedDays = new Set(itinerary.data?.days.filter((day) => day.activities.length).map((day) => day.date));
+  // Days that only start or end at a hotel don't count as planned; flying does
+  const plannedDays = new Set(
+    itinerary.data?.days.filter((day) => day.activities.length || day.flights?.length).map((day) => day.date),
+  );
   const day = itinerary.data?.days.find((item) => item.date === selectedDay);
   const activities = day?.activities ?? [];
   const titles = new Map(activities.map((activity) => [activity.id, activity.title]));
@@ -125,8 +134,17 @@ export default function PlanScreen() {
   // Where the day starts and ends: last night's hotel and tonight's
   const startStay = day?.start_stay ?? null;
   const endStay = day?.end_stay ?? null;
-  const lastActivity = activities[activities.length - 1];
+  const isFirstDay = selectedDay === days[0];
   const isLastDay = selectedDay === days[days.length - 1];
+  // The day's plans and flights in order, and where the last one leaves you for the hotel
+  const entries = dayEntries(day);
+  const dayFlights = day?.flights ?? [];
+  const lastStop = lastEndpoint(day);
+  const openFlight = (flightId?: number, kind?: 'arrival' | 'departure') =>
+    router.push({
+      pathname: '/trips/[tripId]/flight',
+      params: { tripId, ...(flightId != null ? { flightId: String(flightId) } : {}), ...(kind ? { kind } : {}) },
+    });
 
   // The selected day's plans, the same on a phone and in the wide layout
   const dayPlans = (
@@ -143,6 +161,10 @@ export default function PlanScreen() {
         <StayRow stay={startStay} role="start" area={area} onPress={canEdit ? () => openStay(startStay.id) : undefined} />
       ) : null}
 
+      {itinerary.isSuccess && canEdit && isFirstDay && !dayFlights.some((flight) => flight.kind === 'arrival') ? (
+        <AddPrompt icon="airplane-landing" label="Flying in? Add your flight" onPress={() => openFlight(undefined, 'arrival')} />
+      ) : null}
+
       {itinerary.isPending ? (
         <ActivityIndicator color={colors.accent} style={styles.loading} />
       ) : itinerary.isError ? (
@@ -150,40 +172,49 @@ export default function PlanScreen() {
           <FormMessage message={itinerary.error.message} />
           <Button label="Try again" variant="secondary" onPress={() => itinerary.refetch()} />
         </View>
-      ) : activities.length === 0 ? (
+      ) : entries.length === 0 ? (
         <View style={styles.empty}>
           <Body style={styles.emptyText}>Nothing planned for this day yet.</Body>
         </View>
       ) : (
         <>
-          {activities.map((activity, index) => (
-            <Enter key={activity.id} index={index}>
-              {activity.travel_from_previous ? (
-                <TravelConnector
-                  leg={activity.travel_from_previous}
-                  // The first plan's trip is from the hotel
-                  from={index > 0 ? activities[index - 1] : startStay ? stayEndpoint(startStay) : undefined}
-                  to={activity}
+          {entries.map(({ entry, from }, index) =>
+            entry.kind === 'activity' ? (
+              <Enter key={`activity-${entry.activity.id}`} index={index}>
+                {entry.activity.travel_from_previous ? (
+                  <TravelConnector leg={entry.activity.travel_from_previous} from={from} to={entry.activity} />
+                ) : null}
+                <ActivityRow
+                  activity={entry.activity}
+                  titles={titles}
+                  currency={currency}
+                  paid={paid.get(entry.activity.id)}
+                  // Plans are numbered among themselves, like their pins on the side map
+                  stop={mapPanel ? activities.indexOf(entry.activity) + 1 : undefined}
+                  actions={canEdit ? memberActions(entry.activity) : undefined}
+                  area={area}
                 />
-              ) : null}
-              <ActivityRow
-                activity={activity}
-                titles={titles}
-                currency={currency}
-                paid={paid.get(activity.id)}
-                stop={mapPanel ? index + 1 : undefined}
-                actions={canEdit ? memberActions(activity) : undefined}
-                area={area}
-              />
-            </Enter>
-          ))}
+              </Enter>
+            ) : (
+              <Enter key={`flight-${entry.flight.flight_id}-${entry.flight.kind}`} index={index}>
+                {entry.flight.travel_from_previous ? (
+                  <TravelConnector leg={entry.flight.travel_from_previous} from={from} to={airportEndpoint(entry.flight)} />
+                ) : null}
+                <FlightRow flight={entry.flight} onPress={canEdit ? () => openFlight(entry.flight.flight_id) : undefined} />
+              </Enter>
+            ),
+          )}
         </>
       )}
 
+      {itinerary.isSuccess && canEdit && isLastDay && !dayFlights.some((flight) => flight.kind === 'departure') ? (
+        <AddPrompt icon="airplane-takeoff" label="Flying home? Add your flight" onPress={() => openFlight(undefined, 'departure')} />
+      ) : null}
+
       {itinerary.isSuccess && endStay ? (
         <>
-          {day?.travel_to_stay && lastActivity ? (
-            <TravelConnector leg={day.travel_to_stay} from={lastActivity} to={stayEndpoint(endStay)} />
+          {day?.travel_to_stay && lastStop ? (
+            <TravelConnector leg={day.travel_to_stay} from={lastStop} to={stayEndpoint(endStay)} />
           ) : null}
           <StayRow
             stay={endStay}
@@ -193,7 +224,7 @@ export default function PlanScreen() {
           />
         </>
       ) : itinerary.isSuccess && canEdit && !isLastDay ? (
-        <AddStayPrompt onPress={() => openStay(undefined, selectedDay)} />
+        <AddPrompt icon="moon" label="Where are you staying tonight?" onPress={() => openStay(undefined, selectedDay)} />
       ) : null}
       {itinerary.isSuccess && canEdit && activities.length ? <EditHint wide={wide} /> : null}
     </>
@@ -210,7 +241,8 @@ export default function PlanScreen() {
             const planned = itinerary.data?.days.find((item) => item.date === date);
             const count = planned?.activities.length ?? 0;
             const meta = [
-              count ? `${count} ${count === 1 ? 'plan' : 'plans'}` : 'Nothing planned',
+              count ? `${count} ${count === 1 ? 'plan' : 'plans'}` : planned?.flights?.length ? null : 'Nothing planned',
+              planned?.flights?.length ? (planned.flights.some((flight) => flight.kind === 'departure') ? 'Flying out' : 'Landing') : null,
               planned?.weather?.high != null ? `${Math.round(planned.weather.high)}° ${planned.weather.summary.toLowerCase()}` : null,
             ]
               .filter(Boolean)
@@ -229,6 +261,7 @@ export default function PlanScreen() {
             );
           })}
           <StaysList tripId={id} canEdit={canEdit} onOpen={openStay} />
+          <FlightsList tripId={id} canEdit={canEdit} onOpen={(flightId) => openFlight(flightId)} />
           <TripCost tripId={id} />
         </ScrollView>
 
@@ -250,7 +283,7 @@ export default function PlanScreen() {
 
         {mapPanel ? (
           <View style={styles.mapColumn}>
-            <PlanMapPanel tripId={id} activities={activities} startStay={startStay} endStay={endStay} />
+            <PlanMapPanel tripId={id} activities={activities} startStay={startStay} endStay={endStay} flights={dayFlights} />
           </View>
         ) : null}
       </View>
@@ -312,6 +345,54 @@ function StaysList({
           style={({ hovered }) => [styles.railAdd, hovered && styles.railDayHover]}>
           <Feather name="plus" size={14} color={colors.accent} />
           <Text style={styles.addPlanLabel}>Add a stay</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// Under the stays on a big screen: every flight, in order
+function FlightsList({
+  tripId,
+  canEdit,
+  onOpen,
+}: {
+  tripId: number;
+  canEdit: boolean;
+  onOpen: (flightId?: number) => void;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const flights = useFlights(tripId);
+  if (!flights.data || (!flights.data.length && !canEdit)) return null;
+
+  return (
+    <View style={styles.stays}>
+      <Text style={styles.railTitle}>Flights</Text>
+      {flights.data.map((flight) => (
+        <Pressable
+          key={flight.id}
+          accessibilityRole={canEdit ? 'button' : undefined}
+          disabled={!canEdit}
+          onPress={() => onOpen(flight.id)}
+          style={({ hovered }) => [styles.railDay, canEdit && hovered && styles.railDayHover]}>
+          <Text style={styles.railDayName} numberOfLines={1}>
+            {flight.from_code ?? flight.from_name} → {flight.to_code ?? flight.to_name}
+          </Text>
+          <Text style={styles.railDayMeta}>
+            {[flight.flight_number, `${formatShortDate(activityDay(flight.departs_at))} ${activityClock(flight.departs_at)}`]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        </Pressable>
+      ))}
+      {canEdit ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onOpen()}
+          style={({ hovered }) => [styles.railAdd, hovered && styles.railDayHover]}>
+          <Feather name="plus" size={14} color={colors.accent} />
+          <Text style={styles.addPlanLabel}>Add a flight</Text>
         </Pressable>
       ) : null}
     </View>

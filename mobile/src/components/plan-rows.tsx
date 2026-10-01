@@ -1,9 +1,9 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
-import type { ItineraryActivity, StayStop, TravelLeg } from '@/api/trips';
+import type { ItineraryActivity, ItineraryFlight, StayStop, TravelLeg } from '@/api/trips';
 import { ItemMenu } from '@/components/item-menu';
 import { PressableScale } from '@/components/pressable-scale';
 import { SwipeToDelete } from '@/components/swipe-to-delete';
@@ -25,6 +25,61 @@ type Endpoint = Pick<ItineraryActivity, 'title' | 'location' | 'latitude' | 'lon
 
 export function stayEndpoint(stay: StayStop): Endpoint {
   return { title: stay.name, location: stay.address ?? '', latitude: stay.latitude, longitude: stay.longitude };
+}
+
+export function airportEndpoint(flight: ItineraryFlight): Endpoint {
+  return { title: flight.airport, location: flight.airport, latitude: flight.latitude, longitude: flight.longitude };
+}
+
+// One thing in a day: a plan, or a flight taking off or landing
+export type DayEntry<A = ItineraryActivity> = { kind: 'activity'; activity: A } | { kind: 'flight'; flight: ItineraryFlight };
+
+// A day as members and guests both get it (guests' plans may have their costs left out)
+type PlanDay<A> = {
+  activities: A[];
+  flights?: ItineraryFlight[];
+  start_stay?: StayStop | null;
+};
+
+/**
+ * A day's plans and flights in order, as the server chains them: a take-off from when you need
+ * to be at the airport, a landing from when it lands. Each comes with where the trip to it starts.
+ */
+export function dayEntries<A extends Endpoint & { start_time: string }>(
+  day: PlanDay<A> | undefined,
+): { entry: DayEntry<A>; from?: Endpoint }[] {
+  if (!day) return [];
+  const flights = day.flights ?? [];
+  const sorted = [
+    ...flights.map((flight) => ({
+      at: flight.kind === 'departure' ? flight.ready_at : flight.time,
+      order: 0,
+      entry: { kind: 'flight', flight } as DayEntry<A>,
+    })),
+    ...day.activities.map((activity) => ({ at: activity.start_time, order: 1, entry: { kind: 'activity', activity } as DayEntry<A> })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime() || a.order - b.order);
+
+  let from: Endpoint | undefined = day.start_stay ? stayEndpoint(day.start_stay) : undefined;
+  return sorted.map(({ entry }) => {
+    const item = { entry, from };
+    from =
+      entry.kind === 'activity'
+        ? entry.activity
+        : entry.flight.kind === 'arrival'
+          ? airportEndpoint(entry.flight)
+          : // In the air: there's no trip on from a take-off
+            undefined;
+    return item;
+  });
+}
+
+// Where the day's last stop is, for the trip back to the hotel
+export function lastEndpoint<A extends Endpoint & { start_time: string }>(day: PlanDay<A> | undefined): Endpoint | undefined {
+  const entries = dayEntries(day);
+  const last = entries[entries.length - 1]?.entry;
+  if (!last) return undefined;
+  if (last.kind === 'activity') return last.activity;
+  return last.flight.kind === 'arrival' ? airportEndpoint(last.flight) : undefined;
 }
 
 export function DayChips({
@@ -185,8 +240,16 @@ export function StayRow({
   );
 }
 
-// At the end of a day with no hotel booked that night, for people who can add one
-export function AddStayPrompt({ onPress }: { onPress: () => void }) {
+// A dashed nudge in a day, for people who can add something: where they're staying, or a flight
+export function AddPrompt({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: 'moon' | 'airplane-landing' | 'airplane-takeoff';
+  label: string;
+  onPress: () => void;
+}) {
   const styles = useStyles();
   const { colors } = useTheme();
   return (
@@ -196,8 +259,62 @@ export function AddStayPrompt({ onPress }: { onPress: () => void }) {
         accessibilityRole="button"
         onPress={onPress}
         style={({ pressed, hovered }) => [styles.addStay, (pressed || hovered) && styles.stayCardActive]}>
-        <Feather name="moon" size={14} color={colors.accent} />
-        <Text style={styles.addStayLabel}>Where are you staying tonight?</Text>
+        {icon === 'moon' ? (
+          <Feather name="moon" size={14} color={colors.accent} />
+        ) : (
+          <MaterialCommunityIcons name={icon} size={16} color={colors.accent} />
+        )}
+        <Text style={styles.addStayLabel}>{label}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * A flight in the day: taking off ("be at the airport by") or landing ("out around").
+ * Tapping it edits the flight, for people who can.
+ */
+export function FlightRow({ flight, onPress }: { flight: ItineraryFlight; onPress?: () => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const leaving = flight.kind === 'departure';
+  const airport = flight.airport_code ? `${flight.airport} (${flight.airport_code})` : flight.airport;
+  const other = flight.other_airport_code ?? flight.other_airport;
+  const name = [flight.airline, flight.flight_number].filter(Boolean).join(' ');
+  const title = leaving ? `Fly to ${other}` : `Land at ${flight.airport_code ?? flight.airport}`;
+  const details = leaving
+    ? `Takes off ${activityClock(flight.time)} from ${airport} · be there by ${activityClock(flight.ready_at)}`
+    : `From ${other} · out of the airport around ${activityClock(flight.ready_at)}`;
+  const warnings = flight.warnings ?? [];
+
+  return (
+    <View style={styles.row}>
+      <View style={styles.timeColumn}>
+        <Text style={styles.time}>{activityClock(leaving ? flight.ready_at : flight.time)}</Text>
+      </View>
+      <Pressable
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={`${title}${name ? `, ${name}` : ''}. ${details}`}
+        accessibilityHint={onPress ? 'Opens the flight to edit it' : undefined}
+        disabled={!onPress}
+        onPress={onPress}
+        style={({ pressed, hovered }) => [styles.flightCard, onPress && (pressed || hovered) && styles.stayCardActive]}>
+        <View style={styles.flightHeader}>
+          <MaterialCommunityIcons name={leaving ? 'airplane-takeoff' : 'airplane-landing'} size={18} color={colors.accentStrong} />
+          <Text style={[styles.cardTitle, styles.flightTitle]} numberOfLines={1}>
+            {title}
+          </Text>
+          {name ? <Text style={styles.flightName}>{name}</Text> : null}
+        </View>
+        <Text style={styles.cardDetails} numberOfLines={2}>
+          {details}
+        </Text>
+        {warnings.map((warning) => (
+          <View key={warning.message} style={[styles.warning, styles.warningCheck]}>
+            <Feather name="navigation" size={13} color={colors.secondText} />
+            <Text style={[styles.warningText, { color: colors.secondText }]}>{warning.message}</Text>
+          </View>
+        ))}
       </Pressable>
     </View>
   );
@@ -290,7 +407,7 @@ export function ActivityRow({
         return (
           <View key={warning.kind} style={[styles.warning, closed ? styles.warningDanger : styles.warningCheck]}>
             <Feather
-              name={warning.kind === 'tight_travel' ? 'navigation' : 'clock'}
+              name={warning.kind === 'tight_travel' ? 'navigation' : warning.kind === 'flight' ? 'alert-triangle' : 'clock'}
               size={13}
               color={closed ? colors.dangerText : colors.secondText}
             />
@@ -626,6 +743,30 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.bold,
     fontSize: 15,
     color: colors.ink,
+  },
+  flightCard: {
+    flex: 1,
+    gap: 3,
+    paddingHorizontal: 14,
+    paddingVertical: spacing.md,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.accentMuted,
+    backgroundColor: colors.surface,
+  },
+  flightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  flightTitle: {
+    flexShrink: 1,
+  },
+  flightName: {
+    marginLeft: 'auto',
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.muted,
   },
   addStay: {
     flex: 1,

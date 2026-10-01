@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { AirportValue } from '@/components/airport-field';
 import type { PickedDestination } from '@/components/destination-field';
 import { CURRENCIES } from '@/utils/currencies';
 
@@ -62,3 +63,21 @@ export const staySchema = z
   });
 
 export type StayValues = z.infer<typeof staySchema>;
+
+// An airport picked from the list or typed; see AirportField
+const airport = (message: string) =>
+  z.custom<AirportValue>().refine((value) => !!value?.name.trim(), { message });
+
+export const flightSchema = z.object({
+  flightNumber: z.string().trim().max(20, 'That’s longer than a flight number'),
+  from: airport('Where does it leave from?'),
+  departDate: z.string().min(1, 'Pick the day it leaves'),
+  departTime: z.string(),
+  to: airport('Where does it land?'),
+  arriveDate: z.string().min(1, 'Pick the day it lands'),
+  arriveTime: z.string(),
+  cost: optionalAmount,
+  confirmation: z.string().trim().max(100, 'That’s longer than a booking reference'),
+});
+
+export type FlightValues = z.infer<typeof flightSchema>;

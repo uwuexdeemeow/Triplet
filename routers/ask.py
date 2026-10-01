@@ -5,7 +5,7 @@ import assistant
 import rate_limit
 import scheduling
 from database import connect_db
-from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, Stay, User
+from models import Trip, TripMembership, SavedLink, ExtractedPlace, Activity, Stay, Flight, User
 from schemas import AskRequest, AskResponse, AskMention
 from dependencies import get_trip_membership
 
@@ -90,6 +90,25 @@ def trip_context(db: Session, trip: Trip) -> assistant.TripContext:
             details={k: v for k, v in details.items() if v not in (None, "")},
             latitude=stay.latitude, longitude=stay.longitude, place_id=stay.place_id
         ))
+
+    flights = db.query(Flight).filter(Flight.trip_id == trip.id).order_by(Flight.departs_at).all()
+    for flight in flights:
+        name = " ".join(part for part in (flight.airline, flight.flight_number) if part) or "Flight"
+        details = {
+            "from": f"{flight.from_name}" + (f" ({flight.from_code})" if flight.from_code else ""),
+            "to": f"{flight.to_name}" + (f" ({flight.to_code})" if flight.to_code else ""),
+            "departs_local_time": flight.departs_at.strftime("%a %d %b %H:%M"),
+            "arrives_local_time": flight.arrives_at.strftime("%a %d %b %H:%M"),
+        }
+        # Each airport is a spot, so "how long from the airport to the hotel" can be answered
+        for side, lat, lon, airport in (
+            ("departure", flight.from_latitude, flight.from_longitude, flight.from_name),
+            ("arrival", flight.to_latitude, flight.to_longitude, flight.to_name),
+        ):
+            spots.append(assistant.Spot(
+                key=f"flight-{flight.id}-{side}", name=f"{name} {side}: {airport}", kind="flight",
+                details={**details, "this_end": side}, latitude=lat, longitude=lon
+            ))
 
     dates = f"{trip.start_date:%a %d %b %Y} to {trip.end_date:%a %d %b %Y}" if trip.start_date and trip.end_date else None
     return assistant.TripContext(

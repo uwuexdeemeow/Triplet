@@ -728,6 +728,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/flights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Flights */
+        get: operations["get_flights_trips__trip_id__flights_get"];
+        put?: never;
+        /** Create Flight */
+        post: operations["create_flight_trips__trip_id__flights_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/flights/airports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Airports
+         * @description Airports by code, name or city, e.g. "HND", "Haneda" or "Tokyo". From a list kept with the app.
+         */
+        get: operations["search_airports_trips__trip_id__flights_airports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/flights/{flight_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Flight */
+        delete: operations["delete_flight_trips__trip_id__flights__flight_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Flight */
+        patch: operations["update_flight_trips__trip_id__flights__flight_id__patch"];
+        trace?: never;
+    };
+    "/trips/{trip_id}/flights/read-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Ticket
+         * @description Read an e-ticket or booking screenshot into flights for the person to check. Nothing is saved.
+         */
+        post: operations["read_ticket_trips__trip_id__flights_read_ticket_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/links": {
         parameters: {
             query?: never;
@@ -1378,6 +1454,21 @@ export interface components {
             /** Longitude */
             longitude?: number | null;
         };
+        /** AirportResult */
+        AirportResult: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** City */
+            city: string;
+            /** Country */
+            country: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+        };
         /** AskMention */
         AskMention: {
             /**
@@ -1412,6 +1503,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_read_ticket_trips__trip_id__flights_read_ticket_post */
+        Body_read_ticket_trips__trip_id__flights_read_ticket_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_avatar_users_me_avatar_put */
         Body_upload_avatar_users_me_avatar_put: {
             /** File */
@@ -1439,6 +1535,11 @@ export interface components {
              * @default 0
              */
             stays_total: number;
+            /**
+             * Flights Total
+             * @default 0
+             */
+            flights_total: number;
             /** Total */
             total: number;
             /** Budget */
@@ -1470,6 +1571,11 @@ export interface components {
              * @default 0
              */
             stays: number;
+            /**
+             * Flights
+             * @default 0
+             */
+            flights: number;
             /** Total */
             total: number;
         };
@@ -1707,6 +1813,162 @@ export interface components {
             /** User Edited */
             user_edited: boolean;
         };
+        /** FlightCreate */
+        FlightCreate: {
+            /** Flight Number */
+            flight_number?: string | null;
+            /** Airline */
+            airline?: string | null;
+            /** From Name */
+            from_name: string;
+            /** From Code */
+            from_code?: string | null;
+            /** From Latitude */
+            from_latitude?: number | null;
+            /** From Longitude */
+            from_longitude?: number | null;
+            /** To Name */
+            to_name: string;
+            /** To Code */
+            to_code?: string | null;
+            /** To Latitude */
+            to_latitude?: number | null;
+            /** To Longitude */
+            to_longitude?: number | null;
+            /**
+             * Departs At
+             * Format: date-time
+             */
+            departs_at: string;
+            /**
+             * Arrives At
+             * Format: date-time
+             */
+            arrives_at: string;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
+        };
+        /**
+         * FlightDraft
+         * @description One flight an e-ticket shows, for the app to fill the flight form with.
+         */
+        FlightDraft: {
+            /** Flight Number */
+            flight_number?: string | null;
+            /** Airline */
+            airline?: string | null;
+            /** From Name */
+            from_name?: string | null;
+            /** From Code */
+            from_code?: string | null;
+            /** From Latitude */
+            from_latitude?: number | null;
+            /** From Longitude */
+            from_longitude?: number | null;
+            /** To Name */
+            to_name?: string | null;
+            /** To Code */
+            to_code?: string | null;
+            /** To Latitude */
+            to_latitude?: number | null;
+            /** To Longitude */
+            to_longitude?: number | null;
+            /** Departs At */
+            departs_at?: string | null;
+            /** Arrives At */
+            arrives_at?: string | null;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
+        };
+        /**
+         * FlightDrafts
+         * @description Every flight on an e-ticket, e.g. there and back. Nothing is saved.
+         */
+        FlightDrafts: {
+            /** Flights */
+            flights: components["schemas"]["FlightDraft"][];
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+        };
+        /** FlightResponse */
+        FlightResponse: {
+            /** Id */
+            id: number;
+            /** Trip Id */
+            trip_id: number;
+            /** Flight Number */
+            flight_number?: string | null;
+            /** Airline */
+            airline?: string | null;
+            /** From Name */
+            from_name: string;
+            /** From Code */
+            from_code?: string | null;
+            /** From Latitude */
+            from_latitude?: number | null;
+            /** From Longitude */
+            from_longitude?: number | null;
+            /** To Name */
+            to_name: string;
+            /** To Code */
+            to_code?: string | null;
+            /** To Latitude */
+            to_latitude?: number | null;
+            /** To Longitude */
+            to_longitude?: number | null;
+            /**
+             * Departs At
+             * Format: date-time
+             */
+            departs_at: string;
+            /**
+             * Arrives At
+             * Format: date-time
+             */
+            arrives_at: string;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
+        };
+        /** FlightUpdate */
+        FlightUpdate: {
+            /** Flight Number */
+            flight_number?: string | null;
+            /** Airline */
+            airline?: string | null;
+            /** From Name */
+            from_name?: string | null;
+            /** From Code */
+            from_code?: string | null;
+            /** From Latitude */
+            from_latitude?: number | null;
+            /** From Longitude */
+            from_longitude?: number | null;
+            /** To Name */
+            to_name?: string | null;
+            /** To Code */
+            to_code?: string | null;
+            /** To Latitude */
+            to_latitude?: number | null;
+            /** To Longitude */
+            to_longitude?: number | null;
+            /** Departs At */
+            departs_at?: string | null;
+            /** Arrives At */
+            arrives_at?: string | null;
+            /** Cost */
+            cost?: number | null;
+            /** Confirmation */
+            confirmation?: string | null;
+        };
         /** GuestAccessCreate */
         GuestAccessCreate: {
             /** Access Code */
@@ -1774,6 +2036,11 @@ export interface components {
             start_stay?: components["schemas"]["StayStop"] | null;
             end_stay?: components["schemas"]["StayStop"] | null;
             travel_to_stay?: components["schemas"]["TravelLeg"] | null;
+            /**
+             * Flights
+             * @default []
+             */
+            flights: components["schemas"]["ItineraryFlight"][];
         };
         /** GuestItineraryResponse */
         GuestItineraryResponse: {
@@ -1927,6 +2194,57 @@ export interface components {
             start_stay?: components["schemas"]["StayStop"] | null;
             end_stay?: components["schemas"]["StayStop"] | null;
             travel_to_stay?: components["schemas"]["TravelLeg"] | null;
+            /**
+             * Flights
+             * @default []
+             */
+            flights: components["schemas"]["ItineraryFlight"][];
+        };
+        /**
+         * ItineraryFlight
+         * @description A flight as one day's plan shows it: taking off that day, or landing. No price or booking
+         *     reference, since guests see it too.
+         */
+        ItineraryFlight: {
+            /** Flight Id */
+            flight_id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "departure" | "arrival";
+            /** Flight Number */
+            flight_number?: string | null;
+            /** Airline */
+            airline?: string | null;
+            /** Airport */
+            airport: string;
+            /** Airport Code */
+            airport_code?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Other Airport */
+            other_airport: string;
+            /** Other Airport Code */
+            other_airport_code?: string | null;
+            /**
+             * Time
+             * Format: date-time
+             */
+            time: string;
+            /**
+             * Ready At
+             * Format: date-time
+             */
+            ready_at: string;
+            travel_from_previous?: components["schemas"]["TravelLeg"] | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["ScheduleWarning"][];
         };
         /** ItineraryResponse */
         ItineraryResponse: {
@@ -2213,7 +2531,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "closed" | "outside_hours" | "tight_travel";
+            kind: "closed" | "outside_hours" | "tight_travel" | "flight";
             /** Message */
             message: string;
         };
@@ -4351,6 +4669,206 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StayDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_flights_trips__trip_id__flights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlightResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_flight_trips__trip_id__flights_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlightCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlightResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_airports_trips__trip_id__flights_airports_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AirportResult"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_flight_trips__trip_id__flights__flight_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+                flight_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_flight_trips__trip_id__flights__flight_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+                flight_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlightUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlightResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_ticket_trips__trip_id__flights_read_ticket_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_read_ticket_trips__trip_id__flights_read_ticket_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlightDrafts"];
                 };
             };
             /** @description Validation Error */

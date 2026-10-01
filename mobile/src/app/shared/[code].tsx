@@ -11,7 +11,19 @@ import { clearGuestToken, loadGuestToken, saveGuestToken } from '@/auth/token-st
 import { Button } from '@/components/button';
 import { GuestPlanForm } from '@/components/guest-plan-form';
 import { FormMessage, Screen } from '@/components/screen';
-import { ActivityRow, DayChips, EditHint, StayRow, stayEndpoint, TravelConnector, type ActivityActions } from '@/components/plan-rows';
+import {
+  ActivityRow,
+  airportEndpoint,
+  dayEntries,
+  DayChips,
+  EditHint,
+  FlightRow,
+  lastEndpoint,
+  StayRow,
+  stayEndpoint,
+  TravelConnector,
+  type ActivityActions,
+} from '@/components/plan-rows';
 import { Body, Heading, Muted, Title } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { WeatherLine } from '@/components/weather-line';
@@ -230,7 +242,9 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
   // Where the day starts and ends; guests see the hotels but not their price or booking reference
   const startStay = day?.start_stay ?? null;
   const endStay = day?.end_stay ?? null;
-  const lastActivity = activities[activities.length - 1];
+  // The day's plans and flights in order, and where the last one leaves you for the hotel
+  const entries = dayEntries(day);
+  const lastStop = lastEndpoint(day);
   // Guests type places without pins, so directions search the trip's first destination
   const area = trip.data.destinations?.[0]?.name ?? trip.data.destination ?? null;
 
@@ -278,7 +292,7 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
           <DayChips
             days={days}
             selected={selectedDay}
-            planned={new Set(itinerary.data.days.filter((item) => item.activities.length).map((item) => item.date))}
+            planned={new Set(itinerary.data.days.filter((item) => item.activities.length || item.flights?.length).map((item) => item.date))}
             onSelect={setPickedDay}
             inset={0}
           />
@@ -293,36 +307,42 @@ function TripView({ code, token, onExpired }: { code: string; token: string; onE
 
           {startStay ? <StayRow stay={startStay} role="start" area={area} /> : null}
 
-          {activities.length === 0 ? (
+          {entries.length === 0 ? (
             <Body style={[styles.muted, styles.empty]}>Nothing planned for this day yet.</Body>
           ) : (
             <>
-              {activities.map((activity, index) => (
-                <View key={activity.id}>
-                  {activity.travel_from_previous ? (
-                    <TravelConnector
-                      leg={activity.travel_from_previous}
-                      from={index > 0 ? activities[index - 1] : startStay ? stayEndpoint(startStay) : undefined}
-                      to={activity}
+              {entries.map(({ entry, from }) =>
+                entry.kind === 'activity' ? (
+                  <View key={`activity-${entry.activity.id}`}>
+                    {entry.activity.travel_from_previous ? (
+                      <TravelConnector leg={entry.activity.travel_from_previous} from={from} to={entry.activity} />
+                    ) : null}
+                    <ActivityRow
+                      activity={entry.activity}
+                      titles={titles}
+                      currency={showCosts ? currency : undefined}
+                      actions={canEdit ? guestActions(entry.activity) : undefined}
+                      area={area}
                     />
-                  ) : null}
-                  <ActivityRow
-                    activity={activity}
-                    titles={titles}
-                    currency={showCosts ? currency : undefined}
-                    actions={canEdit ? guestActions(activity) : undefined}
-                    area={area}
-                  />
-                </View>
-              ))}
-              {canEdit ? <EditHint /> : null}
+                  </View>
+                ) : (
+                  // Guests see the flights, but can't change them
+                  <View key={`flight-${entry.flight.flight_id}-${entry.flight.kind}`}>
+                    {entry.flight.travel_from_previous ? (
+                      <TravelConnector leg={entry.flight.travel_from_previous} from={from} to={airportEndpoint(entry.flight)} />
+                    ) : null}
+                    <FlightRow flight={entry.flight} />
+                  </View>
+                ),
+              )}
+              {canEdit && activities.length ? <EditHint /> : null}
             </>
           )}
 
           {endStay ? (
             <>
-              {day?.travel_to_stay && lastActivity ? (
-                <TravelConnector leg={day.travel_to_stay} from={lastActivity} to={stayEndpoint(endStay)} />
+              {day?.travel_to_stay && lastStop ? (
+                <TravelConnector leg={day.travel_to_stay} from={lastStop} to={stayEndpoint(endStay)} />
               ) : null}
               <StayRow stay={endStay} role={startStay?.id === endStay.id ? 'back' : 'check-in'} area={area} />
             </>

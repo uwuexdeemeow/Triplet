@@ -30,7 +30,7 @@ class Spot:
     """A saved place or a plan, as the assistant sees it."""
     key: str                    # "place-12", "plan-5" or "stay-3"
     name: str
-    kind: str                   # "saved place", "plan" or "hotel booked"
+    kind: str                   # "saved place", "plan", "hotel booked" or "flight"
     details: dict
     latitude: float | None = None
     longitude: float | None = None
@@ -68,6 +68,8 @@ Answering:
 - "Our hotel", "where we stay": the hotel booked for the night in question (type "hotel booked"),
   or the one for the trip if there's only one. Without any, a saved place with category
   accommodation. If there is neither, say so.
+- Flights (type "flight") have one entry per end: where it leaves from and where it lands. Their
+  times are each airport's local time.
 - Refer to places by their exact names from the data so the app can link them.
 - If the data doesn't answer the question, say what's missing (for example, a place has no map pin
   or no opening hours) instead of guessing. Don't add facts from outside the data.

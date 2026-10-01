@@ -592,6 +592,106 @@ class Stay(Base):
         server_default=func.now()
     )
 
+class Flight(Base):
+    """
+    A flight into, out of or during the trip. The day it lands starts at the arrival airport, and
+    the day it leaves ends at the departure one.
+
+    Times are each airport's local wall clock, stored with a UTC label like plan times, so a
+    flight from Singapore to Tokyo keeps the times on the ticket.
+    """
+    __tablename__ = "flights"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    # e.g. "SQ 638"
+    flight_number: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True
+    )
+
+    airline: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True
+    )
+
+    from_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    # The IATA code, e.g. "HND"
+    from_code: Mapped[str | None] = mapped_column(
+        String(4),
+        nullable=True
+    )
+
+    from_latitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    from_longitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    to_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    to_code: Mapped[str | None] = mapped_column(
+        String(4),
+        nullable=True
+    )
+
+    to_latitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    to_longitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    departs_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    arrives_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    # For this flight, in the trip's currency
+    cost: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True
+    )
+
+    # The booking reference, e.g. "ABC123"
+    confirmation: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
 class Expense(Base):
     __tablename__ = "expenses"
 

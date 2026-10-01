@@ -2588,6 +2588,346 @@
     }
    }
   },
+  "/trips/{trip_id}/flights": {
+   "get": {
+    "tags": [
+     "Flights"
+    ],
+    "summary": "Get Flights",
+    "operationId": "get_flights_trips__trip_id__flights_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/FlightResponse"
+         },
+         "title": "Response Get Flights Trips  Trip Id  Flights Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "Flights"
+    ],
+    "summary": "Create Flight",
+    "operationId": "create_flight_trips__trip_id__flights_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FlightCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FlightResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/flights/airports": {
+   "get": {
+    "tags": [
+     "Flights"
+    ],
+    "summary": "Search Airports",
+    "description": "Airports by code, name or city, e.g. \"HND\", \"Haneda\" or \"Tokyo\". From a list kept with the app.",
+    "operationId": "search_airports_trips__trip_id__flights_airports_get",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 2,
+       "maxLength": 100,
+       "title": "Q"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/AirportResult"
+         },
+         "title": "Response Search Airports Trips  Trip Id  Flights Airports Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/flights/{flight_id}": {
+   "patch": {
+    "tags": [
+     "Flights"
+    ],
+    "summary": "Update Flight",
+    "operationId": "update_flight_trips__trip_id__flights__flight_id__patch",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "flight_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Flight Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FlightUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FlightResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "Flights"
+    ],
+    "summary": "Delete Flight",
+    "operationId": "delete_flight_trips__trip_id__flights__flight_id__delete",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "flight_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Flight Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/flights/read-ticket": {
+   "post": {
+    "tags": [
+     "Flights"
+    ],
+    "summary": "Read Ticket",
+    "description": "Read an e-ticket or booking screenshot into flights for the person to check. Nothing is saved.",
+    "operationId": "read_ticket_trips__trip_id__flights_read_ticket_post",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_read_ticket_trips__trip_id__flights_read_ticket_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FlightDrafts"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/links": {
    "post": {
     "tags": [
@@ -5090,6 +5430,44 @@
     "type": "object",
     "title": "ActivityUpdate"
    },
+   "AirportResult": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "title": "Code"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "city": {
+      "type": "string",
+      "title": "City"
+     },
+     "country": {
+      "type": "string",
+      "title": "Country"
+     },
+     "latitude": {
+      "type": "number",
+      "title": "Latitude"
+     },
+     "longitude": {
+      "type": "number",
+      "title": "Longitude"
+     }
+    },
+    "type": "object",
+    "required": [
+     "code",
+     "name",
+     "city",
+     "country",
+     "latitude",
+     "longitude"
+    ],
+    "title": "AirportResult"
+   },
    "AskMention": {
     "properties": {
      "kind": {
@@ -5181,6 +5559,20 @@
     ],
     "title": "Body_read_booking_trips__trip_id__stays_read_booking_post"
    },
+   "Body_read_ticket_trips__trip_id__flights_read_ticket_post": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_read_ticket_trips__trip_id__flights_read_ticket_post"
+   },
    "Body_upload_avatar_users_me_avatar_put": {
     "properties": {
      "file": {
@@ -5227,6 +5619,11 @@
      "stays_total": {
       "type": "number",
       "title": "Stays Total",
+      "default": 0
+     },
+     "flights_total": {
+      "type": "number",
+      "title": "Flights Total",
       "default": 0
      },
      "total": {
@@ -5315,6 +5712,11 @@
      "stays": {
       "type": "number",
       "title": "Stays",
+      "default": 0
+     },
+     "flights": {
+      "type": "number",
+      "title": "Flights",
       "default": 0
      },
      "total": {
@@ -6190,6 +6592,684 @@
     ],
     "title": "ExtractedPlaceResponse"
    },
+   "FlightCreate": {
+    "properties": {
+     "flight_number": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Flight Number"
+     },
+     "airline": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Airline"
+     },
+     "from_name": {
+      "type": "string",
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "From Name"
+     },
+     "from_code": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z]{3,4}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Code"
+     },
+     "from_latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Latitude"
+     },
+     "from_longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Longitude"
+     },
+     "to_name": {
+      "type": "string",
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "To Name"
+     },
+     "to_code": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z]{3,4}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Code"
+     },
+     "to_latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Latitude"
+     },
+     "to_longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Longitude"
+     },
+     "departs_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Departs At"
+     },
+     "arrives_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Arrives At"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 99999999.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     }
+    },
+    "type": "object",
+    "required": [
+     "from_name",
+     "to_name",
+     "departs_at",
+     "arrives_at"
+    ],
+    "title": "FlightCreate"
+   },
+   "FlightDraft": {
+    "properties": {
+     "flight_number": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Flight Number"
+     },
+     "airline": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Airline"
+     },
+     "from_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Name"
+     },
+     "from_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Code"
+     },
+     "from_latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Latitude"
+     },
+     "from_longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Longitude"
+     },
+     "to_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Name"
+     },
+     "to_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Code"
+     },
+     "to_latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Latitude"
+     },
+     "to_longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Longitude"
+     },
+     "departs_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Departs At"
+     },
+     "arrives_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Arrives At"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     }
+    },
+    "type": "object",
+    "title": "FlightDraft",
+    "description": "One flight an e-ticket shows, for the app to fill the flight form with."
+   },
+   "FlightDrafts": {
+    "properties": {
+     "flights": {
+      "items": {
+       "$ref": "#/components/schemas/FlightDraft"
+      },
+      "type": "array",
+      "title": "Flights"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Notes",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "flights"
+    ],
+    "title": "FlightDrafts",
+    "description": "Every flight on an e-ticket, e.g. there and back. Nothing is saved."
+   },
+   "FlightResponse": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "trip_id": {
+      "type": "integer",
+      "title": "Trip Id"
+     },
+     "flight_number": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Flight Number"
+     },
+     "airline": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Airline"
+     },
+     "from_name": {
+      "type": "string",
+      "title": "From Name"
+     },
+     "from_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Code"
+     },
+     "from_latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Latitude"
+     },
+     "from_longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Longitude"
+     },
+     "to_name": {
+      "type": "string",
+      "title": "To Name"
+     },
+     "to_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Code"
+     },
+     "to_latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Latitude"
+     },
+     "to_longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Longitude"
+     },
+     "departs_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Departs At"
+     },
+     "arrives_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Arrives At"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "trip_id",
+     "from_name",
+     "to_name",
+     "departs_at",
+     "arrives_at"
+    ],
+    "title": "FlightResponse"
+   },
+   "FlightUpdate": {
+    "properties": {
+     "flight_number": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Flight Number"
+     },
+     "airline": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Airline"
+     },
+     "from_name": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Name"
+     },
+     "from_code": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z]{3,4}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Code"
+     },
+     "from_latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Latitude"
+     },
+     "from_longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Longitude"
+     },
+     "to_name": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 255,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Name"
+     },
+     "to_code": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z]{3,4}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Code"
+     },
+     "to_latitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 90.0,
+        "minimum": -90.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Latitude"
+     },
+     "to_longitude": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 180.0,
+        "minimum": -180.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Longitude"
+     },
+     "departs_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Departs At"
+     },
+     "arrives_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Arrives At"
+     },
+     "cost": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 99999999.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost"
+     },
+     "confirmation": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confirmation"
+     }
+    },
+    "type": "object",
+    "title": "FlightUpdate"
+   },
    "GuestAccessCreate": {
     "properties": {
      "access_code": {
@@ -6383,6 +7463,14 @@
         "type": "null"
        }
       ]
+     },
+     "flights": {
+      "items": {
+       "$ref": "#/components/schemas/ItineraryFlight"
+      },
+      "type": "array",
+      "title": "Flights",
+      "default": []
      }
     },
     "type": "object",
@@ -6852,6 +7940,14 @@
         "type": "null"
        }
       ]
+     },
+     "flights": {
+      "items": {
+       "$ref": "#/components/schemas/ItineraryFlight"
+      },
+      "type": "array",
+      "title": "Flights",
+      "default": []
      }
     },
     "type": "object",
@@ -6861,6 +7957,135 @@
      "estimated_cost"
     ],
     "title": "ItineraryDay"
+   },
+   "ItineraryFlight": {
+    "properties": {
+     "flight_id": {
+      "type": "integer",
+      "title": "Flight Id"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "departure",
+       "arrival"
+      ],
+      "title": "Kind"
+     },
+     "flight_number": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Flight Number"
+     },
+     "airline": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Airline"
+     },
+     "airport": {
+      "type": "string",
+      "title": "Airport"
+     },
+     "airport_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Airport Code"
+     },
+     "latitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latitude"
+     },
+     "longitude": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Longitude"
+     },
+     "other_airport": {
+      "type": "string",
+      "title": "Other Airport"
+     },
+     "other_airport_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Other Airport Code"
+     },
+     "time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Time"
+     },
+     "ready_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Ready At"
+     },
+     "travel_from_previous": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TravelLeg"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "warnings": {
+      "items": {
+       "$ref": "#/components/schemas/ScheduleWarning"
+      },
+      "type": "array",
+      "title": "Warnings",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "flight_id",
+     "kind",
+     "airport",
+     "other_airport",
+     "time",
+     "ready_at"
+    ],
+    "title": "ItineraryFlight",
+    "description": "A flight as one day's plan shows it: taking off that day, or landing. No price or booking\nreference, since guests see it too."
    },
    "ItineraryResponse": {
     "properties": {
@@ -7831,7 +9056,8 @@
       "enum": [
        "closed",
        "outside_hours",
-       "tight_travel"
+       "tight_travel",
+       "flight"
       ],
       "title": "Kind"
      },

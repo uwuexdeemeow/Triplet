@@ -89,6 +89,12 @@ export function activityClock(value: string): string {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
 }
 
+// "2026-10-02T12:00:00Z" -> "2026-10-02", the day on the same wall clock as activityClock
+export function activityDay(value: string): string {
+  const date = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(value) ? value : `${value}Z`);
+  return date.toISOString().slice(0, 10);
+}
+
 // "12:00" + 60 minutes -> "13:00", stopping at the end of the day
 export function addMinutes(time: string, minutes: number): string {
   const [hours, mins] = time.split(':').map(Number);

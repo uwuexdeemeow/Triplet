@@ -226,7 +226,7 @@ function SummaryCard({
   );
 }
 
-// What the whole trip will roughly cost: the plans, meals they don't cover, getting around, and the hotels
+// What the whole trip will roughly cost: the plans, meals they don't cover, getting around, the hotels and flights
 function EstimateCard({ estimate, money }: { estimate: BudgetEstimate; money: (amount: number) => string }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -237,6 +237,7 @@ function EstimateCard({ estimate, money }: { estimate: BudgetEstimate; money: (a
     { label: 'Meals not in the plan', icon: 'coffee' as const, amount: estimate.meals_total },
     { label: 'Getting around', icon: 'navigation' as const, amount: estimate.transport_total },
     { label: 'Where you stay', icon: 'home' as const, amount: estimate.stays_total ?? 0 },
+    { label: 'Flights', icon: 'send' as const, amount: estimate.flights_total ?? 0 },
   ];
 
   return (
@@ -285,6 +286,7 @@ function EstimateCard({ estimate, money }: { estimate: BudgetEstimate; money: (a
               day.meals > 0 ? `Meals ${money(day.meals)}` : null,
               day.transport > 0 ? `Getting around ${money(day.transport)}` : null,
               (day.stays ?? 0) > 0 ? `Stay ${money(day.stays!)}` : null,
+              (day.flights ?? 0) > 0 ? `Flights ${money(day.flights!)}` : null,
             ]
               .filter(Boolean)
               .join(' · ');

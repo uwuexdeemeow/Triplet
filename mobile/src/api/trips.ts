@@ -7,6 +7,7 @@ export type Trip = Schemas['TripResponse'];
 export type TripSummary = Schemas['TripSummaryResponse'];
 export type Member = Schemas['MemberResponse'];
 export type Itinerary = Schemas['ItineraryResponse'];
+export type ItineraryDay = Schemas['ItineraryDay'];
 export type ItineraryActivity = Schemas['ItineraryActivity'];
 export type DayWeather = Schemas['DayWeather'];
 export type TravelLeg = Schemas['TravelLeg'];
@@ -28,6 +29,14 @@ export type Stay = Schemas['StayResponse'];
 export type StayStop = Schemas['StayStop'];
 // What a booking screenshot says, for the stay form to start from
 export type StayDraft = Schemas['StayDraft'];
+// A flight into, out of or during the trip
+export type Flight = Schemas['FlightResponse'];
+// A take-off or landing as a day's plan shows it, without its price or booking reference
+export type ItineraryFlight = Schemas['ItineraryFlight'];
+// What an e-ticket says, for the flight form to start from: every flight on it
+export type FlightDraft = Schemas['FlightDraft'];
+export type FlightDrafts = Schemas['FlightDrafts'];
+export type Airport = Schemas['AirportResult'];
 
 // One place for query keys, so screens invalidate the same caches they read
 export const tripKeys = {
@@ -41,6 +50,7 @@ export const tripKeys = {
   expenses: (tripId: number) => ['trips', tripId, 'expenses'] as const,
   budget: (tripId: number) => ['trips', tripId, 'budget'] as const,
   stays: (tripId: number) => ['trips', tripId, 'stays'] as const,
+  flights: (tripId: number) => ['trips', tripId, 'flights'] as const,
   // Invitations sent to the signed-in user, across all trips
   myInvitations: ['invitations'] as const,
   me: ['me'] as const,
@@ -151,5 +161,13 @@ export function useStays(tripId: number) {
   return useQuery({
     queryKey: tripKeys.stays(tripId),
     queryFn: () => api<Stay[]>(`/trips/${tripId}/stays`),
+  });
+}
+
+// The trip's flights, in order of take-off
+export function useFlights(tripId: number) {
+  return useQuery({
+    queryKey: tripKeys.flights(tripId),
+    queryFn: () => api<Flight[]>(`/trips/${tripId}/flights`),
   });
 }
