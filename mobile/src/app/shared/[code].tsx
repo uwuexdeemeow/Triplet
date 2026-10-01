@@ -123,7 +123,7 @@ function PinStep({ code, title, onToken }: { code: string; title: string; onToke
           err instanceof ApiError && err.status === 401
             ? err.message === 'Guest access has expired'
               ? 'This link has run out. Ask the trip owner for a new one.'
-              : 'That PIN isn’t right. Check the capitals.'
+              : 'That PIN isn’t right.'
             : err instanceof Error
               ? err.message
               : 'Something went wrong.',
