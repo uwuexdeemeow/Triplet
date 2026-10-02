@@ -21,7 +21,8 @@ export async function pickAndUploadProfilePhoto(): Promise<User | null> {
   if (picked.canceled || !picked.assets[0]) return null;
 
   // Phone photos are several MB; the server takes 2 MB at most, and a small circle needs far less
-  const rendered = await ImageManipulator.manipulate(picked.assets[0].uri).resize({ width: SIZE, height: null }).renderAsync();
+  // Only the width: on the website a height of null was read as 0, and the browser refused it
+  const rendered = await ImageManipulator.manipulate(picked.assets[0].uri).resize({ width: SIZE }).renderAsync();
   const photo = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
 
   const form = new FormData();
@@ -50,7 +51,7 @@ export async function pickAndUploadTripCover(tripId: number): Promise<Trip | nul
   });
   if (picked.canceled || !picked.assets[0]) return null;
 
-  const rendered = await ImageManipulator.manipulate(picked.assets[0].uri).resize({ width: COVER_WIDTH, height: null }).renderAsync();
+  const rendered = await ImageManipulator.manipulate(picked.assets[0].uri).resize({ width: COVER_WIDTH }).renderAsync();
   const photo = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.72 });
 
   const form = new FormData();

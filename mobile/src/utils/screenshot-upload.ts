@@ -15,7 +15,7 @@ async function pickImageForm(): Promise<FormData | null> {
   if (!asset) return null;
 
   let context = ImageManipulator.manipulate(asset.uri);
-  if (asset.width > MAX_WIDTH) context = context.resize({ width: MAX_WIDTH, height: null });
+  if (asset.width > MAX_WIDTH) context = context.resize({ width: MAX_WIDTH });
   const rendered = await context.renderAsync();
   const image = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
 
