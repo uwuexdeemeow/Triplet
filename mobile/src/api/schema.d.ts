@@ -477,6 +477,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/appearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Appearance
+         * @description How the trip looks to everyone in it. Anyone who can edit the trip can change it.
+         */
+        put: operations["set_appearance_trips__trip_id__appearance_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cover */
+        get: operations["get_cover_trips__trip_id__cover_get"];
+        /**
+         * Upload Cover
+         * @description The photo for the "Your photo" style.
+         */
+        put: operations["upload_cover_trips__trip_id__cover_put"];
+        post?: never;
+        /** Delete Cover */
+        delete: operations["delete_cover_trips__trip_id__cover_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/members": {
         parameters: {
             query?: never;
@@ -1513,6 +1555,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_cover_trips__trip_id__cover_put */
+        Body_upload_cover_trips__trip_id__cover_put: {
+            /** File */
+            file: string;
+        };
         /**
          * BudgetEstimate
          * @description Roughly what the whole trip will cost the group, day by day.
@@ -2342,6 +2389,8 @@ export interface components {
             role: string;
             /** Avatar Url */
             avatar_url?: string | null;
+            /** Avatar Buddy */
+            avatar_buddy?: string | null;
         };
         /** MemberRoleUpdate */
         MemberRoleUpdate: {
@@ -2801,6 +2850,78 @@ export interface components {
             /** Leave By */
             leave_by?: string | null;
         };
+        /**
+         * TripAppearance
+         * @description How the trip looks (see appearance.py). Choices for other styles are kept, so switching
+         *     back to a style brings back what was picked for it.
+         */
+        TripAppearance: {
+            /**
+             * Style
+             * @default pixel
+             * @enum {string}
+             */
+            style: "pixel" | "poster" | "postcard" | "stickers" | "pattern" | "topo" | "ticket" | "solid" | "photo";
+            /**
+             * Colour
+             * @default harbour
+             * @enum {string}
+             */
+            colour: "harbour" | "lagoon" | "matcha" | "clay" | "plum" | "sakura" | "amber" | "slate";
+            /**
+             * Scene
+             * @default city
+             * @enum {string}
+             */
+            scene: "city" | "beach" | "mountains";
+            /**
+             * @default {
+             *       "pixel": "robot",
+             *       "poster": "fox",
+             *       "postcard": "tram",
+             *       "stickers": "onigiri"
+             *     }
+             */
+            buddies: components["schemas"]["TripBuddies"];
+            /**
+             * Pattern
+             * @default dots
+             * @enum {string}
+             */
+            pattern: "dots" | "waves" | "grid" | "stripes" | "checks" | "zigzag" | "emoji";
+            /**
+             * Emoji
+             * @default 🍜
+             * @enum {string}
+             */
+            emoji: "🍜" | "🗼" | "🌸" | "🍣" | "✈️" | "🏝️" | "⛰️" | "☕" | "🍦" | "🌴" | "📸" | "🎌" | "🏖️" | "🍕" | "🥐" | "🌮" | "🏔️" | "🎡" | "🚆" | "🌊" | "🍷" | "🎒" | "🗺️" | "⭐";
+        };
+        /**
+         * TripBuddies
+         * @description The buddy for each style that has them; null for none.
+         */
+        TripBuddies: {
+            /**
+             * Pixel
+             * @default robot
+             */
+            pixel: ("backpacker" | "cat" | "robot" | "ghost" | "frog" | "plane") | null;
+            /**
+             * Poster
+             * @default fox
+             */
+            poster: ("fox" | "whale" | "owl" | "bear" | "penguin" | "capybara") | null;
+            /**
+             * Postcard
+             * @default tram
+             */
+            postcard: ("balloon" | "lighthouse" | "tram" | "sailboat" | "swallow" | "biplane") | null;
+            /**
+             * Stickers
+             * @default onigiri
+             */
+            stickers: ("suitcase" | "onigiri" | "coffee" | "sun" | "cloud" | "camera") | null;
+        };
         /** TripCreate */
         TripCreate: {
             /** Title */
@@ -2840,6 +2961,8 @@ export interface components {
             name: string;
             /** Avatar Url */
             avatar_url?: string | null;
+            /** Avatar Buddy */
+            avatar_buddy?: string | null;
         };
         /** TripPlaceResponse */
         TripPlaceResponse: {
@@ -2910,6 +3033,24 @@ export interface components {
             budget?: number | null;
             /** Currency */
             currency: string;
+            /**
+             * @default {
+             *       "style": "pixel",
+             *       "colour": "harbour",
+             *       "scene": "city",
+             *       "buddies": {
+             *         "pixel": "robot",
+             *         "postcard": "tram",
+             *         "poster": "fox",
+             *         "stickers": "onigiri"
+             *       },
+             *       "pattern": "dots",
+             *       "emoji": "🍜"
+             *     }
+             */
+            appearance: components["schemas"]["TripAppearance"];
+            /** Cover Url */
+            cover_url?: string | null;
         };
         /**
          * TripSummaryResponse
@@ -2937,6 +3078,24 @@ export interface components {
             budget?: number | null;
             /** Currency */
             currency: string;
+            /**
+             * @default {
+             *       "style": "pixel",
+             *       "colour": "harbour",
+             *       "scene": "city",
+             *       "buddies": {
+             *         "pixel": "robot",
+             *         "postcard": "tram",
+             *         "poster": "fox",
+             *         "stickers": "onigiri"
+             *       },
+             *       "pattern": "dots",
+             *       "emoji": "🍜"
+             *     }
+             */
+            appearance: components["schemas"]["TripAppearance"];
+            /** Cover Url */
+            cover_url?: string | null;
             /**
              * Plan Count
              * @default 0
@@ -3012,6 +3171,8 @@ export interface components {
             name: string;
             /** Avatar Url */
             avatar_url?: string | null;
+            /** Avatar Buddy */
+            avatar_buddy?: string | null;
         };
         /** UserResponse */
         UserResponse: {
@@ -3026,6 +3187,8 @@ export interface components {
             email: string;
             /** Avatar Url */
             avatar_url?: string | null;
+            /** Avatar Buddy */
+            avatar_buddy?: string | null;
             /** Pending Email */
             pending_email?: string | null;
             /**
@@ -3042,6 +3205,8 @@ export interface components {
             email?: string | null;
             /** Password */
             password?: string | null;
+            /** Avatar Buddy */
+            avatar_buddy?: ("fox" | "whale" | "owl" | "bear" | "penguin" | "capybara" | "suitcase" | "onigiri" | "coffee" | "sun" | "cloud" | "camera") | null;
             /** Current Password */
             current_password?: string | null;
         };
@@ -4012,6 +4177,141 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurrencyChangeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_appearance_trips__trip_id__appearance_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripAppearance"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cover_trips__trip_id__cover_get: {
+        parameters: {
+            query?: {
+                v?: string;
+                sig?: string;
+            };
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_cover_trips__trip_id__cover_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_cover_trips__trip_id__cover_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_cover_trips__trip_id__cover_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripResponse"];
                 };
             };
             /** @description Validation Error */

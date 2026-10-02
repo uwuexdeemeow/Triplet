@@ -80,6 +80,9 @@ def update_profile(
 
         current_user.name = name
 
+    # Unlike the others, null here means something: back to initials
+    if "avatar_buddy" in update_data:
+        current_user.avatar_buddy = update_data["avatar_buddy"]
 
     if update_data.get("password") is not None:
         email_prefix = current_user.email.split("@")[0]

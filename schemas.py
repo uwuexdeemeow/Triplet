@@ -2,6 +2,7 @@ from pydantic import AfterValidator, BaseModel, EmailStr, Field, HttpUrl, String
 from datetime import date, datetime
 from typing import Annotated, Literal
 
+import appearance
 from link_parser import UNSUPPORTED_LINK, supported_link
 
 # Emails are stored and compared lowercased, so Sam@Example.com and sam@example.com are one account
@@ -15,6 +16,7 @@ OpaqueToken = Annotated[str, StringConstraints(max_length=256)]
 Amount = Annotated[float, Field(ge=0, le=99_999_999)]
 
 TripRole = Literal["owner", "member", "viewer"]
+AvatarBuddy = Literal[appearance.AVATAR_BUDDIES]
 ExpenseCategory = Literal["accommodation", "transport", "food", "activities", "shopping", "other"]
 
 class UserCreate(BaseModel):
@@ -31,6 +33,8 @@ class UserResponse(BaseModel):
     name: str
     email: EmailStr
     avatar_url: str | None = None
+    # Shown when there's no photo
+    avatar_buddy: str | None = None
     # A new address waiting to be confirmed from its inbox
     pending_email: str | None = None
     # False until someone who signed up with Google or Apple sets a password
@@ -45,6 +49,7 @@ class UserPublic(BaseModel):
     id: int
     name: str
     avatar_url: str | None = None
+    avatar_buddy: str | None = None
 
     model_config={
         "from_attributes": True
@@ -54,6 +59,8 @@ class UserUpdate(BaseModel):
     name: ShortText | None = None
     email: Email | None = None
     password: Password | None = None
+    # A buddy to show instead of initials when there's no photo; null for initials
+    avatar_buddy: AvatarBuddy | None = None
     # No avatar_url: a photo is uploaded (PUT /users/me/avatar), never a link to another site,
     # which could log the address of everyone whose app shows it
     # Needed to change the email or password, so a stolen session can't take over the account
@@ -211,6 +218,27 @@ class TripCreate(BaseModel):
 
         return self
 
+class TripBuddies(BaseModel):
+    """The buddy for each style that has them; null for none."""
+    pixel: Literal[appearance.CASTS["pixel"]] | None = appearance.DEFAULT_BUDDIES["pixel"]
+    poster: Literal[appearance.CASTS["poster"]] | None = appearance.DEFAULT_BUDDIES["poster"]
+    postcard: Literal[appearance.CASTS["postcard"]] | None = appearance.DEFAULT_BUDDIES["postcard"]
+    stickers: Literal[appearance.CASTS["stickers"]] | None = appearance.DEFAULT_BUDDIES["stickers"]
+
+    model_config={"extra": "forbid"}
+
+class TripAppearance(BaseModel):
+    """How the trip looks (see appearance.py). Choices for other styles are kept, so switching
+    back to a style brings back what was picked for it."""
+    style: Literal[appearance.STYLES] = "pixel"
+    colour: Literal[appearance.COLOURS] = "harbour"
+    scene: Literal[appearance.SCENES] = "city"
+    buddies: TripBuddies = TripBuddies()
+    pattern: Literal[appearance.PATTERNS] = "dots"
+    emoji: Literal[appearance.EMOJI] = appearance.EMOJI[0]
+
+    model_config={"extra": "forbid"}
+
 class TripResponse(BaseModel):
     id: int
     title: str
@@ -221,6 +249,9 @@ class TripResponse(BaseModel):
     end_date: date | None = None
     budget: float | None = None
     currency: str
+    appearance: TripAppearance = TripAppearance()
+    # The photo for the "photo" style, once one is uploaded
+    cover_url: str | None = None
 
     model_config={
         "from_attributes": True
@@ -230,6 +261,7 @@ class TripMemberPreview(BaseModel):
     user_id: int
     name: str
     avatar_url: str | None = None
+    avatar_buddy: str | None = None
 
 class TripSummaryResponse(TripResponse):
     """A trip in the trips list, with enough to show what's in it."""
@@ -266,6 +298,7 @@ class MemberResponse(BaseModel):
     email: EmailStr
     role: str
     avatar_url: str | None = None
+    avatar_buddy: str | None = None
 
 class MemberRoleUpdate(BaseModel):
     role: TripRole

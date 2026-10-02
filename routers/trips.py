@@ -1,17 +1,20 @@
 from collections import defaultdict
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+import avatars
 import currencies
 import currency_change
 import destinations as destination_lookup
 import exchange_rates
 import rate_limit
 from database import connect_db
-from models import Activity, Expense, SavedLink, User, Trip, TripMembership
+from models import Activity, Expense, SavedLink, User, Trip, TripCover, TripMembership
 from photon_lookup import PhotonError
-from schemas import CurrencyChange, CurrencyChangeResponse, CurrencySuggestion, DestinationSuggestion, TripCreate, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
+from schemas import CurrencyChange, CurrencyChangeResponse, CurrencySuggestion, DestinationSuggestion, TripCreate, TripAppearance, TripMemberPreview, TripResponse, TripSummaryResponse, TripUpdate
 from dependencies import get_current_user, get_trip_membership, require_role, EDITOR_ROLES, Pagination
+from routers.users import AVATAR_MAX_BYTES, avatar_content_type
 
 router = APIRouter(
     prefix="/trips",
@@ -95,15 +98,15 @@ def summarise(db: Session, trips: list[Trip]) -> list[TripSummaryResponse]:
 
     previews = defaultdict(list)
     rows = (
-        db.query(TripMembership.trip_id, User.id, User.name, User.avatar_url)
+        db.query(TripMembership.trip_id, User.id, User.name, User.avatar_url, User.avatar_buddy)
         .join(User, User.id == TripMembership.user_id)
         .filter(TripMembership.trip_id.in_(ids))
         .order_by(TripMembership.trip_id, TripMembership.id)
         .all()
     )
-    for trip_id, user_id, name, avatar_url in rows:
+    for trip_id, user_id, name, avatar_url, avatar_buddy in rows:
         if len(previews[trip_id]) < MEMBER_PREVIEW:
-            previews[trip_id].append(TripMemberPreview(user_id=user_id, name=name, avatar_url=avatar_url))
+            previews[trip_id].append(TripMemberPreview(user_id=user_id, name=name, avatar_url=avatar_url, avatar_buddy=avatar_buddy))
 
     return [
         TripSummaryResponse(
@@ -273,3 +276,99 @@ def delete_trip(
 
     db.delete(trip)
     db.commit()
+
+def editable_trip(db: Session, trip_id: int, membership: TripMembership) -> Trip:
+    require_role(membership, EDITOR_ROLES)
+    trip = db.get(Trip, trip_id)
+    if trip is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found"
+        )
+    return trip
+
+@router.put("/{trip_id}/appearance", response_model=TripResponse)
+def set_appearance(
+    trip_id: int,
+    trip_appearance: TripAppearance,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """How the trip looks to everyone in it. Anyone who can edit the trip can change it."""
+    trip = editable_trip(db, trip_id, membership)
+    trip.appearance = trip_appearance.model_dump()
+    db.commit()
+    db.refresh(trip)
+    return trip
+
+@router.put("/{trip_id}/cover", response_model=TripResponse)
+async def upload_cover(
+    trip_id: int,
+    file: UploadFile,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    """The photo for the "Your photo" style."""
+    trip = editable_trip(db, trip_id, membership)
+
+    data = await file.read(AVATAR_MAX_BYTES + 1)
+    if len(data) > AVATAR_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="That photo is too big. Pick one under 900 KB."
+        )
+    content_type = avatar_content_type(data)
+    if content_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Use a JPEG, PNG or WebP photo"
+        )
+
+    cover = db.get(TripCover, trip.id)
+    if cover is None:
+        cover = TripCover(trip_id=trip.id)
+        db.add(cover)
+    cover.content_type = content_type
+    cover.data = data
+    cover.updated_at = datetime.now(timezone.utc)
+    trip.cover_url = avatars.cover_path(trip.id, avatars.photo_version(data))
+
+    db.commit()
+    db.refresh(trip)
+    return trip
+
+@router.delete("/{trip_id}/cover", response_model=TripResponse)
+def delete_cover(
+    trip_id: int,
+    db: Session = Depends(connect_db),
+    membership: TripMembership = Depends(get_trip_membership)
+):
+    trip = editable_trip(db, trip_id, membership)
+    cover = db.get(TripCover, trip.id)
+    if cover is not None:
+        db.delete(cover)
+    trip.cover_url = None
+    db.commit()
+    db.refresh(trip)
+    return trip
+
+# No sign-in, like profile photos, so image views and share-link guests can load it, but only
+# with the signed address of the current photo
+@router.get("/{trip_id}/cover")
+def get_cover(
+    trip_id: int,
+    v: str = Query(default="", max_length=64),
+    sig: str = Query(default="", max_length=64),
+    db: Session = Depends(connect_db)
+):
+    cover = db.get(TripCover, trip_id)
+    if cover is None or not avatars.cover_valid(trip_id, v, sig, cover.data):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No photo"
+        )
+    return Response(
+        content=cover.data,
+        media_type=cover.content_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"}
+    )

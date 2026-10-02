@@ -1356,6 +1356,227 @@
     }
    }
   },
+  "/trips/{trip_id}/appearance": {
+   "put": {
+    "tags": [
+     "Trips"
+    ],
+    "summary": "Set Appearance",
+    "description": "How the trip looks to everyone in it. Anyone who can edit the trip can change it.",
+    "operationId": "set_appearance_trips__trip_id__appearance_put",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TripAppearance"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TripResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/trips/{trip_id}/cover": {
+   "put": {
+    "tags": [
+     "Trips"
+    ],
+    "summary": "Upload Cover",
+    "description": "The photo for the \"Your photo\" style.",
+    "operationId": "upload_cover_trips__trip_id__cover_put",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_upload_cover_trips__trip_id__cover_put"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TripResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "Trips"
+    ],
+    "summary": "Delete Cover",
+    "operationId": "delete_cover_trips__trip_id__cover_delete",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TripResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "Trips"
+    ],
+    "summary": "Get Cover",
+    "operationId": "get_cover_trips__trip_id__cover_get",
+    "parameters": [
+     {
+      "name": "trip_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Trip Id"
+      }
+     },
+     {
+      "name": "v",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "maxLength": 64,
+       "default": "",
+       "title": "V"
+      }
+     },
+     {
+      "name": "sig",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "maxLength": 64,
+       "default": "",
+       "title": "Sig"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/trips/{trip_id}/members": {
    "get": {
     "tags": [
@@ -5609,6 +5830,20 @@
     ],
     "title": "Body_upload_avatar_users_me_avatar_put"
    },
+   "Body_upload_cover_trips__trip_id__cover_put": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_upload_cover_trips__trip_id__cover_put"
+   },
    "BudgetEstimate": {
     "properties": {
      "currency": {
@@ -8357,6 +8592,17 @@
        }
       ],
       "title": "Avatar Url"
+     },
+     "avatar_buddy": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Buddy"
      }
     },
     "type": "object",
@@ -9932,6 +10178,197 @@
     "title": "TravelLeg",
     "description": "Rough travel from the plan before, from the distance and the time of day."
    },
+   "TripAppearance": {
+    "properties": {
+     "style": {
+      "type": "string",
+      "enum": [
+       "pixel",
+       "poster",
+       "postcard",
+       "stickers",
+       "pattern",
+       "topo",
+       "ticket",
+       "solid",
+       "photo"
+      ],
+      "title": "Style",
+      "default": "pixel"
+     },
+     "colour": {
+      "type": "string",
+      "enum": [
+       "harbour",
+       "lagoon",
+       "matcha",
+       "clay",
+       "plum",
+       "sakura",
+       "amber",
+       "slate"
+      ],
+      "title": "Colour",
+      "default": "harbour"
+     },
+     "scene": {
+      "type": "string",
+      "enum": [
+       "city",
+       "beach",
+       "mountains"
+      ],
+      "title": "Scene",
+      "default": "city"
+     },
+     "buddies": {
+      "$ref": "#/components/schemas/TripBuddies",
+      "default": {
+       "pixel": "robot",
+       "poster": "fox",
+       "postcard": "tram",
+       "stickers": "onigiri"
+      }
+     },
+     "pattern": {
+      "type": "string",
+      "enum": [
+       "dots",
+       "waves",
+       "grid",
+       "stripes",
+       "checks",
+       "zigzag",
+       "emoji"
+      ],
+      "title": "Pattern",
+      "default": "dots"
+     },
+     "emoji": {
+      "type": "string",
+      "enum": [
+       "\ud83c\udf5c",
+       "\ud83d\uddfc",
+       "\ud83c\udf38",
+       "\ud83c\udf63",
+       "\u2708\ufe0f",
+       "\ud83c\udfdd\ufe0f",
+       "\u26f0\ufe0f",
+       "\u2615",
+       "\ud83c\udf66",
+       "\ud83c\udf34",
+       "\ud83d\udcf8",
+       "\ud83c\udf8c",
+       "\ud83c\udfd6\ufe0f",
+       "\ud83c\udf55",
+       "\ud83e\udd50",
+       "\ud83c\udf2e",
+       "\ud83c\udfd4\ufe0f",
+       "\ud83c\udfa1",
+       "\ud83d\ude86",
+       "\ud83c\udf0a",
+       "\ud83c\udf77",
+       "\ud83c\udf92",
+       "\ud83d\uddfa\ufe0f",
+       "\u2b50"
+      ],
+      "title": "Emoji",
+      "default": "\ud83c\udf5c"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "TripAppearance",
+    "description": "How the trip looks (see appearance.py). Choices for other styles are kept, so switching\nback to a style brings back what was picked for it."
+   },
+   "TripBuddies": {
+    "properties": {
+     "pixel": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "backpacker",
+         "cat",
+         "robot",
+         "ghost",
+         "frog",
+         "plane"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pixel",
+      "default": "robot"
+     },
+     "poster": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "fox",
+         "whale",
+         "owl",
+         "bear",
+         "penguin",
+         "capybara"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Poster",
+      "default": "fox"
+     },
+     "postcard": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "balloon",
+         "lighthouse",
+         "tram",
+         "sailboat",
+         "swallow",
+         "biplane"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Postcard",
+      "default": "tram"
+     },
+     "stickers": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "suitcase",
+         "onigiri",
+         "coffee",
+         "sun",
+         "cloud",
+         "camera"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stickers",
+      "default": "onigiri"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "TripBuddies",
+    "description": "The buddy for each style that has them; null for none."
+   },
    "TripCreate": {
     "properties": {
      "title": {
@@ -10031,6 +10468,17 @@
        }
       ],
       "title": "Avatar Url"
+     },
+     "avatar_buddy": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Buddy"
      }
     },
     "type": "object",
@@ -10303,6 +10751,33 @@
      "currency": {
       "type": "string",
       "title": "Currency"
+     },
+     "appearance": {
+      "$ref": "#/components/schemas/TripAppearance",
+      "default": {
+       "style": "pixel",
+       "colour": "harbour",
+       "scene": "city",
+       "buddies": {
+        "pixel": "robot",
+        "postcard": "tram",
+        "poster": "fox",
+        "stickers": "onigiri"
+       },
+       "pattern": "dots",
+       "emoji": "\ud83c\udf5c"
+      }
+     },
+     "cover_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cover Url"
      }
     },
     "type": "object",
@@ -10385,6 +10860,33 @@
      "currency": {
       "type": "string",
       "title": "Currency"
+     },
+     "appearance": {
+      "$ref": "#/components/schemas/TripAppearance",
+      "default": {
+       "style": "pixel",
+       "colour": "harbour",
+       "scene": "city",
+       "buddies": {
+        "pixel": "robot",
+        "postcard": "tram",
+        "poster": "fox",
+        "stickers": "onigiri"
+       },
+       "pattern": "dots",
+       "emoji": "\ud83c\udf5c"
+      }
+     },
+     "cover_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cover Url"
      },
      "plan_count": {
       "type": "integer",
@@ -10599,6 +11101,17 @@
        }
       ],
       "title": "Avatar Url"
+     },
+     "avatar_buddy": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Buddy"
      }
     },
     "type": "object",
@@ -10633,6 +11146,17 @@
        }
       ],
       "title": "Avatar Url"
+     },
+     "avatar_buddy": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Buddy"
      },
      "pending_email": {
       "anyOf": [
@@ -10696,6 +11220,31 @@
        }
       ],
       "title": "Password"
+     },
+     "avatar_buddy": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "fox",
+         "whale",
+         "owl",
+         "bear",
+         "penguin",
+         "capybara",
+         "suitcase",
+         "onigiri",
+         "coffee",
+         "sun",
+         "cloud",
+         "camera"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Buddy"
      },
      "current_password": {
       "anyOf": [

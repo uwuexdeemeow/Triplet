@@ -32,6 +32,12 @@ class User(Base):
         nullable=True
     )
 
+    # A buddy drawing shown instead of initials when there's no photo (see appearance.py)
+    avatar_buddy: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True
+    )
+
     # When the email was confirmed; accounts are only created once it is (see verification.py)
     email_verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
@@ -111,6 +117,21 @@ class Trip(Base):
         nullable=False,
         default="USD",
         server_default="USD"
+    )
+
+    # How the trip looks: {"style", "colour", "scene", "buddies", "pattern", "emoji"}. Anything
+    # missing takes its default (schemas.TripAppearance), so trips made before this show the default.
+    appearance: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default="{}"
+    )
+
+    # Signed address of the cover photo for the "photo" style (see avatars.py)
+    cover_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -1186,6 +1207,31 @@ class UserAvatar(Base):
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    content_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False
+    )
+
+    data: Mapped[bytes] = mapped_column(
+        LargeBinary,
+        nullable=False
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+# Trip cover photos, like profile photos, live in their own table
+class TripCover(Base):
+    __tablename__ = "trip_covers"
+
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"),
         primary_key=True
     )
 

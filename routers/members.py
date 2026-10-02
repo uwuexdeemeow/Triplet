@@ -59,7 +59,7 @@ def get_members(
     )
 
     return [
-        MemberResponse(user_id=user.id, name=user.name, email=user.email, role=member.role, avatar_url=user.avatar_url)
+        MemberResponse(user_id=user.id, name=user.name, email=user.email, role=member.role, avatar_url=user.avatar_url, avatar_buddy=user.avatar_buddy)
         for member, user in rows
     ]
 
@@ -86,7 +86,7 @@ def update_member_role(
     db.commit()
 
     user = db.query(User).filter(User.id == user_id).first()
-    return MemberResponse(user_id=user.id, name=user.name, email=user.email, role=target.role, avatar_url=user.avatar_url)
+    return MemberResponse(user_id=user.id, name=user.name, email=user.email, role=target.role, avatar_url=user.avatar_url, avatar_buddy=user.avatar_buddy)
 
 @router.delete("/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_member(
