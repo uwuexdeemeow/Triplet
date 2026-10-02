@@ -13,10 +13,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api } from "@/api/client";
 import { tripKeys, useMe, type User } from "@/api/trips";
+import { Buddy } from "@/appearance/buddy";
+import { AVATAR_BUDDIES, mix } from "@/appearance/looks";
 import { useSession } from "@/auth/session";
 import { nameSchema } from "@/auth/validation";
 import { AccountSettings, DeleteAccount } from "@/components/account-settings";
-import { Avatar } from "@/components/avatar";
+import { Avatar, personColour } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { FormMessage, Screen } from "@/components/screen";
 import { Heading, Muted, Title } from "@/components/text";
@@ -59,6 +61,7 @@ export default function ProfileScreen() {
               <>
                 <PhotoEditor user={me.data} />
                 <NameEditor user={me.data} />
+                <BuddyPicker user={me.data} />
               </>
             )}
           </View>
@@ -167,6 +170,7 @@ export default function ProfileScreen() {
             <>
               <PhotoEditor user={me.data} />
               <NameEditor user={me.data} />
+              <BuddyPicker user={me.data} />
             </>
           )}
         </View>
@@ -225,7 +229,13 @@ function PhotoEditor({ user }: { user: User }) {
         onPress={() => change.mutate()}
         style={({ pressed }) => pressed && styles.pressed}
       >
-        <Avatar name={user.name} url={user.avatar_url} size={72} />
+        <Avatar
+          name={user.name}
+          url={user.avatar_url}
+          buddy={user.avatar_buddy}
+          userId={user.id}
+          size={72}
+        />
         {busy ? (
           <View style={styles.photoBusy}>
             <ActivityIndicator color="#fff" />
@@ -255,6 +265,83 @@ function PhotoEditor({ user }: { user: User }) {
         ) : null}
       </View>
       <FormMessage message={(change.error ?? remove.error)?.message ?? null} />
+    </View>
+  );
+}
+
+// A buddy to show instead of your initial, on the map, in Ask and next to your name
+function BuddyPicker({ user }: { user: User }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const colour = personColour(user.id, user.name);
+
+  const save = useMutation({
+    mutationFn: (buddy: string | null) =>
+      api<User>("/users/me", {
+        method: "PATCH",
+        body: { avatar_buddy: buddy },
+      }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(tripKeys.me, next);
+      queryClient.invalidateQueries({ queryKey: tripKeys.all });
+    },
+  });
+  // Show the choice straight away, before the server answers
+  const current = save.isPending ? save.variables : user.avatar_buddy;
+
+  return (
+    <View style={styles.buddies}>
+      <View>
+        <Title>Your buddy</Title>
+        <Muted>
+          {user.avatar_url
+            ? "Shown if you remove your photo."
+            : "Shown instead of your initial, next to your name on trips."}
+        </Muted>
+      </View>
+      <View
+        accessibilityRole="radiogroup"
+        accessibilityLabel="Your buddy"
+        style={styles.buddyGrid}
+      >
+        {AVATAR_BUDDIES.map((buddy) => {
+          const selected = current === buddy.id;
+          return (
+            <Pressable
+              key={buddy.id}
+              accessibilityRole="radio"
+              accessibilityLabel={buddy.name}
+              aria-checked={selected}
+              onPress={() => save.mutate(buddy.id)}
+              style={[styles.buddy, selected && styles.buddySelected]}
+            >
+              <View
+                style={[
+                  styles.buddyFill,
+                  { backgroundColor: mix(colour, "#FFFFFF", 0.85) },
+                ]}
+              >
+                <Buddy buddy={buddy.id} accent={colour} size={40} />
+              </View>
+            </Pressable>
+          );
+        })}
+        <Pressable
+          accessibilityRole="radio"
+          accessibilityLabel="Just my initial"
+          aria-checked={!current}
+          onPress={() => save.mutate(null)}
+          style={[styles.buddy, !current && styles.buddySelected]}
+        >
+          <View style={[styles.buddyFill, { backgroundColor: colors.chip }]}>
+            <Text style={styles.buddyInitial}>
+              {user.name.trim().charAt(0).toUpperCase() || "?"}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
+      <FormMessage message={save.error?.message ?? null} />
     </View>
   );
 }
@@ -522,6 +609,42 @@ const useStyles = makeStyles((colors) => ({
   photo: {
     gap: spacing.sm,
     marginBottom: spacing.md,
+  },
+  buddies: {
+    gap: spacing.md,
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  buddyGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  // A ring shows the one you picked
+  buddy: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    padding: 3,
+    borderWidth: 2.5,
+    borderColor: "transparent",
+  },
+  buddySelected: {
+    borderColor: colors.ink,
+  },
+  buddyFill: {
+    flex: 1,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  buddyInitial: {
+    fontFamily: fonts.semibold,
+    fontSize: 18,
+    color: colors.muted,
   },
   photoBusy: {
     position: "absolute",

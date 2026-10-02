@@ -20,6 +20,7 @@ const maps: typeof Maps = usesMapLibre
 export const { MiniMap, PickerMap, TripMap } = maps;
 export type {
   Coordinates,
+  MapPerson,
   MapPlace,
   PickerMapHandle,
   TripMapHandle,

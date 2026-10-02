@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useMe, useMembers, useTrip } from '@/api/trips';
+import { TripBanner } from '@/appearance/trip-banner';
 import { FormMessage } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { makeStyles, useTheme } from '@/theme/theme';
@@ -35,6 +36,18 @@ export default function TripSectionsLayout() {
   const isOwner = members.data?.some((member) => member.user_id === me.data?.id && member.role === 'owner') ?? false;
   const openSettings = () => router.push({ pathname: '/trips/[tripId]/settings', params: { tripId } });
   const openAsk = () => router.push({ pathname: '/trips/[tripId]/ask', params: { tripId } });
+  const openCustomize = () => router.push({ pathname: '/trips/[tripId]/customize', params: { tripId } });
+  // The trip's banner in small, which opens its look
+  const look = (wideThumb: boolean) =>
+    trip.data ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Customize how the trip looks"
+        onPress={openCustomize}
+        style={({ pressed, hovered }) => [styles.look, wideThumb && styles.lookWide, (pressed || hovered) && styles.lookActive]}>
+        <TripBanner trip={trip.data} style={styles.lookBanner} />
+      </Pressable>
+    ) : null;
 
   const tabs = (
     <View accessibilityRole="tablist" style={wide ? styles.segments : styles.tabs}>
@@ -84,6 +97,7 @@ export default function TripSectionsLayout() {
             style={({ hovered }) => [styles.back, hovered && styles.backHover]}>
             <Feather name="chevron-left" size={20} color={colors.ink} />
           </Pressable>
+          {look(true)}
           <View style={styles.wideTitles}>
             <Text accessibilityRole="header" style={styles.wideTitle} numberOfLines={1}>
               {trip.data?.title ?? ' '}
@@ -142,6 +156,7 @@ export default function TripSectionsLayout() {
           right={
             trip.data ? (
               <View style={styles.headerButtons}>
+                {look(false)}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Ask about this trip"
@@ -300,6 +315,23 @@ const useStyles = makeStyles((colors) => ({
   headerButtons: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  look: {
+    width: touchTarget,
+    height: touchTarget,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  lookWide: {
+    width: 88,
+    height: 44,
+    borderRadius: 10,
+  },
+  lookActive: {
+    opacity: 0.85,
+  },
+  lookBanner: {
+    flex: 1,
   },
   outlineHover: {
     backgroundColor: colors.accentSoft,

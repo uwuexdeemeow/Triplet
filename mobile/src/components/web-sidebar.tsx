@@ -96,7 +96,7 @@ export function WebSidebar({ compact: always = false }: { compact?: boolean }) {
           accessibilityLabel={`${me.data.name}, settings`}
           onPress={() => router.navigate('/profile')}
           style={({ hovered }) => [styles.me, compact && styles.meCompact, hovered && styles.itemHover]}>
-          <Avatar name={me.data.name} url={me.data.avatar_url} size={36} />
+          <Avatar name={me.data.name} url={me.data.avatar_url} buddy={me.data.avatar_buddy} userId={me.data.id} size={36} />
           {compact ? null : (
             <View style={styles.meText}>
               <Text style={styles.meName} numberOfLines={1}>

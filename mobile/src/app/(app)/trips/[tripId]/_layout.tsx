@@ -15,6 +15,7 @@ export default function TripLayout() {
       <Stack.Screen name="stay" options={form} />
       <Stack.Screen name="flight" options={form} />
       <Stack.Screen name="settings" options={form} />
+      <Stack.Screen name="customize" options={form} />
       <Stack.Screen name="expense" options={form} />
       <Stack.Screen name="plan-draft" options={form} />
       <Stack.Screen name="ask" options={form} />

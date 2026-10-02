@@ -236,12 +236,14 @@ function InviteForm({ tripId }: { tripId: number }) {
   );
 }
 
-function Avatar({ name, url, faded = false }: { name: string; url?: string | null; faded?: boolean }) {
+function Avatar({ name, url, buddy, userId, faded = false }: { name: string; url?: string | null; buddy?: string | null; userId?: number; faded?: boolean }) {
   const styles = useStyles();
   return (
     <PersonAvatar
       name={name}
       url={url}
+      buddy={buddy}
+      userId={userId}
       size={40}
       style={faded && styles.avatarFaded}
       textStyle={[styles.avatarText, faded && styles.avatarTextFaded]}
@@ -287,7 +289,7 @@ function MemberRow({
 
   const summary = (
     <>
-      <Avatar name={member.name} url={member.avatar_url} />
+      <Avatar name={member.name} url={member.avatar_url} buddy={member.avatar_buddy} userId={member.user_id} />
       <View style={styles.rowText}>
         <Text style={styles.rowName} numberOfLines={1}>
           {member.name}

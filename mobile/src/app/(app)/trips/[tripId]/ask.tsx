@@ -5,6 +5,10 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { api, type Schemas } from '@/api/client';
+import { useMe, useTrip } from '@/api/trips';
+import { Buddy } from '@/appearance/buddy';
+import { GUIDE_BUDDY, colourHex, tripColours } from '@/appearance/looks';
+import { Avatar } from '@/components/avatar';
 import { FormMessage } from '@/components/screen';
 import { FormScreen } from '@/components/form-layout';
 import { Muted } from '@/components/text';
@@ -30,6 +34,16 @@ export default function AskScreen() {
   const [question, setQuestion] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const scroll = useRef<ScrollView>(null);
+  const me = useMe();
+  const trip = useTrip(Number(tripId));
+  // The Owl answers, drawn in the trip's colour
+  const guideColour = colourHex(trip.data?.appearance.colour);
+  const guideFill = tripColours(trip.data?.appearance, scheme).soft;
+  const guide = (
+    <View style={[styles.guide, { backgroundColor: guideFill }]}>
+      <Buddy buddy={GUIDE_BUDDY} accent={guideColour} size={26} />
+    </View>
+  );
 
   const ask = useMutation({
     mutationFn: (text: string) => api<AskResponse>(`/trips/${tripId}/ask`, { method: 'POST', body: { question: text } }),
@@ -91,34 +105,43 @@ export default function AskScreen() {
           ) : (
             turns.map((turn, index) => (
               <View key={`${index}-${turn.question}`} style={styles.turn}>
-                <View style={styles.question}>
-                  <Text style={styles.questionText}>{turn.question}</Text>
+                <View style={styles.questionRow}>
+                  <View style={styles.question}>
+                    <Text style={styles.questionText}>{turn.question}</Text>
+                  </View>
+                  {me.data ? (
+                    <Avatar name={me.data.name} url={me.data.avatar_url} buddy={me.data.avatar_buddy} userId={me.data.id} size={30} />
+                  ) : null}
                 </View>
                 {turn.answer ? (
-                  <View style={styles.answer} accessibilityLiveRegion="polite">
-                    <Text selectable style={styles.answerText}>
-                      {turn.answer.answer}
-                    </Text>
-                    {turn.answer.mentions.length > 0 ? (
-                      <View style={styles.mentions}>
-                        {turn.answer.mentions.map((mention) => (
-                          <Pressable
-                            key={`${mention.kind}-${mention.id}`}
-                            accessibilityRole="link"
-                            accessibilityHint={mention.kind === 'place' ? 'Opens the saved place' : 'Opens the plan'}
-                            onPress={() => open(mention)}
-                            style={({ pressed, hovered }) => [styles.mention, (pressed || hovered) && styles.exampleActive]}>
-                            <Feather name={mention.kind === 'place' ? 'map-pin' : 'calendar'} size={13} color={colors.accent} />
-                            <Text style={styles.mentionText}>{mention.name}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    ) : null}
+                  <View style={styles.answerRow}>
+                    {guide}
+                    <View style={styles.answer} accessibilityLiveRegion="polite">
+                      <Text selectable style={styles.answerText}>
+                        {turn.answer.answer}
+                      </Text>
+                      {turn.answer.mentions.length > 0 ? (
+                        <View style={styles.mentions}>
+                          {turn.answer.mentions.map((mention) => (
+                            <Pressable
+                              key={`${mention.kind}-${mention.id}`}
+                              accessibilityRole="link"
+                              accessibilityHint={mention.kind === 'place' ? 'Opens the saved place' : 'Opens the plan'}
+                              onPress={() => open(mention)}
+                              style={({ pressed, hovered }) => [styles.mention, (pressed || hovered) && styles.exampleActive]}>
+                              <Feather name={mention.kind === 'place' ? 'map-pin' : 'calendar'} size={13} color={colors.accent} />
+                              <Text style={styles.mentionText}>{mention.name}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                 ) : turn.error ? (
                   <FormMessage message={turn.error} />
                 ) : (
                   <View style={styles.thinking}>
+                    {guide}
                     <ActivityIndicator color={colors.accent} />
                     <Muted>Looking through your saves…</Muted>
                   </View>
@@ -193,9 +216,15 @@ const useStyles = makeStyles((colors) => ({
   turn: {
     gap: spacing.sm,
   },
-  question: {
+  questionRow: {
     alignSelf: 'flex-end',
-    maxWidth: '85%',
+    maxWidth: '90%',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+  },
+  question: {
+    flexShrink: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 16,
@@ -207,7 +236,21 @@ const useStyles = makeStyles((colors) => ({
     fontSize: 15,
     color: colors.onAccent,
   },
+  answerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+  },
+  // The Owl, who answers
+  guide: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   answer: {
+    flex: 1,
     gap: spacing.md,
     padding: 14,
     borderRadius: 16,

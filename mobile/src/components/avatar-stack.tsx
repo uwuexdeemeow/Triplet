@@ -5,7 +5,7 @@ import { makeStyles } from '@/theme/theme';
 import { fonts } from '@/theme/tokens';
 
 type AvatarStackProps = {
-  people: { user_id: number; name: string; avatar_url?: string | null }[];
+  people: { user_id: number; name: string; avatar_url?: string | null; avatar_buddy?: string | null }[];
   // Everyone on the trip, so "+2" can cover the ones not shown
   total: number;
   size?: number;
@@ -28,6 +28,8 @@ export function AvatarStack({ people, total, size = 28 }: AvatarStackProps) {
           key={person.user_id}
           name={person.name}
           url={person.avatar_url}
+          buddy={person.avatar_buddy}
+          userId={person.user_id}
           size={size}
           style={[styles.ring, index > 0 && { marginLeft: -size * 0.3 }]}
         />

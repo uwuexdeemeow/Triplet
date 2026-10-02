@@ -3,6 +3,7 @@ import { Camera, GeoJSONSource, Layer, Map, ViewAnnotation, type CameraRef, type
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '@/components/avatar';
 import type { Coordinates, MapPlace, PickerMapHandle, TripMapHandle, TripMapProps } from '@/components/place-map.google';
 import { makeStyles, shadow } from '@/theme/theme';
 import { fonts, palettes } from '@/theme/tokens';
@@ -187,7 +188,11 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
             pinTappedAt.current = Date.now();
             onSelect(place.id);
           }}>
-          <Pin color={color(place)} selected={place.id === selectedId} label={place.label} />
+          {place.person && !place.label ? (
+            <PersonPin person={place.person} selected={place.id === selectedId} />
+          ) : (
+            <Pin color={color(place)} selected={place.id === selectedId} label={place.label} />
+          )}
         </ViewAnnotation>
       ))}
       {droppedPin ? (
@@ -252,3 +257,18 @@ const useStyles = makeStyles((colors) => ({
     backgroundColor: shadow(colors, 0.25),
   },
 }));
+
+/** A saved place, marked with the photo or buddy of whoever saved it. */
+function PersonPin({ person, selected }: { person: { userId: number; name: string; url?: string | null; buddy?: string | null }; selected: boolean }) {
+  const size = selected ? 42 : 34;
+  return (
+    <Avatar
+      name={person.name}
+      url={person.url}
+      buddy={person.buddy}
+      userId={person.userId}
+      size={size}
+      style={{ borderWidth: 3, borderColor: selected ? '#16181D' : '#FFFFFF', boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)' }}
+    />
+  );
+}

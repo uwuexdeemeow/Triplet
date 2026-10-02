@@ -4,6 +4,10 @@ import { Feather } from '@expo/vector-icons';
 import type { GeoJSONSource, Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 import { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { resolveApiUrl } from '@/api/client';
+import { buddyXml } from '@/appearance/buddy';
+import { mix } from '@/appearance/looks';
+import { personColour } from '@/components/avatar';
 import { makeStyles, shadow } from '@/theme/theme';
 import { palettes } from '@/theme/tokens';
 import { areaKey } from '@/utils/map-area';
@@ -23,6 +27,45 @@ type MapLibre = typeof import('maplibre-gl');
 export type Coordinates = { latitude: number; longitude: number };
 
 const fill: CSSProperties = { position: 'absolute', inset: 0 };
+
+/** A saved place, marked with the photo or buddy of whoever saved it, or their initial. */
+function personPin(person: MapPerson, selected: boolean): HTMLDivElement {
+  const size = selected ? 42 : 34;
+  const colour = personColour(person.userId, person.name);
+  const element = document.createElement('div');
+  Object.assign(element.style, {
+    width: `${size}px`,
+    height: `${size}px`,
+    borderRadius: '50%',
+    overflow: 'hidden',
+    boxSizing: 'border-box',
+    border: `3px solid ${selected ? '#16181D' : '#fff'}`,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+    background: mix(colour, '#FFFFFF', 0.85),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: colour,
+    font: '600 14px system-ui, sans-serif',
+  });
+  const photo = resolveApiUrl(person.url);
+  const drawing = person.buddy ? buddyXml(person.buddy, colour) : null;
+  if (photo) {
+    const image = document.createElement('img');
+    image.src = photo;
+    image.alt = '';
+    Object.assign(image.style, { width: '100%', height: '100%', objectFit: 'cover' });
+    element.appendChild(image);
+  } else if (drawing) {
+    // Our own drawings, never anything typed or uploaded
+    element.innerHTML = drawing;
+    const svg = element.firstElementChild as SVGElement | null;
+    if (svg) Object.assign(svg.style, { width: '92%', height: '92%' });
+  } else {
+    element.textContent = person.name.trim().charAt(0).toUpperCase() || '?';
+  }
+  return element;
+}
 
 /** A round badge with a stop number, for a day's route. */
 function numberedPin(label: string, color: string, selected: boolean): HTMLDivElement {
@@ -170,7 +213,11 @@ export type MapPlace = Coordinates & {
   planned: boolean;
   // A stop number drawn on the pin, for a day's route
   label?: string;
+  // Who saved it, for a saved place: their photo or buddy marks it
+  person?: MapPerson;
 };
+
+export type MapPerson = { userId: number; name: string; url?: string | null; buddy?: string | null };
 
 export type TripMapProps = {
   places: MapPlace[];
@@ -258,7 +305,12 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     const markers = places.map((place) => {
       const selected = place.id === selectedId;
       const color = selected ? colors.ink : place.planned ? colors.accent : colors.second;
-      const marker = new lib.Marker(place.label ? { element: numberedPin(place.label, color, selected) } : { color })
+      const custom = place.label
+        ? numberedPin(place.label, color, selected)
+        : place.person
+          ? personPin(place.person, selected)
+          : null;
+      const marker = new lib.Marker(custom ? { element: custom } : { color })
         .setLngLat([place.longitude, place.latitude])
         .addTo(map);
       const element = marker.getElement();

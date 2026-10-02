@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polyline, type LongPressEvent, type MapPressEvent, type Region } from 'react-native-maps';
+import { Avatar } from '@/components/avatar';
 import { makeStyles, shadow } from '@/theme/theme';
 import { fonts, palettes } from '@/theme/tokens';
 import { areaKey } from '@/utils/map-area';
@@ -91,7 +92,11 @@ export type MapPlace = Coordinates & {
   planned: boolean;
   // A stop number drawn on the pin, for a day's route
   label?: string;
+  // Who saved it, for a saved place: their photo or buddy marks it
+  person?: MapPerson;
 };
+
+export type MapPerson = { userId: number; name: string; url?: string | null; buddy?: string | null };
 
 export type TripMapProps = {
   places: MapPlace[];
@@ -191,15 +196,17 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
             key={`${place.id}-${selected ? 'selected' : place.planned ? 'planned' : 'saved'}-${place.label ?? ''}`}
             coordinate={{ latitude: place.latitude, longitude: place.longitude }}
             title={place.name}
-            // A numbered stop is a round badge; other pins keep the default pin
-            pinColor={place.label ? undefined : color}
-            anchor={place.label ? { x: 0.5, y: 0.5 } : undefined}
+            // A numbered stop is a round badge, a saved place its saver's avatar; other pins keep the default pin
+            pinColor={place.label || place.person ? undefined : color}
+            anchor={place.label || place.person ? { x: 0.5, y: 0.5 } : undefined}
             zIndex={selected ? 1 : 0}
             onPress={() => onSelect(place.id)}>
             {place.label ? (
               <View style={[styles.badge, { backgroundColor: color }]}>
                 <Text style={styles.badgeText}>{place.label}</Text>
               </View>
+            ) : place.person ? (
+              <PersonPin person={place.person} selected={selected} />
             ) : null}
           </Marker>
         );
@@ -254,3 +261,18 @@ const useStyles = makeStyles((colors) => ({
     backgroundColor: shadow(colors, 0.25),
   },
 }));
+
+/** A saved place, marked with the photo or buddy of whoever saved it. */
+function PersonPin({ person, selected }: { person: { userId: number; name: string; url?: string | null; buddy?: string | null }; selected: boolean }) {
+  const size = selected ? 42 : 34;
+  return (
+    <Avatar
+      name={person.name}
+      url={person.url}
+      buddy={person.buddy}
+      userId={person.userId}
+      size={size}
+      style={{ borderWidth: 3, borderColor: selected ? '#16181D' : '#FFFFFF', boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)' }}
+    />
+  );
+}

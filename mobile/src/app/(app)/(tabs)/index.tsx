@@ -12,6 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useItinerary, useMe, useTrips, type TripSummary } from "@/api/trips";
+import { CustomizeButton } from "@/appearance/customize-button";
+import { COUNT_FONTS, tripColours } from "@/appearance/looks";
+import { TripBanner } from "@/appearance/trip-banner";
 import { AvatarStack } from "@/components/avatar-stack";
 import { Button } from "@/components/button";
 import { Enter } from "@/components/enter";
@@ -54,6 +57,24 @@ function tripStats(trip: TripSummary): string {
     trip.spent ? `${formatMoney(trip.spent, trip.currency)} spent` : null,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "Nothing added yet";
+}
+
+// The trip's colour on its own card, and its countdown in the type of its style
+function useTripTint(trip: TripSummary) {
+  const { scheme } = useTheme();
+  const tint = tripColours(trip.appearance, scheme);
+  const font = COUNT_FONTS[trip.appearance.style];
+  const number = (size: number) =>
+    font
+      ? {
+          fontFamily: font.family,
+          fontSize: size * font.scale,
+          lineHeight: size * Math.max(1, font.scale) * 1.1,
+          letterSpacing: 0,
+          color: tint.text,
+        }
+      : { color: tint.text };
+  return { tint, number };
 }
 
 function openTrip(trip: TripSummary) {
@@ -212,70 +233,80 @@ function FeaturedTrip({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const { tint, number } = useTripTint(trip);
 
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={`${trip.title}, ${trip.destination}`}
-      onPress={() => openTrip(trip)}
-      scaleTo={0.98}
-      style={styles.featured}
-    >
-      <View style={styles.featuredTop}>
-        <View style={styles.pill}>
-          <View
-            style={[
-              styles.pillDot,
-              phase.phase === "now" && styles.pillDotLive,
-            ]}
-          />
-          <Text style={styles.pillText}>
-            {phase.phase === "now" ? "Happening now" : "Next trip"}
-          </Text>
+    <View>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={`${trip.title}, ${trip.destination}`}
+        onPress={() => openTrip(trip)}
+        scaleTo={0.98}
+        style={styles.featured}
+      >
+        <TripBanner trip={trip} style={styles.featuredBanner} />
+        <View style={styles.featuredTop}>
+          <View style={[styles.pill, { backgroundColor: tint.soft }]}>
+            <View
+              style={[
+                styles.pillDot,
+                { backgroundColor: tint.text },
+                phase.phase === "now" && styles.pillDotLive,
+              ]}
+            />
+            <Text style={[styles.pillText, { color: tint.softText }]}>
+              {phase.phase === "now" ? "Happening now" : "Next trip"}
+            </Text>
+          </View>
+          <Feather name="arrow-up-right" size={20} color={colors.muted} />
         </View>
-        <Feather name="arrow-up-right" size={20} color={colors.muted} />
-      </View>
 
-      <View style={styles.featuredTitleBlock}>
-        <Text style={styles.featuredTitle} numberOfLines={2}>
-          {trip.title}
-        </Text>
-        <View style={styles.place}>
-          <Feather name="map-pin" size={14} color={colors.muted} />
-          <Text style={styles.placeText} numberOfLines={1}>
-            {trip.destination}
+        <View style={styles.featuredTitleBlock}>
+          <Text style={styles.featuredTitle} numberOfLines={2}>
+            {trip.title}
           </Text>
+          <View style={styles.place}>
+            <Feather name="map-pin" size={14} color={colors.muted} />
+            <Text style={styles.placeText} numberOfLines={1}>
+              {trip.destination}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.countdown}>
-        {phase.phase === "now" ? (
-          <>
-            <Text style={styles.bigNumber}>Day {phase.day}</Text>
-            <Text style={styles.bigLabel}>of {phase.length}</Text>
-          </>
-        ) : phase.phase === "upcoming" && phase.daysToGo === 1 ? (
-          <Text style={styles.bigNumber}>Tomorrow</Text>
-        ) : phase.phase === "upcoming" ? (
-          <>
-            <Text style={styles.bigNumber}>{phase.daysToGo}</Text>
-            <Text style={styles.bigLabel}>days to go</Text>
-          </>
-        ) : null}
-      </View>
-      <Text style={styles.dates}>
-        {formatDateRange(trip.start_date!, trip.end_date!)}
-      </Text>
-
-      {phase.phase === "now" ? <TodayPlans tripId={trip.id} /> : null}
-
-      <View style={styles.featuredFooter}>
-        <Text style={styles.stats} numberOfLines={2}>
-          {tripStats(trip)}
+        <View style={styles.countdown}>
+          {phase.phase === "now" ? (
+            <>
+              <Text style={[styles.bigNumber, number(44)]}>
+                Day {phase.day}
+              </Text>
+              <Text style={styles.bigLabel}>of {phase.length}</Text>
+            </>
+          ) : phase.phase === "upcoming" && phase.daysToGo === 1 ? (
+            <Text style={[styles.bigNumber, number(44)]}>Tomorrow</Text>
+          ) : phase.phase === "upcoming" ? (
+            <>
+              <Text style={[styles.bigNumber, number(44)]}>
+                {phase.daysToGo}
+              </Text>
+              <Text style={styles.bigLabel}>days to go</Text>
+            </>
+          ) : null}
+        </View>
+        <Text style={styles.dates}>
+          {formatDateRange(trip.start_date!, trip.end_date!)}
         </Text>
-        <AvatarStack people={trip.members} total={trip.member_count} />
-      </View>
-    </PressableScale>
+
+        {phase.phase === "now" ? <TodayPlans tripId={trip.id} /> : null}
+
+        <View style={styles.featuredFooter}>
+          <Text style={styles.stats} numberOfLines={2}>
+            {tripStats(trip)}
+          </Text>
+          <AvatarStack people={trip.members} total={trip.member_count} />
+        </View>
+      </PressableScale>
+      <CustomizeButton tripId={trip.id} title={trip.title} />
+    </View>
   );
 }
 
@@ -289,21 +320,29 @@ function FeaturedTripWide({
 }) {
   const styles = useStyles();
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={`${trip.title}, ${trip.destination}`}
-      onPress={() => openTrip(trip)}
-      scaleTo={0.99}
-      style={[styles.featured, styles.featuredWide]}
-    >
-      <View style={styles.featuredMain}>
-        <FeaturedDetails trip={trip} phase={phase} />
-      </View>
-      <DayPreview
-        trip={trip}
-        day={phase.phase === "now" ? todayString() : trip.start_date!}
+    <View>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={`${trip.title}, ${trip.destination}`}
+        onPress={() => openTrip(trip)}
+        scaleTo={0.99}
+        style={[styles.featured, styles.featuredWide]}
+      >
+        <TripBanner trip={trip} style={styles.featuredSide} />
+        <View style={styles.featuredMain}>
+          <FeaturedDetails trip={trip} phase={phase} />
+        </View>
+        <DayPreview
+          trip={trip}
+          day={phase.phase === "now" ? todayString() : trip.start_date!}
+        />
+      </PressableScale>
+      <CustomizeButton
+        tripId={trip.id}
+        title={trip.title}
+        style={styles.customizeSide}
       />
-    </PressableScale>
+    </View>
   );
 }
 
@@ -317,17 +356,19 @@ function FeaturedDetails({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const { tint, number } = useTripTint(trip);
   return (
     <>
       <View style={styles.featuredTop}>
-        <View style={styles.pill}>
+        <View style={[styles.pill, { backgroundColor: tint.soft }]}>
           <View
             style={[
               styles.pillDot,
+              { backgroundColor: tint.text },
               phase.phase === "now" && styles.pillDotLive,
             ]}
           />
-          <Text style={styles.pillText}>
+          <Text style={[styles.pillText, { color: tint.softText }]}>
             {phase.phase === "now" ? "Happening now" : "Next trip"}
           </Text>
         </View>
@@ -351,16 +392,18 @@ function FeaturedDetails({
       <View style={styles.countdown}>
         {phase.phase === "now" ? (
           <>
-            <Text style={[styles.bigNumber, styles.bigNumberWide]}>
+            <Text style={[styles.bigNumber, styles.bigNumberWide, number(60)]}>
               Day {phase.day}
             </Text>
             <Text style={styles.bigLabel}>of {phase.length}</Text>
           </>
         ) : phase.phase === "upcoming" && phase.daysToGo === 1 ? (
-          <Text style={[styles.bigNumber, styles.bigNumberWide]}>Tomorrow</Text>
+          <Text style={[styles.bigNumber, styles.bigNumberWide, number(60)]}>
+            Tomorrow
+          </Text>
         ) : phase.phase === "upcoming" ? (
           <>
-            <Text style={[styles.bigNumber, styles.bigNumberWide]}>
+            <Text style={[styles.bigNumber, styles.bigNumberWide, number(60)]}>
               {phase.daysToGo}
             </Text>
             <Text style={styles.bigLabel}>days to go</Text>
@@ -385,10 +428,11 @@ function DayPreview({ trip, day }: { trip: TripSummary; day: string }) {
   const plans = itinerary.data?.days.find((item) => item.date === day);
   const activities = plans?.activities ?? [];
   const isToday = day === todayString();
+  const { tint } = useTripTint(trip);
 
   return (
-    <View style={styles.preview}>
-      <Text style={styles.previewTitle}>
+    <View style={[styles.preview, { backgroundColor: tint.soft }]}>
+      <Text style={[styles.previewTitle, { color: tint.softText }]}>
         {isToday ? "Today" : "First day"} · {formatShortDate(day)}
       </Text>
       {plans?.weather ? <WeatherLine weather={plans.weather} /> : null}
@@ -514,38 +558,44 @@ function TripRow({ trip, phase }: { trip: TripSummary; phase: TripPhase }) {
       : formatDateRange(trip.start_date!, trip.end_date!);
 
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={`${trip.title}, ${trip.destination}`}
-      onPress={() => openTrip(trip)}
-      scaleTo={0.98}
-      style={[styles.row, done && styles.rowPast]}
-    >
-      <View style={[styles.tile, done && styles.tilePast]}>
-        <Text style={[styles.tileMonth, done && styles.tileTextPast]}>
-          {monthShort(trip.start_date!)}
-        </Text>
-        <Text style={[styles.tileDay, done && styles.tileTextPast]}>
-          {dayOfMonth(trip.start_date!)}
-        </Text>
-      </View>
-      <View style={styles.rowText}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {trip.title}
-        </Text>
-        <Text style={styles.rowMeta} numberOfLines={1}>
-          {trip.destination} · {when}
-        </Text>
-        <Text style={styles.rowStats} numberOfLines={1}>
-          {tripStats(trip)}
-        </Text>
-      </View>
-      <AvatarStack
-        people={trip.members.slice(0, 3)}
-        total={trip.member_count}
-        size={24}
-      />
-    </PressableScale>
+    <View>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={`${trip.title}, ${trip.destination}`}
+        onPress={() => openTrip(trip)}
+        scaleTo={0.98}
+        style={[styles.card, done && styles.rowPast]}
+      >
+        <TripBanner trip={trip} style={styles.cardBanner} />
+        <View style={styles.row}>
+          <View style={[styles.tile, done && styles.tilePast]}>
+            <Text style={[styles.tileMonth, done && styles.tileTextPast]}>
+              {monthShort(trip.start_date!)}
+            </Text>
+            <Text style={[styles.tileDay, done && styles.tileTextPast]}>
+              {dayOfMonth(trip.start_date!)}
+            </Text>
+          </View>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle} numberOfLines={1}>
+              {trip.title}
+            </Text>
+            <Text style={styles.rowMeta} numberOfLines={1}>
+              {trip.destination} · {when}
+            </Text>
+            <Text style={styles.rowStats} numberOfLines={1}>
+              {tripStats(trip)}
+            </Text>
+          </View>
+          <AvatarStack
+            people={trip.members.slice(0, 3)}
+            total={trip.member_count}
+            size={24}
+          />
+        </View>
+      </PressableScale>
+      {done ? null : <CustomizeButton tripId={trip.id} title={trip.title} />}
+    </View>
   );
 }
 
@@ -615,6 +665,16 @@ const useStyles = makeStyles((colors) => ({
     padding: 0,
     gap: 0,
     overflow: "hidden",
+  },
+  // The trip's banner down the card's left
+  featuredSide: {
+    width: "32%",
+    minHeight: 300,
+  },
+  // Over the banner's corner: beside the card's button rather than in it, as buttons can't nest
+  customizeSide: {
+    right: "auto",
+    left: 10,
   },
   featuredMain: {
     flex: 1.3,
@@ -721,6 +781,15 @@ const useStyles = makeStyles((colors) => ({
     borderRadius: 20,
     backgroundColor: colors.surface,
     boxShadow: colors.cardShadow,
+  },
+  // Edge to edge across the top of the card
+  featuredBanner: {
+    height: 150,
+    marginTop: -20,
+    marginHorizontal: -20,
+    marginBottom: spacing.xs,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   featuredTop: {
     flexDirection: "row",
@@ -845,15 +914,22 @@ const useStyles = makeStyles((colors) => ({
     color: colors.ink,
   },
 
-  // Other trips
+  // Other trips: the banner, then the basics
+  card: {
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    boxShadow: colors.cardShadow,
+  },
+  cardBanner: {
+    height: 96,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     padding: spacing.md,
-    borderRadius: radii.card,
-    backgroundColor: colors.surface,
-    boxShadow: colors.cardShadow,
   },
   rowPast: {
     opacity: 0.72,

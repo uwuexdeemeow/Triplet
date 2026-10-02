@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
 import { api } from '@/api/client';
-import type { User } from '@/api/trips';
+import type { Trip, User } from '@/api/trips';
 
 const SIZE = 512;
 
@@ -33,4 +33,32 @@ export async function pickAndUploadProfilePhoto(): Promise<User | null> {
   }
 
   return api<User>('/users/me/avatar', { method: 'PUT', body: form });
+}
+
+const COVER_WIDTH = 1200;
+
+/**
+ * Let the user pick a wide photo for a trip's banner, shrink it and upload it.
+ * Returns the updated trip, or null if they cancelled.
+ */
+export async function pickAndUploadTripCover(tripId: number): Promise<Trip | null> {
+  const picked = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [16, 9],
+    quality: 1,
+  });
+  if (picked.canceled || !picked.assets[0]) return null;
+
+  const rendered = await ImageManipulator.manipulate(picked.assets[0].uri).resize({ width: COVER_WIDTH, height: null }).renderAsync();
+  const photo = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.72 });
+
+  const form = new FormData();
+  if (Platform.OS === 'web') {
+    form.append('file', await (await fetch(photo.uri)).blob(), 'cover.jpg');
+  } else {
+    form.append('file', { uri: photo.uri, name: 'cover.jpg', type: 'image/jpeg' } as unknown as Blob);
+  }
+
+  return api<Trip>(`/trips/${tripId}/cover`, { method: 'PUT', body: form });
 }

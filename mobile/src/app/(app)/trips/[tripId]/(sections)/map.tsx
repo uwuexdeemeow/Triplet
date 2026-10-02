@@ -9,6 +9,7 @@ import { api, type Schemas } from '@/api/client';
 import {
   useItinerary,
   useMe,
+  useLinks,
   useMembers,
   usePlaces,
   useStays,
@@ -73,6 +74,7 @@ export default function TripMapScreen() {
   const stays = useStays(id);
   const me = useMe();
   const members = useMembers(id);
+  const links = useLinks(id);
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dropped, setDropped] = useState<Dropped | null>(null);
@@ -100,6 +102,15 @@ export default function TripMapScreen() {
   );
   const pinnedActivityIds = new Set(activityItems.map((item) => (item.kind === 'activity' ? item.activity.id : 0)));
 
+  // Who saved each post, so a saved place shows their avatar
+  const savers = new Map((links.data ?? []).map((link) => [link.id, link.added_by_id]));
+  const saverOf = (place: TripPlace) => {
+    const member = members.data?.find((item) => item.user_id === savers.get(place.link_id));
+    return member
+      ? { userId: member.user_id, name: member.name, url: member.avatar_url, buddy: member.avatar_buddy }
+      : undefined;
+  };
+
   // Saved places, unless one of their plans is already on the map
   const placeItems: MapItem[] = (places.data ?? [])
     .filter(hasPin)
@@ -111,6 +122,7 @@ export default function TripMapScreen() {
       latitude: place.latitude,
       longitude: place.longitude,
       planned: isPlanned(place),
+      person: isPlanned(place) ? undefined : saverOf(place),
       place,
     }));
 
