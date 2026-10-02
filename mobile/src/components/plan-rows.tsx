@@ -513,6 +513,8 @@ export function ActivityRow({
 const useStyles = makeStyles((colors) => ({
   daysScroller: {
     flexGrow: 0,
+    // On the website a scroll view shrinks by default, so a long day below squashed the chips
+    flexShrink: 0,
   },
   days: {
     paddingTop: spacing.xs,
