@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
 import { tripKeys, useItinerary, useTrip, type ItineraryActivity, type Trip } from '@/api/trips';
@@ -237,7 +237,8 @@ function ActivityForm({
           render={({ field }) => (
             <View style={styles.dayField}>
               <Text style={styles.label}>Day</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
+              {/* Wrapped onto rows rather than scrolled sideways, which cut days off at a phone's edge */}
+              <View style={styles.days}>
                 {days.map((date) => {
                   const selected = date === field.value;
                   return (
@@ -252,7 +253,7 @@ function ActivityForm({
                     </Pressable>
                   );
                 })}
-              </ScrollView>
+              </View>
             </View>
           )}
         />
@@ -326,6 +327,8 @@ const useStyles = makeStyles((colors) => ({
     color: colors.ink,
   },
   days: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   dayChip: {

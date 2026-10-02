@@ -303,6 +303,11 @@ export default function PlanScreen() {
           <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.accent} />
         }>
         {dayPlans}
+        {/* Every hotel and flight, so they can be added and changed from any day, as on a big screen */}
+        <View style={styles.tripLists}>
+          <StaysList tripId={id} canEdit={canEdit} onOpen={openStay} />
+          <FlightsList tripId={id} canEdit={canEdit} onOpen={(flightId) => openFlight(flightId)} />
+        </View>
       </ScrollView>
 
       <Fab label="Add activity" bottom={32} onPress={openAdd} />
@@ -310,7 +315,7 @@ export default function PlanScreen() {
   );
 }
 
-// Under the days on a big screen: every hotel the trip stays at, in order
+// Under the days on a big screen, and under the day's plans on a phone: every hotel the trip stays at, in order
 function StaysList({
   tripId,
   canEdit,
@@ -354,7 +359,7 @@ function StaysList({
   );
 }
 
-// Under the stays on a big screen: every flight, in order
+// Under the stays: every flight, in order
 function FlightsList({
   tripId,
   canEdit,
@@ -548,6 +553,14 @@ const useStyles = makeStyles((colors) => ({
     fontFamily: fonts.semibold,
     fontSize: 14,
     color: colors.accent,
+  },
+  // Phones: the trip's hotels and flights, under the day
+  tripLists: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.md,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
   },
   list: {
     paddingHorizontal: 20,
